@@ -9,31 +9,26 @@
 // CREDITS
 //   Written by Michal Cichon
 //------------------------------------------------------------------------------
-# include "imgui_node_editor_internal.h"
-# include <algorithm>
+#include <algorithm>
 
+#include "blueprints/imgui_node_editor_internal.h"
 #include "nodes/core/id.hpp"
-
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 //------------------------------------------------------------------------------
 static ax::NodeEditor::Detail::EditorContext* s_Editor = nullptr;
 
-
 //------------------------------------------------------------------------------
 template<typename C, typename I, typename F>
 static int BuildIdList(C& container, I* list, int listSize, F&& accept)
 {
-    if (list != nullptr)
-    {
+    if (list != nullptr) {
         int count = 0;
-        for (auto object : container)
-        {
+        for (auto object : container) {
             if (listSize <= 0)
                 break;
 
-            if (accept(object))
-            {
+            if (accept(object)) {
                 list[count] = I(object->ID().AsPointer());
                 ++count;
                 --listSize;
@@ -43,26 +38,24 @@ static int BuildIdList(C& container, I* list, int listSize, F&& accept)
         return count;
     }
     else
-        return static_cast<int>(std::count_if(
-            container.begin(),
-            container.end(),
-            accept));
+        return static_cast<int>(
+            std::count_if(container.begin(), container.end(), accept));
 }
-
 
 //------------------------------------------------------------------------------
 ax::NodeEditor::EditorContext* ax::NodeEditor::CreateEditor(
     const Config* config)
 {
-    return reinterpret_cast<ax::NodeEditor::EditorContext*>(new
-        ax::NodeEditor::Detail::EditorContext(config));
+    return reinterpret_cast<ax::NodeEditor::EditorContext*>(
+        new ax::NodeEditor::Detail::EditorContext(config));
 }
 
 void ax::NodeEditor::DestroyEditor(EditorContext* ctx)
 {
     auto lastContext = GetCurrentEditor();
 
-    // Set context we're about to destroy as current, to give callback valid context
+    // Set context we're about to destroy as current, to give callback valid
+    // context
     if (lastContext != ctx)
         SetCurrentEditor(ctx);
 
@@ -79,15 +72,13 @@ const ax::NodeEditor::Config& ax::NodeEditor::GetConfig(EditorContext* ctx)
     if (ctx == nullptr)
         ctx = GetCurrentEditor();
 
-    if (ctx)
-    {
-        auto editor = reinterpret_cast<ax::NodeEditor::Detail::EditorContext*>(
-            ctx);
+    if (ctx) {
+        auto editor =
+            reinterpret_cast<ax::NodeEditor::Detail::EditorContext*>(ctx);
 
         return editor->GetConfig();
     }
-    else
-    {
+    else {
         static Config s_EmptyConfig;
         return s_EmptyConfig;
     }
@@ -245,15 +236,11 @@ bool ax::NodeEditor::Link(
     LinkId id,
     SocketID startPinId,
     SocketID endPinId,
-    const ImVec4& color/* = ImVec4(1, 1, 1, 1)*/,
-    float thickness/* = 1.0f*/)
+    const ImVec4& color /* = ImVec4(1, 1, 1, 1)*/,
+    float thickness /* = 1.0f*/)
 {
     return s_Editor->DoLink(
-        id,
-        startPinId,
-        endPinId,
-        ImColor(color),
-        thickness);
+        id, startPinId, endPinId, ImColor(color), thickness);
 }
 
 void ax::NodeEditor::Flow(LinkId linkId, FlowDirection direction)
@@ -266,8 +253,7 @@ bool ax::NodeEditor::BeginCreate(const ImVec4& color, float thickness)
 {
     auto& context = s_Editor->GetItemCreator();
 
-    if (context.Begin())
-    {
+    if (context.Begin()) {
         context.SetStyle(ImColor(color), thickness);
         return true;
     }
@@ -492,11 +478,7 @@ int ax::NodeEditor::GetSelectedObjectCount()
 int ax::NodeEditor::GetSelectedNodes(NodeId* nodes, int size)
 {
     return BuildIdList(
-        s_Editor->GetSelectedObjects(),
-        nodes,
-        size,
-        [](auto object)
-        {
+        s_Editor->GetSelectedObjects(), nodes, size, [](auto object) {
             return object->AsNode() != nullptr;
         });
 }
@@ -504,11 +486,7 @@ int ax::NodeEditor::GetSelectedNodes(NodeId* nodes, int size)
 int ax::NodeEditor::GetSelectedLinks(LinkId* links, int size)
 {
     return BuildIdList(
-        s_Editor->GetSelectedObjects(),
-        links,
-        size,
-        [](auto object)
-        {
+        s_Editor->GetSelectedObjects(), links, size, [](auto object) {
             return object->AsLink() != nullptr;
         });
 }
@@ -536,8 +514,7 @@ void ax::NodeEditor::ClearSelection()
 
 void ax::NodeEditor::SelectNode(NodeId nodeId, bool append)
 {
-    if (auto node = s_Editor->FindNode(nodeId))
-    {
+    if (auto node = s_Editor->FindNode(nodeId)) {
         if (append)
             s_Editor->SelectObject(node);
         else
@@ -547,8 +524,7 @@ void ax::NodeEditor::SelectNode(NodeId nodeId, bool append)
 
 void ax::NodeEditor::SelectLink(LinkId linkId, bool append)
 {
-    if (auto link = s_Editor->FindLink(linkId))
-    {
+    if (auto link = s_Editor->FindLink(linkId)) {
         if (append)
             s_Editor->SelectObject(link);
         else
@@ -682,11 +658,7 @@ int ax::NodeEditor::GetActionContextSize()
 int ax::NodeEditor::GetActionContextNodes(NodeId* nodes, int size)
 {
     return BuildIdList(
-        s_Editor->GetSelectedObjects(),
-        nodes,
-        size,
-        [](auto object)
-        {
+        s_Editor->GetSelectedObjects(), nodes, size, [](auto object) {
             return object->AsNode() != nullptr;
         });
 }
@@ -694,11 +666,7 @@ int ax::NodeEditor::GetActionContextNodes(NodeId* nodes, int size)
 int ax::NodeEditor::GetActionContextLinks(LinkId* links, int size)
 {
     return BuildIdList(
-        s_Editor->GetSelectedObjects(),
-        links,
-        size,
-        [](auto object)
-        {
+        s_Editor->GetSelectedObjects(), links, size, [](auto object) {
             return object->AsLink() != nullptr;
         });
 }

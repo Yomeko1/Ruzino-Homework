@@ -12,7 +12,7 @@
 #include "nodes/core/id.hpp"
 
 //------------------------------------------------------------------------------
-#include <imgui_node_editor.h>
+#include "imgui_node_editor.h"
 USTC_CG_NAMESPACE_OPEN_SCOPE
 //------------------------------------------------------------------------------
 namespace ax {

@@ -9,6 +9,7 @@ USTC_CG_ADD_LIB(
 		nodes_system
 		usdMtlx
 		nodes_ui_imgui
+		blueprints
 
 	COMPILE_DEFS
 		NOMINMAX=1

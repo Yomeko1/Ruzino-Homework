@@ -1,7 +1,7 @@
 #pragma once
 #include <imgui.h>
 
-#include "nodes/ui/api.h"
+#include "blueprints/api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 namespace ax {

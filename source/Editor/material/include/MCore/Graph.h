@@ -10,7 +10,7 @@
 #include <MaterialXRender/Image.h>
 #include <MaterialXRender/ImageHandler.h>
 #include <MaterialXRender/Util.h>
-#include <imgui_node_editor.h>
+#include <blueprints/imgui_node_editor.h>
 
 #include <stack>
 
@@ -123,9 +123,6 @@ class Graph : public NodeEditorWidgetBase {
     ~Graph() { };
 
    private:
-    mx::ElementPredicate getElementPredicate() const;
-    void loadStandardLibraries();
-
     // Generate node UI from nodedefs
     void createNodeUIList(mx::DocumentPtr doc);
 
@@ -136,24 +133,21 @@ class Graph : public NodeEditorWidgetBase {
     // Connect links via connected nodes in UiNodePtr
     void linkGraph();
 
-    // Connect all links via the graph editor library
-    void connectLinks();
-
     // Find link position in current links vector from link id
     int findLinkPosition(int id);
 
     // Check if link exists in the current link vector
     bool linkExists(Link newLink);
 
-    // Add link to nodegraph and set up connections between UiNodes and
-    // MaterialX Nodes to update shader
-    // startPinId - where the link was initiated
-    // endPinId - where the link was ended
-    void addLink(SocketID startPinId, SocketID endPinId);
+    //// Add link to nodegraph and set up connections between UiNodes and
+    //// MaterialX Nodes to update shader
+    //// startPinId - where the link was initiated
+    //// endPinId - where the link was ended
+    // void addLink(SocketID startPinId, SocketID endPinId);
 
-    // Delete link from current link vector and remove any connections in
-    // UiNode or MaterialX Nodes to update shader
-    void deleteLink(LinkId deletedLinkId);
+    //// Delete link from current link vector and remove any connections in
+    //// UiNode or MaterialX Nodes to update shader
+    // void deleteLink(LinkId deletedLinkId);
 
     void deleteLinkInfo(int startAtrr, int endAttr);
 
@@ -186,44 +180,13 @@ class Graph : public NodeEditorWidgetBase {
 
     void drawOutputPins(UiNodePtr node, const std::string& longestInputLabel);
 
-    // Create pins for outputs/inputs added while inside the node graph
-    void addNodeGraphPins();
-
     std::vector<int> createNodes(bool nodegraph);
     int getNodeId(SocketID pinId);
-
-    // Find node location in graph nodes vector from node id
-    int findNode(int nodeId);
-
-    // Return node position in _graphNodes from node name and type to account
-    // for input/output UiNodes with same names as MaterialX nodes
-    int findNode(const std::string& name, const std::string& type);
-
-    // Add node to graphNodes based on nodedef information
-    void addNode(
-        const std::string& category,
-        const std::string& name,
-        const std::string& type);
-
-    void deleteNode(UiNodePtr node);
-
-    // Build the initial graph of a loaded document including shader, material
-    // and nodegraph node
-    void setUiNodeInfo(
-        UiNodePtr node,
-        const std::string& type,
-        const std::string& category);
-
-    // Check if edge exists in edge vector
-    bool edgeExists(UiEdge edge);
 
     void createEdge(
         UiNodePtr upNode,
         UiNodePtr downNode,
         mx::InputPtr connectingInput);
-
-    // Remove node edge based on connecting input
-    void removeEdge(int downNode, int upNode, UiPinPtr pin);
 
     void saveDocument(mx::FilePath filePath);
 
@@ -246,9 +209,6 @@ class Graph : public NodeEditorWidgetBase {
 
     void propertyEditor();
     void setDefaults(mx::InputPtr input);
-
-    // Setup UI information for add node popup
-    void addExtraNodes();
 
     void copyInputs();
 
@@ -287,6 +247,11 @@ class Graph : public NodeEditorWidgetBase {
     void loadGeometry();
 
     void showHelp() const;
+
+   public:
+    bool BuildUI() override
+    {
+    }
 
    private:
     mx::StringVec _mtlxFilter;

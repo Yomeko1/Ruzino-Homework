@@ -10,11 +10,11 @@
 #include <string>
 
 #include "RHI/rhi.hpp"
+#include "blueprints/builders.h"
+#include "blueprints/images.inl"
+#include "blueprints/imgui_node_editor.h"
+#include "blueprints/widgets.h"
 #include "imgui.h"
-#include "imgui/blueprint-utilities/builders.h"
-#include "imgui/blueprint-utilities/images.inl"
-#include "imgui/blueprint-utilities/widgets.h"
-#include "imgui/imgui-node-editor/imgui_node_editor.h"
 #include "imgui_internal.h"
 #include "nodes/core/node_link.hpp"
 #include "nodes/core/node_tree.hpp"

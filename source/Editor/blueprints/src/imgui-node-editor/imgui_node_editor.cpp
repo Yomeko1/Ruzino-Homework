@@ -19,7 +19,7 @@
 #include <string>
 #include <type_traits>
 
-#include "imgui_node_editor_internal.h"
+#include "blueprints/imgui_node_editor_internal.h"
 
 // https://stackoverflow.com/a/8597498
 #define DECLARE_HAS_NESTED(Name, Member)                             \
@@ -142,8 +142,8 @@ static const auto c_AllRoundCornersFlags = 15;
 
 //------------------------------------------------------------------------------
 #if defined(_DEBUG) && defined(_WIN32)
-extern "C" __declspec(dllimport) void __stdcall OutputDebugStringA(
-    const char* string);
+extern "C"
+    __declspec(dllimport) void __stdcall OutputDebugStringA(const char* string);
 
 static void LogV(const char* fmt, va_list args)
 {

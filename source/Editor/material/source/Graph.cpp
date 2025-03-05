@@ -7,7 +7,7 @@
 #include <GUI/widget.h>
 #include <MCore/Graph.h>
 #include <MaterialXFormat/Util.h>
-#include <imgui_node_editor_internal.h>
+#include <blueprints/imgui_node_editor_internal.h>
 #include <imgui_stdlib.h>
 
 #include <iostream>
@@ -312,12 +312,12 @@ void Graph::linkGraph()
     //}
 }
 
-void Graph::connectLinks()
-{
-    // for (Link const& link : _currLinks) {
-    //     ed::Link(link._id, link._startAttr, link._endAttr);
-    // }
-}
+//void Graph::connectLinks()
+//{
+//    // for (Link const& link : _currLinks) {
+//    //     ed::Link(link._id, link._startAttr, link._endAttr);
+//    // }
+//}
 
 int Graph::findLinkPosition(int id)
 {
@@ -898,7 +898,7 @@ void Graph::createNodeUIList(mx::DocumentPtr doc)
         }
     }
 
-    addExtraNodes();
+    //addExtraNodes();
 }
 
 void Graph::positionPasteBin(ImVec2 pos)
