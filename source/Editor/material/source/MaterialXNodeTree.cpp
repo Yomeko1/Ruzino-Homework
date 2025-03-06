@@ -501,7 +501,7 @@ void MaterialXNodeTree::setUiNodeInfo(
         return;
 
     // Lambda to create and add a socket declaration.
-    auto createSocket =
+    auto createSocketDeclaration =
         [&](auto socketElement, PinKind kind, auto& targetVector) {
             auto socketDecl = std::make_shared<MaterialXSocketDeclaration>();
             std::string socketName = socketElement->getName();
@@ -523,13 +523,14 @@ void MaterialXNodeTree::setUiNodeInfo(
     // If the node stores a NodeGraph.
     if (node->storage.allow_cast<mx::NodeGraphPtr>()) {
         auto nodeGraph = node->storage.cast<mx::NodeGraphPtr>();
+
         for (mx::OutputPtr out : nodeGraph->getOutputs())
-            createSocket(
+            createSocketDeclaration(
                 out,
                 PinKind::Output,
                 node->typeinfo->static_declaration.outputs);
         for (mx::InputPtr in : nodeGraph->getInputs())
-            createSocket(
+            createSocketDeclaration(
                 in, PinKind::Input, node->typeinfo->static_declaration.inputs);
     }
     // If the node stores a regular Node.
@@ -538,12 +539,12 @@ void MaterialXNodeTree::setUiNodeInfo(
         mx::NodeDefPtr nodeDef = mnode->getNodeDef(mnode->getName());
         if (nodeDef) {
             for (mx::InputPtr in : nodeDef->getActiveInputs())
-                createSocket(
+                createSocketDeclaration(
                     in,
                     PinKind::Input,
                     node->typeinfo->static_declaration.inputs);
             for (mx::OutputPtr out : nodeDef->getActiveOutputs())
-                createSocket(
+                createSocketDeclaration(
                     out,
                     PinKind::Output,
                     node->typeinfo->static_declaration.outputs);
@@ -551,6 +552,57 @@ void MaterialXNodeTree::setUiNodeInfo(
     }
 
     node->refresh_node();
+
+    // If the node stores a NodeGraph.
+    if (node->storage.allow_cast<mx::NodeGraphPtr>()) {
+        auto nodeGraph = node->storage.cast<mx::NodeGraphPtr>();
+
+        for (int i = 0; i < nodeGraph->getOutputs().size(); i++) {
+            auto out = nodeGraph->getOutputs()[i];
+            auto socket = node->get_outputs()[i];
+            socket->storage = out;
+        }
+
+        for (int i = 0; i < nodeGraph->getInputs().size(); i++) {
+            auto in = nodeGraph->getInputs()[i];
+            auto socket = node->get_input_socket(in->getName().c_str());
+            if (socket)
+                socket->storage = in;
+        }
+    }
+    // If the node stores a regular Node.
+    else if (node->storage.allow_cast<mx::NodePtr>()) {
+        auto mnode = node->storage.cast<mx::NodePtr>();
+        mx::NodeDefPtr nodeDef = mnode->getNodeDef(mnode->getName());
+        if (nodeDef) {
+            // Store inputs
+            for (const auto& in : nodeDef->getActiveInputs()) {
+                auto socket = node->get_input_socket(in->getName().c_str());
+                if (socket) {
+                    // For node inputs, store the actual input from the node,
+                    // not the nodedef
+                    auto nodeInput = mnode->getInput(in->getName());
+                    if (nodeInput)
+                        socket->storage = nodeInput;
+                    else
+                        socket->storage = in;
+                }
+            }
+
+            // Store outputs
+            for (int i = 0; i < nodeDef->getActiveOutputs().size(); i++) {
+                auto out = nodeDef->getActiveOutputs()[i];
+                auto nodeOutput = mnode->getOutput(out->getName());
+                auto socket = node->get_outputs()[i];
+                if (socket) {
+                    if (nodeOutput)
+                        socket->storage = nodeOutput;
+                    else
+                        socket->storage = out;
+                }
+            }
+        }
+    }
 }
 
 int MaterialXNodeTree::findNode(int nodeId)
