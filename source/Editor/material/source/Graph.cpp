@@ -139,74 +139,74 @@ std::string getUserNodeDefName(const std::string& val)
 //      _fontScale(1.0f),
 //      _saveNodePositions(true)
 //{
-////    auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
-////
-////    setPinColor();
-////
-////    // Set up filters load and save
-////    _mtlxFilter.push_back(".mtlx");
-////
-////    _initial = true;
-////    createNodeUIList(mtlx_tree->get_mtlx_stdlib());
-////
-////    // Create a renderer using the initial startup document.
-////    // mx::FilePath captureFilename =
-////    // "resources/Materials/Examples/example.png"; std::string
-////    // envRadianceFilename =
-////    //    "resources/Lights/san_giuseppe_bridge_split.hdr";
-////    //_renderer = std::make_shared<RenderView>(
-////    //    _graphDoc,
-////    //    _stdLib,
-////    //    meshFilename,
-////    //    envRadianceFilename,
-////    //    _searchPath,
-////    //    viewWidth,
-////    //    viewHeight);
-////    //_renderer->initialize();
-////    // for (const std::string& ext :
-////    //     _renderer->getImageHandler()->supportedExtensions()) {
-////    //    _imageFilter.push_back("." + ext);
-////    //}
-////    //_renderer->updateMaterials(nullptr);
-////    // for (const std::string& incl : _renderer->getXincludeFiles()) {
-////    //    _xincludeFiles.insert(incl);
-////    //}
-////}
-////
-////void Graph::addExtraNodes()
-////{
-////    if (!_graphDoc) {
-////        return;
-////    }
-////
-////    // Get all types from the doc
-////    std::vector<std::string> types;
-////    std::vector<mx::TypeDefPtr> typeDefs = _graphDoc->getTypeDefs();
-////    types.reserve(typeDefs.size());
-////    for (auto typeDef : typeDefs) {
-////        types.push_back(typeDef->getName());
-////    }
-////
-////    // Add input and output nodes for all types
-////    for (const std::string& type : types) {
-////        std::string nodeName = "ND_input_" + type;
-////        _nodesToAdd.emplace_back(nodeName, type, "input", "Input Nodes");
-////        nodeName = "ND_output_" + type;
-////        _nodesToAdd.emplace_back(nodeName, type, "output", "Output Nodes");
-////    }
-////
-////    // Add group node
-////    _nodesToAdd.emplace_back("ND_group", "", "group", "Group Nodes");
-////
-////    // Add nodegraph node
-////    _nodesToAdd.emplace_back("ND_nodegraph", "", "nodegraph", "Node Graph");
+//    auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
+//
+//    setPinColor();
+//
+//    // Set up filters load and save
+//    _mtlxFilter.push_back(".mtlx");
+//
+//    _initial = true;
+//    createNodeUIList(mtlx_tree->get_mtlx_stdlib());
+//
+//    // Create a renderer using the initial startup document.
+//    // mx::FilePath captureFilename =
+//    // "resources/Materials/Examples/example.png"; std::string
+//    // envRadianceFilename =
+//    //    "resources/Lights/san_giuseppe_bridge_split.hdr";
+//    //_renderer = std::make_shared<RenderView>(
+//    //    _graphDoc,
+//    //    _stdLib,
+//    //    meshFilename,
+//    //    envRadianceFilename,
+//    //    _searchPath,
+//    //    viewWidth,
+//    //    viewHeight);
+//    //_renderer->initialize();
+//    // for (const std::string& ext :
+//    //     _renderer->getImageHandler()->supportedExtensions()) {
+//    //    _imageFilter.push_back("." + ext);
+//    //}
+//    //_renderer->updateMaterials(nullptr);
+//    // for (const std::string& incl : _renderer->getXincludeFiles()) {
+//    //    _xincludeFiles.insert(incl);
+//    //}
+//}
+//
+// void Graph::addExtraNodes()
+//{
+//    if (!_graphDoc) {
+//        return;
+//    }
+//
+//    // Get all types from the doc
+//    std::vector<std::string> types;
+//    std::vector<mx::TypeDefPtr> typeDefs = _graphDoc->getTypeDefs();
+//    types.reserve(typeDefs.size());
+//    for (auto typeDef : typeDefs) {
+//        types.push_back(typeDef->getName());
+//    }
+//
+//    // Add input and output nodes for all types
+//    for (const std::string& type : types) {
+//        std::string nodeName = "ND_input_" + type;
+//        _nodesToAdd.emplace_back(nodeName, type, "input", "Input Nodes");
+//        nodeName = "ND_output_" + type;
+//        _nodesToAdd.emplace_back(nodeName, type, "output", "Output Nodes");
+//    }
+//
+//    // Add group node
+//    _nodesToAdd.emplace_back("ND_group", "", "group", "Group Nodes");
+//
+//    // Add nodegraph node
+//    _nodesToAdd.emplace_back("ND_nodegraph", "", "nodegraph", "Node Graph");
 //}
 
-void Graph::linkGraph()
+void MaterialXNodeTreeWidget::linkGraph()
 {
     //_currLinks.clear();
 
-    //// Start with bottom of graph
+    // Start with bottom of graph
     // for (UiNodePtr node : _graphNodes) {
     //     std::vector<UiPinPtr> inputs = node->inputPins;
     //     if (node->getInput() == nullptr) {
@@ -258,14 +258,14 @@ void Graph::linkGraph()
     //}
 }
 
-//void Graph::connectLinks()
+// void Graph::connectLinks()
 //{
-//    // for (Link const& link : _currLinks) {
-//    //     ed::Link(link._id, link._startAttr, link._endAttr);
-//    // }
-//}
+//     // for (Link const& link : _currLinks) {
+//     //     ed::Link(link._id, link._startAttr, link._endAttr);
+//     // }
+// }
 
-int Graph::findLinkPosition(int id)
+int MaterialXNodeTreeWidget::findLinkPosition(int id)
 {
     // int count = 0;
     // for (size_t i = 0; i < _currLinks.size(); i++) {
@@ -277,7 +277,7 @@ int Graph::findLinkPosition(int id)
     return -1;
 }
 
-bool Graph::checkPosition(UiNodePtr node)
+bool MaterialXNodeTreeWidget::checkPosition(UiNodePtr node)
 {
     // mx::ElementPtr elem = node->getElement();
     // return elem && !elem->getAttribute(mx::Element::XPOS_ATTRIBUTE).empty();
@@ -285,7 +285,7 @@ bool Graph::checkPosition(UiNodePtr node)
 }
 
 // Calculate the total vertical space the node level takes up
-float Graph::totalHeight(int level)
+float MaterialXNodeTreeWidget::totalHeight(int level)
 {
     float total = 0.f;
     for (UiNodePtr node : _levelMap[level]) {
@@ -296,7 +296,7 @@ float Graph::totalHeight(int level)
 
 // Set the y-position of node based on the starting position and the nodes above
 // it
-void Graph::setYSpacing(int level, float startingPos)
+void MaterialXNodeTreeWidget::setYSpacing(int level, float startingPos)
 {
     // set the y spacing for each node
     float currPos = startingPos;
@@ -308,7 +308,7 @@ void Graph::setYSpacing(int level, float startingPos)
 }
 
 // Calculate the average y-position for a specific node level
-float Graph::findAvgY(const std::vector<UiNodePtr>& nodes)
+float MaterialXNodeTreeWidget::findAvgY(const std::vector<UiNodePtr>& nodes)
 {
     // find the mid point of node level grou[
     float total = 0.f;
@@ -323,11 +323,11 @@ float Graph::findAvgY(const std::vector<UiNodePtr>& nodes)
     return (total / count);
 }
 
-void Graph::findYSpacing(float startY)
+void MaterialXNodeTreeWidget::findYSpacing(float startY)
 {
-    //// Assume level 0 is set
-    //// For each level find the average y position of the previous level to use
-    //// as a spacing guide
+    // Assume level 0 is set
+    // For each level find the average y position of the previous level to use
+    // as a spacing guide
     // int i = 0;
     // for (std::pair<int, std::vector<UiNodePtr>> levelChunk : _levelMap) {
     //     if (_levelMap[i].size() > 0) {
@@ -352,7 +352,7 @@ void Graph::findYSpacing(float startY)
     // }
 }
 
-ImVec2 Graph::layoutPosition(
+ImVec2 MaterialXNodeTreeWidget::layoutPosition(
     UiNodePtr layoutNode,
     ImVec2 startingPos,
     bool initialLayout,
@@ -484,9 +484,9 @@ ImVec2 Graph::layoutPosition(
     return {};
 }
 
-void Graph::layoutInputs()
+void MaterialXNodeTreeWidget::layoutInputs()
 {
-    //// Layout inputs after other nodes so that they can be all in a line on
+    // Layout inputs after other nodes so that they can be all in a line on
     /// far / left side of node graph
     // if (_levelMap.begin() != _levelMap.end()) {
     //     int levelCount = -1;
@@ -517,7 +517,7 @@ void Graph::layoutInputs()
     //}
 }
 
-void Graph::setPinColor()
+void MaterialXNodeTreeWidget::setPinColor()
 {
     _pinColor.emplace("integer", ImColor(255, 255, 28, 255));
     _pinColor.emplace("boolean", ImColor(255, 0, 255, 255));
@@ -557,7 +557,7 @@ void Graph::setPinColor()
     _pinColor.emplace("stringarray", ImColor(120, 180, 100));
 }
 
-void Graph::setConstant(
+void MaterialXNodeTreeWidget::setConstant(
     UiNodePtr node,
     mx::InputPtr& input,
     const mx::UIProperties& uiProperties)
@@ -567,7 +567,7 @@ void Graph::setConstant(
     // mx::ValuePtr minVal = uiProperties.uiMin;
     // mx::ValuePtr maxVal = uiProperties.uiMax;
 
-    //// If input is a float set the float slider UI to the value
+    // If input is a float set the float slider UI to the value
     // if (input->getType() == "float") {
     //     mx::ValuePtr val = input->getValue();
 
@@ -801,7 +801,7 @@ void Graph::setConstant(
     // ImGui::PopItemWidth();
 }
 
-void Graph::createNodeUIList(mx::DocumentPtr doc)
+void MaterialXNodeTreeWidget::createNodeUIList(mx::DocumentPtr doc)
 {
     _nodesToAdd.clear();
 
@@ -844,10 +844,10 @@ void Graph::createNodeUIList(mx::DocumentPtr doc)
         }
     }
 
-    //addExtraNodes();
+    // addExtraNodes();
 }
 
-void Graph::positionPasteBin(ImVec2 pos)
+void MaterialXNodeTreeWidget::positionPasteBin(ImVec2 pos)
 {
     ImVec2 totalPos = ImVec2(0, 0);
     ImVec2 avgPos = ImVec2(0, 0);
@@ -876,7 +876,7 @@ void Graph::positionPasteBin(ImVec2 pos)
     }
 }
 
-void Graph::createEdge(
+void MaterialXNodeTreeWidget::createEdge(
     UiNodePtr upNode,
     UiNodePtr downNode,
     mx::InputPtr connectingInput)
@@ -900,7 +900,7 @@ void Graph::createEdge(
     // }
 }
 
-void Graph::copyUiNode(UiNodePtr node)
+void MaterialXNodeTreeWidget::copyUiNode(UiNodePtr node)
 {
     /*   UiNodePtr copyNode =
            std::make_shared<UiNode>(mx::EMPTY_STRING, int(_graphTotalSize + 1));
@@ -945,7 +945,9 @@ void Graph::copyUiNode(UiNodePtr node)
        _graphNodes.push_back(copyNode);*/
 }
 
-void Graph::copyNodeGraph(UiNodePtr origGraph, UiNodePtr copyGraph)
+void MaterialXNodeTreeWidget::copyNodeGraph(
+    UiNodePtr origGraph,
+    UiNodePtr copyGraph)
 {
     // getMaterialXNodeGraph(copyGraph)->copyContentFrom(getMaterialXNodeGraph(origGraph));
     // std::vector<mx::InputPtr> inputs =
@@ -957,7 +959,7 @@ void Graph::copyNodeGraph(UiNodePtr origGraph, UiNodePtr copyGraph)
     // }
 }
 
-void Graph::copyInputs()
+void MaterialXNodeTreeWidget::copyInputs()
 {
     // for (std::map<UiNodePtr, UiNodePtr>::iterator iter =
     // _copiedNodes.begin();
@@ -970,7 +972,8 @@ void Graph::copyInputs()
     //         if (origNode->getConnectedNode(pin->identifier) && !_ctrlClick) {
     //             // If original node is connected check if connect node is in
     //             // copied nodes
-    //             if (_copiedNodes.find(origNode->getConnectedNode(pin->identifier))
+    //             if
+    //             (_copiedNodes.find(origNode->getConnectedNode(pin->identifier))
     //             !=
     //                 _copiedNodes.end()) {
     //                 // Set copy node connected to the value at this key
@@ -980,7 +983,8 @@ void Graph::copyInputs()
     //                     copyNode->inputPins[count]->_input);
     //                 UiNodePtr upNode =
     //                     _copiedNodes[origNode->getConnectedNode(pin->identifier)];
-    //                 if (getMaterialXNode(copyNode) || getMaterialXNodeGraph(copyNode)) {
+    //                 if (getMaterialXNode(copyNode) ||
+    //                 getMaterialXNodeGraph(copyNode)) {
     //                     mx::InputPtr connectingInput = nullptr;
     //                     copyNode->inputPins[count]->_input->copyContentFrom(
     //                         getMaterialXPinInput(pin));
@@ -1005,7 +1009,8 @@ void Graph::copyInputs()
     //                                    copyNode,
     //                                    upNode,
     //                                    copyNode->inputPins[count]);
-    //                                for (UiPinPtr outPin : upNode->get_outputs())
+    //                                for (UiPinPtr outPin :
+    //                                upNode->get_outputs())
     //                                {
     //                                    if (outPin->ID == outputId) {
     //                                        mx::OutputPtr outputs =
@@ -1068,7 +1073,7 @@ void Graph::copyInputs()
     //}
 }
 
-int Graph::getNodeId(SocketID pinId)
+int MaterialXNodeTreeWidget::getNodeId(SocketID pinId)
 {
     // for (UiPinPtr pin : _currPins) {
     //     if (pin->ID == pinId) {
@@ -1078,7 +1083,7 @@ int Graph::getNodeId(SocketID pinId)
     return -1;
 }
 
-UiPinPtr Graph::getPin(SocketID pinId)
+UiPinPtr MaterialXNodeTreeWidget::getPin(SocketID pinId)
 {
     // for (UiPinPtr pin : _currPins) {
     //     if (pin->ID == pinId) {
@@ -1097,7 +1102,10 @@ UiPinPtr Graph::getPin(SocketID pinId)
     return nullptr;
 }
 
-void Graph::drawPinIcon(const std::string& type, bool connected, int alpha)
+void MaterialXNodeTreeWidget::drawPinIcon(
+    const std::string& type,
+    bool connected,
+    int alpha)
 {
     // ax::Drawing::IconType iconType = ax::Drawing::IconType::Flow;
     // ImColor color = ImColor(0, 0, 0, 255);
@@ -1112,7 +1120,7 @@ void Graph::drawPinIcon(const std::string& type, bool connected, int alpha)
     //     alpha));
 }
 
-void Graph::buildGroupNode(UiNodePtr node)
+void MaterialXNodeTreeWidget::buildGroupNode(UiNodePtr node)
 {
     // const float commentAlpha = 0.75f;
 
@@ -1173,16 +1181,18 @@ void Graph::buildGroupNode(UiNodePtr node)
     // ed::EndGroupHint();
 }
 
-bool Graph::readOnly()
+bool MaterialXNodeTreeWidget::readOnly()
 {
     return false;
-    //// If the sources are not the same then the current graph cannot be
+    // If the sources are not the same then the current graph cannot be
     /// modified
     // return _currGraphElem->getActiveSourceUri() !=
     //        _graphDoc->getActiveSourceUri();
 }
 
-void Graph::drawOutputPins(UiNodePtr node, const std::string& longestInputLabel)
+void MaterialXNodeTreeWidget::drawOutputPins(
+    UiNodePtr node,
+    const std::string& longestInputLabel)
 {
     // std::string longestLabel = longestInputLabel;
     // for (UiPinPtr pin : node->get_outputs()) {
@@ -1190,7 +1200,7 @@ void Graph::drawOutputPins(UiNodePtr node, const std::string& longestInputLabel)
     //         longestLabel = pin->identifier;
     // }
 
-    //// Create output pins
+    // Create output pins
     // float nodeWidth = ImGui::CalcTextSize(longestLabel.c_str()).x;
     // for (UiPinPtr pin : node->get_outputs()) {
     //     const float indent =
@@ -1216,7 +1226,7 @@ void Graph::drawOutputPins(UiNodePtr node, const std::string& longestInputLabel)
     //}
 }
 
-void Graph::drawInputPin(UiPinPtr pin)
+void MaterialXNodeTreeWidget::drawInputPin(UiPinPtr pin)
 {
     // ed::BeginPin(pin->ID, ed::PinKind::Input);
     // ImGui::PushID(int(pin->ID.Get()));
@@ -1239,7 +1249,7 @@ void Graph::drawInputPin(UiPinPtr pin)
     // ImGui::TextUnformatted(pin->identifier.c_str());
 }
 
-std::vector<int> Graph::createNodes(bool nodegraph)
+std::vector<int> MaterialXNodeTreeWidget::createNodes(bool nodegraph)
 {
     // std::vector<int> outputNum;
 
@@ -1275,8 +1285,8 @@ std::vector<int> Graph::createNodes(bool nodegraph)
 
     //            std::string longestInputLabel = node->getName();
     //            for (UiPinPtr pin : node->inputPins) {
-    //                UiNodePtr upUiNode = node->getConnectedNode(pin->identifier);
-    //                if (upUiNode) {
+    //                UiNodePtr upUiNode =
+    //                node->getConnectedNode(pin->identifier); if (upUiNode) {
     //                    size_t pinIndex = 0;
     //                    if (upUiNode->get_outputs().size() > 0) {
     //                        const std::string outputString =
@@ -1285,8 +1295,9 @@ std::vector<int> Graph::createNodes(bool nodegraph)
     //                            for (size_t i = 0;
     //                                 i < upUiNode->get_outputs().size();
     //                                 i++) {
-    //                                UiPinPtr outPin = upUiNode->get_outputs()[i];
-    //                                if (outPin->identifier == outputString) {
+    //                                UiPinPtr outPin =
+    //                                upUiNode->get_outputs()[i]; if
+    //                                (outPin->identifier == outputString) {
     //                                    pinIndex = i;
     //                                    break;
     //                                }
@@ -1352,14 +1363,16 @@ std::vector<int> Graph::createNodes(bool nodegraph)
     //                if (upUiNode) {
     //                    if (upUiNode->get_outputs().size()) {
     //                        std::string outString =
-    //                            getMaterialXPinOutput(pin) ? getMaterialXPinOutput(pin)->getOutputString()
+    //                            getMaterialXPinOutput(pin) ?
+    //                            getMaterialXPinOutput(pin)->getOutputString()
     //                                         : mx::EMPTY_STRING;
     //                        size_t pinIndex = 0;
     //                        if (!outString.empty()) {
     //                            for (size_t i = 0;
     //                                 i < upUiNode->get_outputs().size();
     //                                 i++) {
-    //                                if (upUiNode->get_outputs()[i]->identifier ==
+    //                                if (upUiNode->get_outputs()[i]->identifier
+    //                                ==
     //                                    outString) {
     //                                    pinIndex = i;
     //                                    break;
@@ -1425,14 +1438,16 @@ std::vector<int> Graph::createNodes(bool nodegraph)
     //                if (upUiNode) {
     //                    if (upUiNode->get_outputs().size()) {
     //                        std::string outString =
-    //                            getMaterialXPinOutput(pin) ? getMaterialXPinOutput(pin)->getOutputString()
+    //                            getMaterialXPinOutput(pin) ?
+    //                            getMaterialXPinOutput(pin)->getOutputString()
     //                                         : mx::EMPTY_STRING;
     //                        size_t pinIndex = 0;
     //                        if (!outString.empty()) {
     //                            for (size_t i = 0;
     //                                 i < upUiNode->get_outputs().size();
     //                                 i++) {
-    //                                if (upUiNode->get_outputs()[i]->identifier ==
+    //                                if (upUiNode->get_outputs()[i]->identifier
+    //                                ==
     //                                    outString) {
     //                                    pinIndex = i;
     //                                    break;
@@ -1499,7 +1514,8 @@ std::vector<int> Graph::createNodes(bool nodegraph)
     //                }
     //                if (node->_showAllInputs ||
     //                    (pin->getConnected() ||
-    //                     getMaterialXNodeGraph(node)->getInput(pin->identifier))) {
+    //                     getMaterialXNodeGraph(node)->getInput(pin->identifier)))
+    //                     {
     //                    drawInputPin(pin);
 
     //                    if (pin->identifier.size() > longestInputLabel.size())
@@ -1517,7 +1533,7 @@ std::vector<int> Graph::createNodes(bool nodegraph)
     return {};
 }
 
-void Graph::addNodeInput(UiNodePtr node, mx::InputPtr& input)
+void MaterialXNodeTreeWidget::addNodeInput(UiNodePtr node, mx::InputPtr& input)
 {
     // if (getMaterialXNode(node)) {
     //     if (!getMaterialXNode(node)->getInput(input->getName())) {
@@ -1528,7 +1544,7 @@ void Graph::addNodeInput(UiNodePtr node, mx::InputPtr& input)
     //     }
     // }
 }
-void Graph::setDefaults(mx::InputPtr input)
+void MaterialXNodeTreeWidget::setDefaults(mx::InputPtr input)
 {
     if (input->getType() == "float") {
         input->setValue(0.f, "float");
@@ -1562,7 +1578,7 @@ void Graph::setDefaults(mx::InputPtr input)
     }
 }
 
-void Graph::deleteLinkInfo(int startAttr, int endAttr)
+void MaterialXNodeTreeWidget::deleteLinkInfo(int startAttr, int endAttr)
 {
     // int upNode = getNodeId(startAttr);
     // int downNode = getNodeId(endAttr);
@@ -1570,7 +1586,7 @@ void Graph::deleteLinkInfo(int startAttr, int endAttr)
     //     return;
     // }
 
-    //// Change input to default value
+    // Change input to default value
     // if (_graphNodes[downNode]->getNode()) {
     //     mx::NodeDefPtr nodeDef =
     //     _graphNodes[downNode]->getNode()->getNodeDef(
@@ -1650,7 +1666,7 @@ void Graph::deleteLinkInfo(int startAttr, int endAttr)
     //}
 }
 
-void Graph::upNodeGraph()
+void MaterialXNodeTreeWidget::upNodeGraph()
 {
     // if (!_graphStack.empty()) {
     //     savePosition();
@@ -1675,7 +1691,7 @@ void Graph::upNodeGraph()
     // }
 }
 
-void Graph::clearGraph()
+void MaterialXNodeTreeWidget::clearGraph()
 {
     //_graphNodes.clear();
     //_currLinks.clear();
@@ -1698,9 +1714,9 @@ void Graph::clearGraph()
     //_renderer->updateMaterials(nullptr);
 }
 
-void Graph::loadGraphFromFile(bool prompt)
+void MaterialXNodeTreeWidget::loadGraphFromFile(bool prompt)
 {
-    //// Deselect node before loading new file
+    // Deselect node before loading new file
     // if (_currUiNode) {
     //     ed::DeselectNode(_currUiNode->ID);
     //     _currUiNode = nullptr;
@@ -1725,21 +1741,21 @@ void Graph::loadGraphFromFile(bool prompt)
     //}
 }
 
-void Graph::saveGraphToFile()
+void MaterialXNodeTreeWidget::saveGraphToFile()
 {
     //_fileDialogSave.setTypeFilters(_mtlxFilter);
     //_fileDialogSave.setTitle("Save File As");
     //_fileDialogSave.open();
 }
 
-void Graph::loadGeometry()
+void MaterialXNodeTreeWidget::loadGeometry()
 {
     //_fileDialogGeom.setTitle("Load Geometry");
     //_fileDialogGeom.setTypeFilters(_geomFilter);
     //_fileDialogGeom.open();
 }
 
-void Graph::graphButtons()
+void MaterialXNodeTreeWidget::graphButtons()
 {
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.15f, .15f, .15f, 1.0f));
     ImGui::SetWindowFontScale(_fontScale);
@@ -1792,7 +1808,7 @@ void Graph::graphButtons()
         ImGui::EndMenuBar();
     }
 
-    //// Menu keys
+    // Menu keys
     // ImGuiIO& guiIO = ImGui::GetIO();
     // if (guiIO.KeyCtrl && !_fileDialogSave.isOpened() &&
     //     !_fileDialog.isOpened() && !_fileDialogGeom.isOpened()) {
@@ -1858,12 +1874,12 @@ void Graph::graphButtons()
     // ImGui::BeginChild("Selection", ImVec2(paneWidth, 0), false, windowFlags);
     // ImVec2 windowPos = ImGui::GetWindowPos();
 
-    //// Update cursorInRenderView to account for other windows overlapping the
-    //// Render View (e.g. Menu dropdown).
+    // Update cursorInRenderView to account for other windows overlapping the
+    // Render View (e.g. Menu dropdown).
     // cursorInRenderView &= ImGui::IsWindowHovered(ImGuiHoveredFlags_None);
 
-    //// Update cursorInRenderView to account for visible scrollbar and scroll
-    //// amount.
+    // Update cursorInRenderView to account for visible scrollbar and scroll
+    // amount.
     // ImGuiContext* context = ImGui::GetCurrentContext();
     // bool hasScrollbar = context->CurrentWindow->ScrollbarY;
     // cursorInRenderView &= hasScrollbar
@@ -1877,7 +1893,7 @@ void Graph::graphButtons()
     //                                           ImGui::GetScrollY())
     //                           : true;
 
-    //// RenderView window
+    // RenderView window
     // ImVec2 wsize = ImVec2(
     //     (float)_renderer->getViewWidth(), (float)_renderer->getViewHeight());
     //_renderer->setViewWidth((int)screenSize[0]);
@@ -1898,7 +1914,7 @@ void Graph::graphButtons()
     // }
     // ImGui::Separator();
 
-    //// Property editor for current nodes
+    // Property editor for current nodes
     // propertyEditor();
     // ImGui::EndChild();
     // ImGui::SameLine(0.0f, 12.0f);
@@ -1908,15 +1924,15 @@ void Graph::graphButtons()
     // }
 }
 
-void Graph::propertyEditor()
+void MaterialXNodeTreeWidget::propertyEditor()
 {
-    //// Get parent dimensions
+    // Get parent dimensions
     // ImVec2 textPos =
     //     ImGui::GetCursorScreenPos();  // Position for the background
     // float parentWidth =
     //     ImGui::GetContentRegionAvail().x;  // Available width in the parent
 
-    //// Draw the title bar
+    // Draw the title bar
     // const ImGuiStyle& style = ImGui::GetStyle();
     // ImVec4 menuBarBgColor = style.Colors[ImGuiCol_MenuBarBg];
     // ImU32 bgColor = ImGui::ColorConvertFloat4ToU32(
@@ -1956,7 +1972,8 @@ void Graph::propertyEditor()
     //                            getMaterialXNode(_currUiNode)) {
     //                            getMaterialXNode(_currUiNode)->setName(name);
     //                            getMaterialXNode(uiNode)->setConnectedNode(
-    //                                input->getName(), getMaterialXNode(_currUiNode));
+    //                                input->getName(),
+    //                                getMaterialXNode(_currUiNode));
     //                        }
     //                    }
     //                }
@@ -1976,7 +1993,8 @@ void Graph::propertyEditor()
     //                if (uiNode->getInput() == nullptr) {
     //                    if (getMaterialXNode(uiNode)) {
     //                        for (mx::InputPtr input :
-    //                             getMaterialXNode(uiNode)->getActiveInputs()) {
+    //                             getMaterialXNode(uiNode)->getActiveInputs())
+    //                             {
     //                            if (input->getInterfaceInput() ==
     //                                _currUiNode->getInput()) {
     //                                _currUiNode->getInput()->setName(name);
@@ -2023,8 +2041,8 @@ void Graph::propertyEditor()
     //                if (!node->getInput()) {
     //                    std::vector<UiPinPtr> inputs = node->inputPins;
     //                    for (size_t i = 0; i < inputs.size(); i++) {
-    //                        const std::string& inputName = inputs[i]->identifier;
-    //                        UiNodePtr inputNode =
+    //                        const std::string& inputName =
+    //                        inputs[i]->identifier; UiNodePtr inputNode =
     //                            node->getConnectedNode(inputName);
     //                        if (inputNode && inputNode->getName() == name &&
     //                            getMaterialXNode(node)) {
@@ -2056,12 +2074,14 @@ void Graph::propertyEditor()
     //        ImGuiCol_ButtonHovered, ImVec4(.1f, .1f, .1f, 1.0f));
     //    if (getMaterialXNode(_currUiNode)) {
     //        ImGui::NextColumn();
-    //        ImGui::Text("%s", getMaterialXNode(_currUiNode)->getCategory().c_str());
-    //        docString += getMaterialXNode(_currUiNode)->getCategory();
-    //        if (getMaterialXNode(_currUiNode)->getNodeDef()) {
+    //        ImGui::Text("%s",
+    //        getMaterialXNode(_currUiNode)->getCategory().c_str()); docString
+    //        += getMaterialXNode(_currUiNode)->getCategory(); if
+    //        (getMaterialXNode(_currUiNode)->getNodeDef()) {
     //            docString += ":";
     //            docString +=
-    //                getMaterialXNode(_currUiNode)->getNodeDef()->getDocString() +
+    //                getMaterialXNode(_currUiNode)->getNodeDef()->getDocString()
+    //                +
     //                "\n";
     //        }
     //        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
@@ -2079,7 +2099,8 @@ void Graph::propertyEditor()
     //        for (UiPinPtr input : _currUiNode->inputPins) {
     //            if (_currUiNode->_showAllInputs ||
     //                (input->getConnected() ||
-    //                 getMaterialXNode(_currUiNode)->getInput(input->identifier))) {
+    //                 getMaterialXNode(_currUiNode)->getInput(input->identifier)))
+    //                 {
     //                count++;
     //            }
     //        }
@@ -2136,11 +2157,14 @@ void Graph::propertyEditor()
     //                        ImGui::TableNextColumn();
     //                        if (!input->getConnected()) {
     //                            setConstant(
-    //                                _currUiNode, getMaterialXPinInput(input), uiProperties);
+    //                                _currUiNode, getMaterialXPinInput(input),
+    //                                uiProperties);
     //                        }
     //                        else {
     //                            std::string typeText =
-    //                                " [" + getMaterialXPinInput(input)->getType() + "]";
+    //                                " [" +
+    //                                getMaterialXPinInput(input)->getType() +
+    //                                "]";
     //                            ImGui::Text("%s", typeText.c_str());
     //                        }
 
@@ -2216,7 +2240,8 @@ void Graph::propertyEditor()
     //        for (UiPinPtr input : inputs) {
     //            if (_currUiNode->_showAllInputs ||
     //                (input->getConnected() ||
-    //                 getMaterialXNodeGraph(_currUiNode)->getInput(input->identifier))) {
+    //                 getMaterialXNodeGraph(_currUiNode)->getInput(input->identifier)))
+    //                 {
     //                count++;
     //            }
     //        }
@@ -2239,9 +2264,9 @@ void Graph::propertyEditor()
     //                        ImGui::TableNextRow();
     //                        ImGui::TableNextColumn();
 
-    //                        mx::InputPtr mxinput = getMaterialXPinInput(input);
-    //                        mx::UIProperties uiProperties;
-    //                        mx::getUIProperties(
+    //                        mx::InputPtr mxinput =
+    //                        getMaterialXPinInput(input); mx::UIProperties
+    //                        uiProperties; mx::getUIProperties(
     //                            mxinput, mx::EMPTY_STRING, uiProperties);
     //                        std::string inputLabel =
     //                            !uiProperties.uiName.empty()
@@ -2258,15 +2283,20 @@ void Graph::propertyEditor()
     //                                ->getDocString();
 
     //                        ImGui::TableNextColumn();
-    //                        if (!getMaterialXPinInput(input)->getConnectedNode() &&
+    //                        if
+    //                        (!getMaterialXPinInput(input)->getConnectedNode()
+    //                        &&
     //                            getMaterialXNodeGraph(_currUiNode)->getActiveInput(
     //                                getMaterialXPinInput(input)->getName())) {
     //                            setConstant(
-    //                                _currUiNode, getMaterialXPinInput(input), uiProperties);
+    //                                _currUiNode, getMaterialXPinInput(input),
+    //                                uiProperties);
     //                        }
     //                        else {
     //                            std::string typeText =
-    //                                " [" + getMaterialXPinInput(input)->getType() + "]";
+    //                                " [" +
+    //                                getMaterialXPinInput(input)->getType() +
+    //                                "]";
     //                            ImGui::Text("%s", typeText.c_str());
     //                        }
 
@@ -2295,7 +2325,7 @@ void Graph::propertyEditor()
     //}
 }
 
-void Graph::showHelp() const
+void MaterialXNodeTreeWidget::showHelp() const
 {
     ImGui::Text("MATERIALX GRAPH EDITOR HELP");
     if (ImGui::CollapsingHeader("Graph")) {
@@ -2340,7 +2370,7 @@ void Graph::showHelp() const
     }
 }
 
-void Graph::addNodePopup(bool cursor)
+void MaterialXNodeTreeWidget::addNodePopup(bool cursor)
 {
     // bool open_AddPopup = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootWindow)
     // &&
@@ -2443,7 +2473,7 @@ void Graph::addNodePopup(bool cursor)
     //}
 }
 
-void Graph::searchNodePopup(bool cursor)
+void MaterialXNodeTreeWidget::searchNodePopup(bool cursor)
 {
     // const bool open_search =
     //     ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -2480,16 +2510,16 @@ void Graph::searchNodePopup(bool cursor)
     //}
 }
 
-bool Graph::isPinHovered()
+bool MaterialXNodeTreeWidget::isPinHovered()
 {
     SocketID currentPin = ed::GetHoveredPin();
     SocketID nullPin = 0;
     return currentPin != nullPin;
 }
 
-void Graph::addPinPopup()
+void MaterialXNodeTreeWidget::addPinPopup()
 {
-    //// Add a floating popup to pin when hovered
+    // Add a floating popup to pin when hovered
     // if (isPinHovered()) {
     //     ed::Suspend();
     //     UiPinPtr pin = getPin(ed::GetHoveredPin());
@@ -2504,7 +2534,8 @@ void Graph::addPinPopup()
     //             "\nConnected to " + mx::joinStrings(connectedNames, ", ");
     //     }
     //     else if (getMaterialXPinInput(pin)) {
-    //         value = "\nValue: " + getMaterialXPinInput(pin)->getValueString();
+    //         value = "\nValue: " +
+    //         getMaterialXPinInput(pin)->getValueString();
     //     }
     //     const std::string message(
     //         "Name: " + pin->identifier + "\nType: " + pin->_type + value +
@@ -2514,7 +2545,7 @@ void Graph::addPinPopup()
     // }
 }
 
-void Graph::readOnlyPopup()
+void MaterialXNodeTreeWidget::readOnlyPopup()
 {
     if (_popup) {
         ImGui::SetNextWindowSize(ImVec2(200, 100));
@@ -2527,7 +2558,7 @@ void Graph::readOnlyPopup()
     }
 }
 
-void Graph::shaderPopup()
+void MaterialXNodeTreeWidget::shaderPopup()
 {
     // if (_renderer->getMaterialCompilation()) {
     //     ImGui::SetNextWindowPos(ImVec2(
@@ -2545,7 +2576,7 @@ void Graph::shaderPopup()
     // }
 }
 
-void Graph::drawGraph(ImVec2 mousePos)
+void MaterialXNodeTreeWidget::drawGraph()
 {
     // if (_searchNodeId > 0) {
     //     ed::SelectNode(_searchNodeId);
@@ -2555,7 +2586,7 @@ void Graph::drawGraph(ImVec2 mousePos)
 
     // bool TextCursor = false;
 
-    //// Center imgui window and set size
+    // Center imgui window and set size
     // ImGuiIO& io2 = ImGui::GetIO();
     // ImGui::SetNextWindowSize(io2.DisplaySize);
     // ImGui::SetNextWindowPos(
@@ -2823,7 +2854,7 @@ void Graph::drawGraph(ImVec2 mousePos)
     //    ed::EndDelete();
     //}
 
-    //// Dive into a node that has a subgraph
+    // Dive into a node that has a subgraph
     // ed::NodeId clickedNode = ed::GetDoubleClickedNode();
     // if (clickedNode.Get() > 0) {
     //     if (_currUiNode != nullptr) {
@@ -2861,8 +2892,8 @@ void Graph::drawGraph(ImVec2 mousePos)
     //            _graphStack.push(_graphNodes);
     //            _pinStack.push(_currPins);
     //            _sizeStack.push(_graphTotalSize);
-    //            mx::NodeGraphPtr implGraph = getMaterialXNodeGraph(_currUiNode);
-    //            _initial = true;
+    //            mx::NodeGraphPtr implGraph =
+    //            getMaterialXNodeGraph(_currUiNode); _initial = true;
     //            _graphNodes.clear();
     //            _isNodeGraph = true;
     //            setRenderMaterial(_currUiNode);
@@ -2893,7 +2924,7 @@ void Graph::drawGraph(ImVec2 mousePos)
     // ed::Suspend();
     //_fileDialogSave.display();
 
-    //// Save file
+    // Save file
     // if (_fileDialogSave.hasSelected()) {
     //     std::string message;
     //     if (!_graphDoc->validate(&message)) {
@@ -2918,7 +2949,7 @@ void Graph::drawGraph(ImVec2 mousePos)
 
     //_fileDialog.display();
 
-    //// Create and load document from selected file
+    // Create and load document from selected file
     // if (_fileDialog.hasSelected()) {
     //     mx::FilePath fileName = _fileDialog.getSelected();
     //     _currGraphName.clear();
@@ -2947,7 +2978,7 @@ void Graph::drawGraph(ImVec2 mousePos)
     //_fileDialogImage.display();
 }
 
-bool Graph::linkExists(Link newLink)
+bool MaterialXNodeTreeWidget::linkExists(Link newLink)
 {
     // for (const auto& link : _currLinks) {
     //     if (link._startAttr == newLink._startAttr) {
@@ -2964,7 +2995,7 @@ bool Graph::linkExists(Link newLink)
     return false;
 }
 
-void Graph::savePosition()
+void MaterialXNodeTreeWidget::savePosition()
 {
     // for (UiNodePtr node : _graphNodes) {
     //     mx::ElementPtr elem = node->getElement();
@@ -2982,7 +3013,7 @@ void Graph::savePosition()
     //     }
     // }
 }
-void Graph::saveDocument(mx::FilePath filePath)
+void MaterialXNodeTreeWidget::saveDocument(mx::FilePath filePath)
 {
     // if (filePath.getExtension() != mx::MTLX_EXTENSION) {
     //     filePath.addExtension(mx::MTLX_EXTENSION);
@@ -2990,7 +3021,7 @@ void Graph::saveDocument(mx::FilePath filePath)
 
     // mx::DocumentPtr writeDoc = _graphDoc;
 
-    //// If requested, create a modified version of the document for saving.
+    // If requested, create a modified version of the document for saving.
     // if (!_saveNodePositions) {
     //     writeDoc = _graphDoc->copy();
     //     for (mx::ElementPtr elem : writeDoc->traverseTree()) {
@@ -3004,16 +3035,16 @@ void Graph::saveDocument(mx::FilePath filePath)
     // mx::writeToXmlFile(writeDoc, filePath, &writeOptions);
 }
 
-void Graph::setRenderMaterial(UiNodePtr node)
+void MaterialXNodeTreeWidget::setRenderMaterial(UiNodePtr node)
 {
-    //// For now only surface shaders and materials are considered renderable.
-    //// This can be adjusted as desired to include being able to use outputs,
-    //// and / a sub-graph in the nodegraph.
+    // For now only surface shaders and materials are considered renderable.
+    // This can be adjusted as desired to include being able to use outputs,
+    // and / a sub-graph in the nodegraph.
     // const mx::StringSet RENDERABLE_TYPES = { mx::MATERIAL_TYPE_STRING,
     //                                          mx::SURFACE_SHADER_TYPE_STRING
     //                                          };
 
-    //// Set render node right away is node is renderable
+    // Set render node right away is node is renderable
     // if (getMaterialXNode(node) &&
     // RENDERABLE_TYPES.count(getMaterialXNode(node)->getType())) {
     //     // Only set new render node if different material has been selected
@@ -3024,7 +3055,7 @@ void Graph::setRenderMaterial(UiNodePtr node)
     //     }
     // }
 
-    //// Traverse downstream looking for the first renderable element.
+    // Traverse downstream looking for the first renderable element.
     // else {
     //     mx::NodePtr mtlxNode = getMaterialXNode(node);
     //     mx::NodeGraphPtr mtlxNodeGraph = getMaterialXNodeGraph(node);
@@ -3104,8 +3135,8 @@ void Graph::setRenderMaterial(UiNodePtr node)
     //        testPaths = nextPaths;
     //    }
 
-    //// Update rendering. If found use that node, otherwise
-    //// use the current fallback of using the first renderable node.
+    // Update rendering. If found use that node, otherwise
+    // use the current fallback of using the first renderable node.
     // if (foundNode) {
     //     for (auto uiNode : _graphNodes) {
     //         if (getMaterialXNode(uiNode) == foundNode) {
@@ -3126,14 +3157,15 @@ void Graph::setRenderMaterial(UiNodePtr node)
     //}
 }
 
-void Graph::updateMaterials(
+void MaterialXNodeTreeWidget::updateMaterials(
     mx::InputPtr input /* = nullptr */,
     mx::ValuePtr value /* = nullptr */)
 {
     // std::string renderablePath;
     // if (_currRenderNode) {
     //     if (getMaterialXNode(_currRenderNode)) {
-    //         renderablePath = getMaterialXNode(_currRenderNode)->getNamePath();
+    //         renderablePath =
+    //         getMaterialXNode(_currRenderNode)->getNamePath();
     //     }
     //     else if (_currRenderNode->getOutput()) {
     //         renderablePath = _currRenderNode->getOutput()->getNamePath();
@@ -3164,7 +3196,7 @@ void Graph::updateMaterials(
     //}
 }
 
-void Graph::handleRenderViewInputs()
+void MaterialXNodeTreeWidget::handleRenderViewInputs()
 {
     // ImVec2 mousePos = ImGui::GetMousePos();
     // mx::Vector2 mxMousePos = mx::Vector2(mousePos.x, mousePos.y);
@@ -3199,7 +3231,7 @@ void Graph::handleRenderViewInputs()
     //     _renderer->setKeyEvent(ImGuiKey_KeypadSubtract);
     // }
 
-    //// Scrolling not possible if open or save file dialog is open
+    // Scrolling not possible if open or save file dialog is open
     // if (scrollAmt != 0 && !_fileDialogSave.isOpened() &&
     //     !_fileDialog.isOpened() && !_fileDialogGeom.isOpened()) {
     //     _renderer->setScrollEvent(scrollAmt);

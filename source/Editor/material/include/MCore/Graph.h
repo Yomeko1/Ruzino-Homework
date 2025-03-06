@@ -86,7 +86,7 @@ class MenuItem {
     std::string group;
 };
 
-//// A link connects two pins and includes a unique id and the ids of the two
+// A link connects two pins and includes a unique id and the ids of the two
 /// pins / it connects Based on the Link struct from ImGui Node Editor /
 /// blueprints-examples.cpp
 // struct Link {
@@ -96,7 +96,7 @@ class MenuItem {
 //     int _id;
 // };
 
-class Graph : public NodeEditorWidgetBase {
+class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
    public:
     // Graph(
     //     const std::string& materialFilename,
@@ -106,7 +106,11 @@ class Graph : public NodeEditorWidgetBase {
     //     int viewWidth,
     //     int viewHeight);
 
-    void drawGraph(ImVec2 mousePos);
+    MaterialXNodeTreeWidget(const NodeWidgetSettings& desc)
+        : NodeEditorWidgetBase(desc)
+    {
+    }
+    void drawGraph();
 
     // RenderViewPtr getRenderer()
     //{
@@ -120,7 +124,7 @@ class Graph : public NodeEditorWidgetBase {
 
     using UiNode = Node;
 
-    ~Graph() { };
+    ~MaterialXNodeTreeWidget() { };
 
    private:
     // Generate node UI from nodedefs
@@ -139,14 +143,14 @@ class Graph : public NodeEditorWidgetBase {
     // Check if link exists in the current link vector
     bool linkExists(Link newLink);
 
-    //// Add link to nodegraph and set up connections between UiNodes and
-    //// MaterialX Nodes to update shader
-    //// startPinId - where the link was initiated
-    //// endPinId - where the link was ended
+    // Add link to nodegraph and set up connections between UiNodes and
+    // MaterialX Nodes to update shader
+    // startPinId - where the link was initiated
+    // endPinId - where the link was ended
     // void addLink(SocketID startPinId, SocketID endPinId);
 
-    //// Delete link from current link vector and remove any connections in
-    //// UiNode or MaterialX Nodes to update shader
+    // Delete link from current link vector and remove any connections in
+    // UiNode or MaterialX Nodes to update shader
     // void deleteLink(LinkId deletedLinkId);
 
     void deleteLinkInfo(int startAtrr, int endAttr);
@@ -248,6 +252,8 @@ class Graph : public NodeEditorWidgetBase {
    public:
     bool BuildUI() override
     {
+        drawGraph();
+        return true;
     }
 
    private:

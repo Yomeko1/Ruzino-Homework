@@ -8,6 +8,12 @@ void NodeSystem::init()
     this->node_tree = create_node_tree(node_tree_descriptor());
 }
 
+void NodeSystem::init(std::unique_ptr<NodeTree> tree)
+{
+    this->node_tree = std::move(tree);
+    this->node_tree_executor = create_node_tree_executor({});
+}
+
 void NodeSystem::set_node_tree_executor(
     std::unique_ptr<NodeTreeExecutor> executor)
 {

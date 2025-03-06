@@ -290,7 +290,7 @@ void MaterialXNodeTree::buildUiBaseGraph(mx::DocumentPtr doc)
 
 void MaterialXNodeTree::buildUiNodeGraph(const mx::NodeGraphPtr& nodeGraphs)
 {
-    //// Clear all values so that ids can start with 0 or 1
+    // Clear all values so that ids can start with 0 or 1
     // nodes.clear();
     // links.clear();
     //_currEdge.clear();
@@ -674,7 +674,7 @@ void MaterialXNodeTree::addNode(
     // mx::NodePtr node = nullptr;
     // std::vector<mx::NodeDefPtr> matchingNodeDefs;
 
-    //// Create document or node graph is there is not already one
+    // Create document or node graph is there is not already one
     // if (category == "output") {
     //     std::string outName = "";
     //     mx::OutputPtr newOut;
@@ -859,7 +859,7 @@ SocketID MaterialXNodeTree::getOutputPin(
 
 void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
 {
-    //// Prefer to assume left to right - start is an output, end is an
+    // Prefer to assume left to right - start is an output, end is an
     /// input; / swap if inaccurate
     // if (UiPinPtr inputPin = getPin(endPinId);
     //     inputPin && inputPin->_kind != ed::PinKind::Input) {
@@ -880,7 +880,7 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //     return;
     // }
 
-    //// Perform type check
+    // Perform type check
     // bool typesMatch = (outputPin->_type == inputPin->_type);
     // if (!typesMatch) {
     //     ed::RejectNewItem();
@@ -890,7 +890,7 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //     return;
     // }
 
-    //// Perform kind check
+    // Perform kind check
     // bool kindsMatch = (outputPin->_kind == inputPin->_kind);
     // if (kindsMatch) {
     //     ed::RejectNewItem();
@@ -909,11 +909,11 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //     return;
     // }
 
-    //// Make sure there is an implementation for node
+    // Make sure there is an implementation for node
     // const mx::ShaderGenerator& shadergen =
     //     _renderer->getGenContext().getShaderGenerator();
 
-    //// Prevent direct connecting from input to output
+    // Prevent direct connecting from input to output
     // if (uiDownNode->getInput() && uiUpNode->getOutput()) {
     //     ed::RejectNewItem();
     //     showLabel(
@@ -922,8 +922,8 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //     return;
     // }
 
-    //// Find the implementation for this nodedef if not an input or output
-    //// uinode
+    // Find the implementation for this nodedef if not an input or output
+    // uinode
     // if (uiDownNode->getInput() && _isNodeGraph) {
     //     ed::RejectNewItem();
     //     showLabel(
@@ -1129,7 +1129,7 @@ void MaterialXNodeTree::removeEdge(int downNode, int upNode, UiPinPtr pin)
 
 void MaterialXNodeTree::deleteLink(LinkId deletedLinkId)
 {
-    //// If you agree that link can be deleted, accept deletion.
+    // If you agree that link can be deleted, accept deletion.
     // if (ed::AcceptDeletedItem()) {
     //     _renderer->setMaterialCompilation(true);
     //     _frameCount = ImGui::GetFrameCount();
