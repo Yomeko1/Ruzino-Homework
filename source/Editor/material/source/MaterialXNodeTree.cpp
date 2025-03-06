@@ -157,6 +157,7 @@ void MaterialXNodeTree::buildUiBaseGraph(mx::DocumentPtr doc)
         std::string getType = node->getType();
 
         auto currNode = add_node(getType.c_str());
+        currNode->ui_name = node->getName();
 
         // auto currNode = std::make_shared<UiNode>(name, _graphTotalSize);
         currNode->storage = node;
@@ -167,22 +168,24 @@ void MaterialXNodeTree::buildUiBaseGraph(mx::DocumentPtr doc)
     for (mx::NodeGraphPtr nodeGraph : nodeGraphs) {
         if (!includeElement(nodeGraph))
             continue;
-        std::string name = nodeGraph->getName();
-        auto currNode = add_node(name.c_str());
+        auto currNode = add_node("groupnode");
+        currNode->ui_name = nodeGraph->getName();
         currNode->storage = nodeGraph;
         setUiNodeInfo(currNode, nodeGraph->getType(), nodeGraph->getCategory());
     }
     for (mx::InputPtr input : inputNodes) {
         if (!includeElement(input))
             continue;
-        auto currNode = add_node(input->getName().c_str());
+        auto currNode = add_node(input->getType().c_str());
+        currNode->ui_name = input->getName();
         currNode->storage = input;
         setUiNodeInfo(currNode, input->getType(), input->getCategory());
     }
     for (mx::OutputPtr output : outputNodes) {
         if (!includeElement(output))
             continue;
-        auto currNode = add_node(output->getName().c_str());
+        auto currNode = add_node(output->getType().c_str());
+        currNode->ui_name = output->getName();
         currNode->storage = output;
         setUiNodeInfo(currNode, output->getType(), output->getCategory());
     }
@@ -211,11 +214,16 @@ void MaterialXNodeTree::buildUiBaseGraph(mx::DocumentPtr doc)
             if (downNum == -1 || upNum == -1)
                 continue;
 
-            add_link(
-                nodes[upNum].get(),
-                nodes[downNum].get(),
-                input->getName().c_str(),
-                input->getName().c_str());
+            auto& up_node = nodes[upNum];
+            auto& down_node = nodes[downNum];
+
+            auto input_socket =
+                down_node->get_input_socket(input->getName().c_str());
+
+            auto output =
+                getOutputPin(down_node.get(), up_node.get(), input_socket);
+
+            add_link(output, input_socket->ID);
         }
     }
 
@@ -251,11 +259,13 @@ void MaterialXNodeTree::buildUiBaseGraph(mx::DocumentPtr doc)
             auto& up_node = nodes[upNum];
             auto& down_node = nodes[downNum];
 
-            add_link(
-                up_node.get(),
-                down_node.get(),
-                input->getName().c_str(),
-                input->getName().c_str());
+            auto input_socket =
+                down_node->get_input_socket(input->getName().c_str());
+
+            auto output =
+                getOutputPin(down_node.get(), up_node.get(), input_socket);
+
+            add_link(output, input_socket->ID);
         }
     }
 }
@@ -481,100 +491,62 @@ void MaterialXNodeTree::buildUiNodeGraph(const mx::NodeGraphPtr& nodeGraphs)
     //    }
     //}
 }
-
 void MaterialXNodeTree::setUiNodeInfo(
     UiNodePtr node,
     const std::string& type,
     const std::string& category)
 {
-    // node-> typeinfo->setType(type);
-    //  node->setCategory(category);
-    //++_graphTotalSize;
+    // Do nothing if sockets are already set up.
+    if (!node->typeinfo->static_declaration.items.empty())
+        return;
 
-    // Create pins
-    if (node->storage.allow_cast<mx::NodeGraphPtr>() &&
-        node->typeinfo->static_declaration.items.empty()) {
-        std::vector<mx::OutputPtr> outputs =
-            node->storage.cast<mx::NodeGraphPtr>()->getOutputs();
-        auto createSocket =
-            [&](auto socketElement, PinKind kind, auto& targetVector) {
-                auto socket_declaration =
-                    std::make_shared<MaterialXSocketDeclaration>();
-                const std::string name = socketElement->getName();
-                const std::string category = socketElement->getCategory();
+    // Lambda to create and add a socket declaration.
+    auto createSocket =
+        [&](auto socketElement, PinKind kind, auto& targetVector) {
+            auto socketDecl = std::make_shared<MaterialXSocketDeclaration>();
+            std::string socketName = socketElement->getName();
+            std::string socketCategory = socketElement->getCategory();
 
-                socket_declaration->name = name;
-                entt::meta<void>(get_entt_ctx())
-                    .type(entt::hashed_string(category.c_str()));
-                socket_declaration->type =
-                    get_socket_type(entt::hashed_string(category.c_str()));
-                socket_declaration->in_out = kind;
-                socket_declaration->identifier = name;
+            socketDecl->name = socketName;
+            socketDecl->identifier = socketName;
+            // Setup type using socket category.
+            entt::meta<void>(get_entt_ctx())
+                .type(entt::hashed_string(socketCategory.c_str()));
+            socketDecl->type =
+                get_socket_type(entt::hashed_string(socketCategory.c_str()));
+            socketDecl->in_out = kind;
 
-                node->typeinfo->static_declaration.items.push_back(
-                    socket_declaration);
-                targetVector.push_back(socket_declaration.get());
-            };
+            node->typeinfo->static_declaration.items.push_back(socketDecl);
+            targetVector.push_back(socketDecl.get());
+        };
 
-        for (mx::OutputPtr out : outputs) {
+    // If the node stores a NodeGraph.
+    if (node->storage.allow_cast<mx::NodeGraphPtr>()) {
+        auto nodeGraph = node->storage.cast<mx::NodeGraphPtr>();
+        for (mx::OutputPtr out : nodeGraph->getOutputs())
             createSocket(
                 out,
                 PinKind::Output,
                 node->typeinfo->static_declaration.outputs);
-        }
-
-        for (mx::InputPtr input :
-             node->storage.cast<mx::NodeGraphPtr>()->getInputs()) {
+        for (mx::InputPtr in : nodeGraph->getInputs())
             createSocket(
-                input,
-                PinKind::Input,
-                node->typeinfo->static_declaration.inputs);
-        }
+                in, PinKind::Input, node->typeinfo->static_declaration.inputs);
     }
-    else if (
-        node->storage.allow_cast<mx::NodePtr>() &&
-        node->typeinfo->static_declaration.items.empty()) {
-        mx::NodeDefPtr nodeDef = node->storage.cast<mx::NodePtr>()->getNodeDef(
-            node->storage.cast<mx::NodePtr>()->getName());
-
-        // Create pins for a regular node using its node definition.
+    // If the node stores a regular Node.
+    else if (node->storage.allow_cast<mx::NodePtr>()) {
+        auto mnode = node->storage.cast<mx::NodePtr>();
+        mx::NodeDefPtr nodeDef = mnode->getNodeDef(mnode->getName());
         if (nodeDef) {
-            auto createSocket = [&](auto socketElement,
-                                    PinKind kind,
-                                    auto& targetVector) {
-                auto socket_declaration =
-                    std::make_shared<MaterialXSocketDeclaration>();
-                const std::string socketName = socketElement->getName();
-                const std::string socketCategory = socketElement->getCategory();
-
-                socket_declaration->name = socketName;
-                entt::meta<void>(get_entt_ctx())
-                    .type(entt::hashed_string(socketCategory.c_str()));
-                socket_declaration->type = get_socket_type(
-                    entt::hashed_string(socketCategory.c_str()));
-                socket_declaration->in_out = kind;
-                socket_declaration->identifier = socketName;
-
-                node->typeinfo->static_declaration.items.push_back(
-                    socket_declaration);
-                targetVector.push_back(socket_declaration.get());
-            };
-
-            // Create sockets for inputs.
-            for (mx::InputPtr input : nodeDef->getActiveInputs()) {
+            for (mx::InputPtr in : nodeDef->getActiveInputs())
                 createSocket(
-                    input,
+                    in,
                     PinKind::Input,
                     node->typeinfo->static_declaration.inputs);
-            }
-
-            // Create sockets for outputs.
-            for (mx::OutputPtr output : nodeDef->getActiveOutputs()) {
+            for (mx::OutputPtr out : nodeDef->getActiveOutputs())
                 createSocket(
-                    output,
+                    out,
                     PinKind::Output,
                     node->typeinfo->static_declaration.outputs);
-            }
         }
     }
 
@@ -618,8 +590,8 @@ int MaterialXNodeTree::findNode(
                 getMaterialXNodeGraph(nodes[i].get()) != nullptr) {
                 return count;
             }
-            count++;
         }
+        count++;
     }
     return -1;
 }
@@ -748,7 +720,7 @@ void MaterialXNodeTree::addNode(
     //            ax::NodeEditor::PinKind::Output,
     //            nullptr,
     //            nullptr);
-    //        newNode->outputPins.push_back(outPin);
+    //        newNode->get_outputs().push_back(outPin);
     //        sockets.push_back(outPin);
     //        ++_graphTotalSize;
     //    }
@@ -756,6 +728,63 @@ void MaterialXNodeTree::addNode(
     //    nodes.push_back(std::move(newNode));
     //    updateMaterials();
     //}
+}
+
+SocketID MaterialXNodeTree::getOutputPin(
+    UiNodePtr node,
+    UiNodePtr upNode,
+    UiPinPtr input)
+{
+    if (getMaterialXNodeGraph(upNode) != nullptr) {
+        // For nodegraph need to get the correct output pin according to the
+        // names of the output nodes
+        mx::OutputPtr output;
+        if (getMaterialXNode(input->node)) {
+            output = getMaterialXNode(input->node)
+                         ->getConnectedOutput(input->identifier);
+        }
+        else if (getMaterialXNodeGraph(input->node)) {
+            output = getMaterialXNodeGraph(input->node)
+                         ->getConnectedOutput(input->identifier);
+        }
+
+        if (output) {
+            std::string outName = output->getName();
+            for (UiPinPtr outputs : upNode->get_outputs()) {
+                if (outputs->identifier == outName) {
+                    return outputs->ID;
+                }
+            }
+        }
+        return SocketID();
+    }
+    else {
+        // For node need to get the correct output pin based on the output
+        // attribute
+
+        throw std::runtime_error("Not implemented");
+        if (!upNode->get_outputs().empty()) {
+            std::string outputName = mx::EMPTY_STRING;
+            if (input->_input) {
+                outputName = input->_input->getOutputString();
+            }
+            else if (input->_output) {
+                outputName = input->_output->getOutputString();
+            }
+
+            size_t pinIndex = 0;
+            if (!outputName.empty()) {
+                for (size_t i = 0; i < upNode->get_outputs().size(); i++) {
+                    if (upNode->get_outputs()[i]->identifier == outputName) {
+                        pinIndex = i;
+                        break;
+                    }
+                }
+            }
+            return (upNode->get_outputs()[pinIndex]->ID);
+        }
+        return SocketID();
+    }
 }
 
 void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
@@ -875,10 +904,11 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //    outputPin->setConnected(true);
     //    inputPin->setConnected(true);
 
-    //    if (getMaterialXNode(uiDownNode) || uiDownNode->getNodeGraph()) {
+    //    if (getMaterialXNode(uiDownNode) || getMaterialXNodeGraph(uiDownNode))
+    //    {
     //        mx::InputPtr connectingInput = nullptr;
     //        for (UiPinPtr pin : uiDownNode->inputPins) {
-    //            if (pin->_pinId == inputPinId) {
+    //            if (pin->ID == inputPinId) {
     //                addNodeInput(uiDownNode, pin->_input);
 
     //                // Update value to be empty
@@ -894,15 +924,15 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //                            uiUpNode->getName());
     //                    }
     //                    else {
-    //                        if (uiUpNode->getNodeGraph() != nullptr) {
+    //                        if (getMaterialXNodeGraph(uiUpNode) != nullptr) {
     //                            for (UiPinPtr outPin :
-    //                            uiUpNode->outputPins) {
+    //                            uiUpNode->get_outputs()) {
     //                                // Set pin connection to correct
-    //                                output if (outPin->_pinId ==
+    //                                output if (outPin->ID ==
     //                                outputPinId) {
     //                                    mx::OutputPtr outputs =
-    //                                        uiUpNode->getNodeGraph()->getOutput(
-    //                                            outPin->_name);
+    //                                        getMaterialXNodeGraph(uiUpNode)->getOutput(
+    //                                            outPin->identifier);
     //                                    pin->_input->setConnectedOutput(
     //                                        outputs);
     //                                }
@@ -938,19 +968,19 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //                            }
     //                            else {
     //                                for (UiPinPtr outPin :
-    //                                     nodes[upNode]->outputPins) {
+    //                                     nodes[upNode]->get_outputs()) {
     //                                    // Set pin connection to correct
     //                                    // output
-    //                                    if (outPin->_pinId == outputPinId)
+    //                                    if (outPin->ID == outputPinId)
     //                                    {
     //                                        mx::OutputPtr outputs =
     //                                            getMaterialXNode(uiUpNode)->getOutput(
-    //                                                outPin->_name);
+    //                                                outPin->identifier);
     //                                        if (!outputs) {
     //                                            outputs =
     //                                                getMaterialXNode(uiUpNode)
     //                                                    ->addOutput(
-    //                                                        outPin->_name,
+    //                                                        outPin->identifier,
     //                                                        pin->_input
     //                                                            ->getType());
     //                                        }
@@ -960,15 +990,15 @@ void MaterialXNodeTree::addLink(SocketID startPinId, SocketID endPinId)
     //                                }
     //                            }
     //                        }
-    //                        else if (uiUpNode->getNodeGraph()) {
+    //                        else if (getMaterialXNodeGraph(uiUpNode)) {
     //                            for (UiPinPtr outPin :
-    //                            uiUpNode->outputPins) {
+    //                            uiUpNode->get_outputs()) {
     //                                // Set pin connection to correct
-    //                                output if (outPin->_pinId ==
+    //                                output if (outPin->ID ==
     //                                outputPinId) {
     //                                    mx::OutputPtr outputs =
-    //                                        uiUpNode->getNodeGraph()->getOutput(
-    //                                            outPin->_name);
+    //                                        getMaterialXNodeGraph(uiUpNode)->getOutput(
+    //                                            outPin->identifier);
     //                                    pin->_input->setConnectedOutput(
     //                                        outputs);
     //                                }
@@ -1049,7 +1079,7 @@ void MaterialXNodeTree::deleteNode(UiNodePtr node)
 {
     //    // Delete link
     //    for (UiPinPtr inputPin : node->inputPins) {
-    //        UiNodePtr upNode = node->getConnectedNode(inputPin->_name);
+    //        UiNodePtr upNode = node->getConnectedNode(inputPin->identifier);
     //        if (upNode) {
     //            upNode->removeOutputConnection(node->getName());
     //            int num = node->getEdgeIndex(upNode->getId(), inputPin);
@@ -1066,17 +1096,17 @@ void MaterialXNodeTree::deleteNode(UiNodePtr node)
     //        }
     //    }
     //
-    //    for (UiPinPtr outputPin : node->outputPins) {
+    //    for (UiPinPtr outputPin : node->get_outputs()) {
     //        // Update downNode info
     //        for (UiPinPtr pin : outputPin.get()->getConnections()) {
     //            mx::ValuePtr val;
-    //            if (pin->getMaterialXNode(_pinNode)) {
+    //            if (pin->getMaterialXNode(node)) {
     //                mx::NodeDefPtr nodeDef =
-    //                pin->getMaterialXNode(_pinNode)->getNodeDef(
-    //                    pin->getMaterialXNode(_pinNode)->getName());
+    //                pin->getMaterialXNode(node)->getNodeDef(
+    //                    pin->getMaterialXNode(node)->getName());
     //                val =
     //                    nodeDef->getActiveInput(pin->_input->getName())->getValue();
-    //                if (pin->getMaterialXNode(_pinNode)->getType() ==
+    //                if (pin->getMaterialXNode(node)->getType() ==
     //                    mx::SURFACE_SHADER_TYPE_STRING) {
     //                    pin->_input->setConnectedOutput(nullptr);
     //                }
@@ -1092,10 +1122,10 @@ void MaterialXNodeTree::deleteNode(UiNodePtr node)
     //                    setDefaults(node->getInput());
     //                }
     //            }
-    //            else if (pin->_pinNode->getNodeGraph()) {
+    //            else if (pin->getMaterialXNodeGraph(node)) {
     //                if (node->getInput()) {
-    //                    pin->_pinNode->getNodeGraph()
-    //                        ->getInput(pin->_name)
+    //                    pin->getMaterialXNodeGraph(node)
+    //                        ->getInput(pin->identifier)
     //                        ->setConnectedInterfaceName(mx::EMPTY_STRING);
     //                    setDefaults(node->getInput());
     //                }
@@ -1109,22 +1139,22 @@ void MaterialXNodeTree::deleteNode(UiNodePtr node)
     //                pin->_input->setValueString(val->getValueString());
     //            }
     //
-    //            int num = pin->_pinNode->getEdgeIndex(node->getId(), pin);
+    //            int num = pin->node->getEdgeIndex(node->getId(), pin);
     //            if (num != -1) {
-    //                if (pin->_pinNode->edges.size() == 1) {
-    //                    pin->_pinNode->edges.erase(
-    //                        pin->_pinNode->edges.begin() + 0);
+    //                if (pin->node->edges.size() == 1) {
+    //                    pin->node->edges.erase(
+    //                        pin->node->edges.begin() + 0);
     //                }
-    //                else if (pin->_pinNode->edges.size() > 1) {
-    //                    pin->_pinNode->edges.erase(
-    //                        pin->_pinNode->edges.begin() + num);
+    //                else if (pin->node->edges.size() > 1) {
+    //                    pin->node->edges.erase(
+    //                        pin->node->edges.begin() + num);
     //                }
     //            }
     //
-    //            pin->_pinNode->setInputNodeNum(-1);
+    //            pin->node->setInputNodeNum(-1);
     //
     //            // Not really necessary since it will be deleted
-    //            node->removeOutputConnection(pin->_pinNode->getName());
+    //            node->removeOutputConnection(pin->node->getName());
     //        }
     //    }
     //
@@ -1168,17 +1198,18 @@ bool MaterialXNodeTree::edgeExists(UiEdge newEdge)
 void MaterialXNodeTree::addNodeGraphPins()
 {
     // for (UiNodePtr node : nodes) {
-    //     if (node->getNodeGraph()) {
+    //     if (getMaterialXNodeGraph(node)) {
     //         if (node->inputPins.size() !=
-    //             node->getNodeGraph()->getInputs().size()) {
+    //             getMaterialXNodeGraph(node)->getInputs().size()) {
     //             for (mx::InputPtr input :
-    //             node->getNodeGraph()->getInputs())
+    //             getMaterialXNodeGraph(node)->getInputs())
     //             {
     //                 std::string name = input->getName();
     //                 auto result = std::find_if(
     //                     node->inputPins.begin(),
     //                     node->inputPins.end(),
-    //                     [name](UiPinPtr x) { return x->_name == name; });
+    //                     [name](UiPinPtr x) { return x->identifier == name;
+    //                     });
     //                 if (result == node->inputPins.end()) {
     //                     UiPinPtr inPin = std::make_shared<UiPin>(
     //                         ++_graphTotalSize,
@@ -1194,16 +1225,17 @@ void MaterialXNodeTree::addNodeGraphPins()
     //                 }
     //             }
     //         }
-    //         if (node->outputPins.size() !=
-    //             node->getNodeGraph()->getOutputs().size()) {
+    //         if (node->get_outputs().size() !=
+    //             getMaterialXNodeGraph(node)->getOutputs().size()) {
     //             for (mx::OutputPtr output :
-    //                  node->getNodeGraph()->getOutputs()) {
+    //                  getMaterialXNodeGraph(node)->getOutputs()) {
     //                 std::string name = output->getName();
     //                 auto result = std::find_if(
-    //                     node->outputPins.begin(),
-    //                     node->outputPins.end(),
-    //                     [name](UiPinPtr x) { return x->_name == name; });
-    //                 if (result == node->outputPins.end()) {
+    //                     node->get_outputs().begin(),
+    //                     node->get_outputs().end(),
+    //                     [name](UiPinPtr x) { return x->identifier == name;
+    //                     });
+    //                 if (result == node->get_outputs().end()) {
     //                     UiPinPtr outPin = std::make_shared<UiPin>(
     //                         ++_graphTotalSize,
     //                         &*output->getName().begin(),
@@ -1213,7 +1245,7 @@ void MaterialXNodeTree::addNodeGraphPins()
     //                         nullptr,
     //                         nullptr);
     //                     ++_graphTotalSize;
-    //                     node->outputPins.push_back(outPin);
+    //                     node->get_outputs().push_back(outPin);
     //                     sockets.push_back(outPin);
     //                 }
     //             }

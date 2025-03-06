@@ -175,9 +175,6 @@ class Graph : public NodeEditorWidgetBase {
     UiPinPtr getPin(SocketID id);
     void drawInputPin(UiPinPtr pin);
 
-    // Return output pin needed to link the inputs and outputs
-    SocketID getOutputPin(UiNodePtr node, UiNodePtr inputNode, UiPinPtr input);
-
     void drawOutputPins(UiNodePtr node, const std::string& longestInputLabel);
 
     std::vector<int> createNodes(bool nodegraph);

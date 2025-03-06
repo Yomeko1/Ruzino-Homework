@@ -73,6 +73,8 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
         const std::string& name,
         const std::string& type);
 
+    SocketID getOutputPin(UiNodePtr node, UiNodePtr upNode, UiPinPtr input);
+
     void addLink(SocketID startPinId, SocketID endPinId);
 
     void removeEdge(int downNode, int upNode, UiPinPtr pin);
