@@ -7,6 +7,7 @@
 #include <MCore/MaterialXNodeTreeWidget.h>
 #include <MaterialXFormat/Util.h>
 #include <blueprints/imgui_node_editor_internal.h>
+#include <imgui_stdlib.h>
 
 #include <nodes/core/node_link.hpp>
 
@@ -549,243 +550,249 @@ void MaterialXNodeTreeWidget::setConstant(
     mx::InputPtr& input,
     const mx::UIProperties& uiProperties)
 {
-    // ImGui::PushItemWidth(-1);
+    auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
 
-    // mx::ValuePtr minVal = uiProperties.uiMin;
-    // mx::ValuePtr maxVal = uiProperties.uiMax;
+    ImGui::PushItemWidth(-1);
+
+    mx::ValuePtr minVal = uiProperties.uiMin;
+    mx::ValuePtr maxVal = uiProperties.uiMax;
 
     // If input is a float set the float slider UI to the value
-    // if (input->getType() == "float") {
-    //     mx::ValuePtr val = input->getValue();
+    if (input->getType() == "float") {
+        mx::ValuePtr val = input->getValue();
 
-    //    if (val && val->isA<float>()) {
-    //        // Update the value to the default for new nodes
-    //        float prev, temp;
-    //        prev = temp = val->asA<float>();
-    //        float min = minVal ? minVal->asA<float>() : 0.f;
-    //        float max = maxVal ? maxVal->asA<float>() : 100.f;
-    //        float speed = (max - min) / 1000.0f;
-    //        ImGui::DragFloat("##hidelabel", &temp, speed, min, max);
+        if (val && val->isA<float>()) {
+            // Update the value to the default for new nodes
+            float prev, temp;
+            prev = temp = val->asA<float>();
+            float min = minVal ? minVal->asA<float>() : 0.f;
+            float max = maxVal ? maxVal->asA<float>() : 100.f;
+            float speed = (max - min) / 1000.0f;
+            ImGui::DragFloat("##hidelabel", &temp, speed, min, max);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "integer") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<int>()) {
-    //        int prev, temp;
-    //        prev = temp = val->asA<int>();
-    //        int min = minVal ? minVal->asA<int>() : 0;
-    //        int max = maxVal ? maxVal->asA<int>() : 100;
-    //        float speed = (max - min) / 100.0f;
-    //        ImGui::DragInt("##hidelabel", &temp, speed, min, max);
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "integer") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<int>()) {
+            int prev, temp;
+            prev = temp = val->asA<int>();
+            int min = minVal ? minVal->asA<int>() : 0;
+            int max = maxVal ? maxVal->asA<int>() : 100;
+            float speed = (max - min) / 100.0f;
+            ImGui::DragInt("##hidelabel", &temp, speed, min, max);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "color3") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<mx::Color3>()) {
-    //        mx::Color3 prev, temp;
-    //        prev = temp = val->asA<mx::Color3>();
-    //        float min = minVal ? minVal->asA<mx::Color3>()[0] : 0.f;
-    //        float max = maxVal ? maxVal->asA<mx::Color3>()[0] : 100.f;
-    //        float speed = (max - min) / 1000.0f;
-    //        ImGui::PushItemWidth(-100);
-    //        ImGui::DragFloat3("##hidelabel", &temp[0], speed, min, max);
-    //        ImGui::PopItemWidth();
-    //        ImGui::SameLine();
-    //        ImGui::ColorEdit3(
-    //            "##color", &temp[0], ImGuiColorEditFlags_NoInputs);
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "color3") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<mx::Color3>()) {
+            mx::Color3 prev, temp;
+            prev = temp = val->asA<mx::Color3>();
+            float min = minVal ? minVal->asA<mx::Color3>()[0] : 0.f;
+            float max = maxVal ? maxVal->asA<mx::Color3>()[0] : 100.f;
+            float speed = (max - min) / 1000.0f;
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat3("##hidelabel", &temp[0], speed, min, max);
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
+            ImGui::ColorEdit3(
+                "##color", &temp[0], ImGuiColorEditFlags_NoInputs);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "color4") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<mx::Color4>()) {
-    //        mx::Color4 prev, temp;
-    //        prev = temp = val->asA<mx::Color4>();
-    //        float min = minVal ? minVal->asA<mx::Color4>()[0] : 0.f;
-    //        float max = maxVal ? maxVal->asA<mx::Color4>()[0] : 100.f;
-    //        float speed = (max - min) / 1000.0f;
-    //        ImGui::PushItemWidth(-100);
-    //        ImGui::DragFloat4("##hidelabel", &temp[0], speed, min, max);
-    //        ImGui::PopItemWidth();
-    //        ImGui::SameLine();
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "color4") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<mx::Color4>()) {
+            mx::Color4 prev, temp;
+            prev = temp = val->asA<mx::Color4>();
+            float min = minVal ? minVal->asA<mx::Color4>()[0] : 0.f;
+            float max = maxVal ? maxVal->asA<mx::Color4>()[0] : 100.f;
+            float speed = (max - min) / 1000.0f;
+            ImGui::PushItemWidth(-100);
+            ImGui::DragFloat4("##hidelabel", &temp[0], speed, min, max);
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
 
-    //        // Color edit for the color picker to the right of the color
-    //        floats ImGui::ColorEdit4(
-    //            "##color", &temp[0], ImGuiColorEditFlags_NoInputs);
+            // Color edit for the color picker to the right of the color floats
+            ImGui::ColorEdit4(
+                "##color", &temp[0], ImGuiColorEditFlags_NoInputs);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (temp != prev) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "vector2") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<mx::Vector2>()) {
-    //        mx::Vector2 prev, temp;
-    //        prev = temp = val->asA<mx::Vector2>();
-    //        float min = minVal ? minVal->asA<mx::Vector2>()[0] : 0.f;
-    //        float max = maxVal ? maxVal->asA<mx::Vector2>()[0] : 100.f;
-    //        float speed = (max - min) / 1000.0f;
-    //        ImGui::DragFloat2("##hidelabel", &temp[0], speed, min, max);
+            // Set input value and update materials if different from previous
+            // value
+            if (temp != prev) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "vector2") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<mx::Vector2>()) {
+            mx::Vector2 prev, temp;
+            prev = temp = val->asA<mx::Vector2>();
+            float min = minVal ? minVal->asA<mx::Vector2>()[0] : 0.f;
+            float max = maxVal ? maxVal->asA<mx::Vector2>()[0] : 100.f;
+            float speed = (max - min) / 1000.0f;
+            ImGui::DragFloat2("##hidelabel", &temp[0], speed, min, max);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "vector3") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<mx::Vector3>()) {
-    //        mx::Vector3 prev, temp;
-    //        prev = temp = val->asA<mx::Vector3>();
-    //        float min = minVal ? minVal->asA<mx::Vector3>()[0] : 0.f;
-    //        float max = maxVal ? maxVal->asA<mx::Vector3>()[0] : 100.f;
-    //        float speed = (max - min) / 1000.0f;
-    //        ImGui::DragFloat3("##hidelabel", &temp[0], speed, min, max);
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "vector3") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<mx::Vector3>()) {
+            mx::Vector3 prev, temp;
+            prev = temp = val->asA<mx::Vector3>();
+            float min = minVal ? minVal->asA<mx::Vector3>()[0] : 0.f;
+            float max = maxVal ? maxVal->asA<mx::Vector3>()[0] : 100.f;
+            float speed = (max - min) / 1000.0f;
+            ImGui::DragFloat3("##hidelabel", &temp[0], speed, min, max);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "vector4") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<mx::Vector4>()) {
-    //        mx::Vector4 prev, temp;
-    //        prev = temp = val->asA<mx::Vector4>();
-    //        float min = minVal ? minVal->asA<mx::Vector4>()[0] : 0.f;
-    //        float max = maxVal ? maxVal->asA<mx::Vector4>()[0] : 100.f;
-    //        float speed = (max - min) / 1000.0f;
-    //        ImGui::DragFloat4("##hidelabel", &temp[0], speed, min, max);
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "vector4") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<mx::Vector4>()) {
+            mx::Vector4 prev, temp;
+            prev = temp = val->asA<mx::Vector4>();
+            float min = minVal ? minVal->asA<mx::Vector4>()[0] : 0.f;
+            float max = maxVal ? maxVal->asA<mx::Vector4>()[0] : 100.f;
+            float speed = (max - min) / 1000.0f;
+            ImGui::DragFloat4("##hidelabel", &temp[0], speed, min, max);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "string") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<std::string>()) {
-    //        std::string prev, temp;
-    //        prev = temp = val->asA<std::string>();
-    //        ImGui::InputText("##constant", &temp);
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "string") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<std::string>()) {
+            std::string prev, temp;
+            prev = temp = val->asA<std::string>();
+            ImGui::InputText("##constant", &temp);
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials();
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "filename") {
-    //    mx::ValuePtr val = input->getValue();
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "filename") {
+        mx::ValuePtr val = input->getValue();
 
-    //    if (val && val->isA<std::string>()) {
-    //        std::string prev, temp;
-    //        prev = temp = val->asA<std::string>();
-    //        ImGui::PushStyleColor(
-    //            ImGuiCol_Button, ImVec4(.15f, .15f, .15f, 1.0f));
-    //        ImGui::PushStyleColor(
-    //            ImGuiCol_ButtonHovered, ImVec4(.2f, .4f, .6f, 1.0f));
+        if (val && val->isA<std::string>()) {
+            std::string prev, temp;
+            prev = temp = val->asA<std::string>();
+            ImGui::PushStyleColor(
+                ImGuiCol_Button, ImVec4(.15f, .15f, .15f, 1.0f));
+            ImGui::PushStyleColor(
+                ImGuiCol_ButtonHovered, ImVec4(.2f, .4f, .6f, 1.0f));
 
-    //        // Browser button to select new file
-    //        ImGui::PushItemWidth(-100);
-    //        if (ImGui::Button("Browse")) {
-    //            _fileDialogImageInputName = input->getName();
-    //            _fileDialogImage.setTitle("Node Input Dialog");
-    //            _fileDialogImage.open();
-    //            _fileDialogImage.setTypeFilters(_imageFilter);
-    //        }
-    //        ImGui::PopItemWidth();
-    //        ImGui::SameLine();
-    //        ImGui::Text("%s", mx::FilePath(temp).getBaseName().c_str());
-    //        ImGui::PopStyleColor();
-    //        ImGui::PopStyleColor();
+            // Browser button to select new file
+            ImGui::PushItemWidth(-100);
+            if (ImGui::Button("Browse")) {
+                const std::string uniqueId =
+                    "imageFileBrowser_" + input->getName();
+                IGFD::FileDialogConfig config;
+                config.path = mx::FilePath(temp).getParentPath().asString();
+                config.countSelectionMax = 1;
+                config.flags = ImGuiFileDialogFlags_Modal;
 
-    //        // Create and load document from selected file
-    //        if (_fileDialogImage.hasSelected() &&
-    //            _fileDialogImageInputName == input->getName()) {
-    //            // Set the new filename to the complete file path
-    //            mx::FilePath fileName = _fileDialogImage.getSelected();
-    //            temp = fileName;
+                ImGuiFileDialog::Instance()->OpenDialog(
+                    uniqueId,
+                    "Select Image File",
+                    _imageFilter.empty()
+                        ? nullptr
+                        : mx::joinStrings(_imageFilter, ",").c_str(),
+                    config);
+            }
+            ImGui::PopItemWidth();
+            ImGui::SameLine();
+            ImGui::Text("%s", mx::FilePath(temp).getBaseName().c_str());
+            ImGui::PopStyleColor();
+            ImGui::PopStyleColor();
 
-    //            // Need to clear the file prefix so that it can find the new
-    //            // file
-    //            input->setFilePrefix(mx::EMPTY_STRING);
-    //            _fileDialogImage.clearSelected();
-    //            _fileDialogImage.setTypeFilters(std::vector<std::string>());
-    //            _fileDialogImageInputName = "";
-    //        }
+            // Process file dialog result
+            const std::string uniqueId = "imageFileBrowser_" + input->getName();
+            if (ImGuiFileDialog::Instance()->Display(uniqueId)) {
+                if (ImGuiFileDialog::Instance()->IsOk()) {
+                    // Get the selected filename
+                    std::string filePath =
+                        ImGuiFileDialog::Instance()->GetFilePathName();
+                    temp = filePath;
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValueString(temp);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials();
-    //        }
-    //    }
-    //}
-    // else if (input->getType() == "boolean") {
-    //    mx::ValuePtr val = input->getValue();
-    //    if (val && val->isA<bool>()) {
-    //        bool prev, temp;
-    //        prev = temp = val->asA<bool>();
-    //        ImGui::Checkbox("", &temp);
+                    // Update the input value
+                    mtlx_tree->addNodeInput(_currUiNode, input);
+                    input->setFilePrefix(mx::EMPTY_STRING);
+                    input->setValueString(temp);
+                }
 
-    //        // Set input value and update materials if different from previous
-    //        // value
-    //        if (prev != temp) {
-    //            addNodeInput(_currUiNode, input);
-    //            input->setValue(temp, input->getType());
-    //            updateMaterials(input, input->getValue());
-    //        }
-    //    }
-    //}
+                // Close the dialog
+                ImGuiFileDialog::Instance()->Close();
+            }
 
-    // ImGui::PopItemWidth();
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValueString(temp);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+    else if (input->getType() == "boolean") {
+        mx::ValuePtr val = input->getValue();
+        if (val && val->isA<bool>()) {
+            bool prev, temp;
+            prev = temp = val->asA<bool>();
+            ImGui::Checkbox("", &temp);
+
+            // Set input value and update materials if different from previous
+            // value
+            if (prev != temp) {
+                mtlx_tree->addNodeInput(_currUiNode, input);
+                input->setValue(temp, input->getType());
+            }
+        }
+    }
+
+    ImGui::PopItemWidth();
 }
 
 void MaterialXNodeTreeWidget::createNodeUIList(mx::DocumentPtr doc)
@@ -1213,29 +1220,6 @@ void MaterialXNodeTreeWidget::drawOutputPins(
     //}
 }
 
-void MaterialXNodeTreeWidget::drawInputPin(UiPinPtr pin)
-{
-    // ed::BeginPin(pin->ID, ed::PinKind::Input);
-    // ImGui::PushID(int(pin->ID.Get()));
-    // bool connected = pin->getConnected();
-    // if (!_pinFilterType.empty()) {
-    //     if (_pinFilterType == pin->_type) {
-    //         drawPinIcon(pin->_type, connected, DEFAULT_ALPHA);
-    //     }
-    //     else {
-    //         drawPinIcon(pin->_type, connected, FILTER_ALPHA);
-    //     }
-    // }
-    // else {
-    //     drawPinIcon(pin->_type, connected, DEFAULT_ALPHA);
-    // }
-    // ImGui::PopID();
-    // ed::EndPin();
-
-    // ImGui::SameLine();
-    // ImGui::TextUnformatted(pin->identifier.c_str());
-}
-
 std::vector<int> MaterialXNodeTreeWidget::createNodes(bool nodegraph)
 {
     // std::vector<int> outputNum;
@@ -1518,128 +1502,6 @@ std::vector<int> MaterialXNodeTreeWidget::createNodes(bool nodegraph)
     // ImGui::SetWindowFontScale(_fontScale);
     // return outputNum;
     return {};
-}
-
-void MaterialXNodeTreeWidget::setDefaults(mx::InputPtr input)
-{
-    if (input->getType() == "float") {
-        input->setValue(0.f, "float");
-    }
-    else if (input->getType() == "integer") {
-        input->setValue(0, "integer");
-    }
-    else if (input->getType() == "color3") {
-        input->setValue(mx::Color3(0.f, 0.f, 0.f), "color3");
-    }
-    else if (input->getType() == "color4") {
-        input->setValue(mx::Color4(0.f, 0.f, 0.f, 1.f), "color4");
-    }
-    else if (input->getType() == "vector2") {
-        input->setValue(mx::Vector2(0.f, 0.f), "vector2");
-    }
-    else if (input->getType() == "vector3") {
-        input->setValue(mx::Vector3(0.f, 0.f, 0.f), "vector3");
-    }
-    else if (input->getType() == "vector4") {
-        input->setValue(mx::Vector4(0.f, 0.f, 0.f, 0.f), "vector4");
-    }
-    else if (input->getType() == "string") {
-        input->setValue("", "string");
-    }
-    else if (input->getType() == "filename") {
-        input->setValue("", "filename");
-    }
-    else if (input->getType() == "boolean") {
-        input->setValue(false, "boolean");
-    }
-}
-
-void MaterialXNodeTreeWidget::deleteLinkInfo(int startAttr, int endAttr)
-{
-    // int upNode = getNodeId(startAttr);
-    // int downNode = getNodeId(endAttr);
-    // if (upNode == -1 || downNode == -1) {
-    //     return;
-    // }
-
-    // Change input to default value
-    // if (_graphNodes[downNode]->getNode()) {
-    //     mx::NodeDefPtr nodeDef =
-    //     _graphNodes[downNode]->getNode()->getNodeDef(
-    //         _graphNodes[downNode]->getNode()->getName());
-
-    //    for (UiPinPtr pin : _graphNodes[downNode]->inputPins) {
-    //        if ((int)pin->ID.Get() == endAttr) {
-    //            removeEdge(downNode, upNode, pin);
-    //            mx::ValuePtr val =
-    //                nodeDef->getActiveInput(getMaterialXPinInput(pin)->getName())->getValue();
-    //            if (_graphNodes[downNode]->getNode()->getType() ==
-    //                    mx::SURFACE_SHADER_TYPE_STRING &&
-    //                _graphNodes[upNode]->getNodeGraph()) {
-    //                getMaterialXPinInput(pin)->setConnectedOutput(nullptr);
-    //            }
-    //            else {
-    //                getMaterialXPinInput(pin)->setConnectedNode(nullptr);
-    //            }
-    //            if (_graphNodes[upNode]->getInput()) {
-    //                // Remove interface value in order to set the default of
-    //                the
-    //                // input
-    //                getMaterialXPinInput(pin)->setInterfaceName(mx::EMPTY_STRING);
-    //                setDefaults(getMaterialXPinInput(pin));
-    //                setDefaults(_graphNodes[upNode]->getInput());
-    //            }
-
-    //            for (UiPinPtr connect : pin->_connections) {
-    //                pin->deleteConnection(connect);
-    //            }
-
-    //            // Remove any output reference
-    //            getMaterialXPinInput(pin)->removeAttribute(mx::PortElement::OUTPUT_ATTRIBUTE);
-    //            pin->setConnected(false);
-
-    //            // If a value exists update the input with it
-    //            if (val) {
-    //                getMaterialXPinInput(pin)->setValueString(val->getValueString());
-    //            }
-    //        }
-    //    }
-    //}
-    // else if (_graphNodes[downNode]->getNodeGraph()) {
-    //    // Set default values for nodegraph node pins ie nodegraph inputs
-    //    mx::NodeDefPtr nodeDef =
-    //        _graphNodes[downNode]->getNodeGraph()->getNodeDef();
-    //    for (UiPinPtr pin : _graphNodes[downNode]->inputPins) {
-    //        if ((int)pin->ID.Get() == endAttr) {
-    //            removeEdge(downNode, upNode, pin);
-    //            if (_graphNodes[upNode]->getInput()) {
-    //                _graphNodes[downNode]
-    //                    ->getNodeGraph()
-    //                    ->getInput(pin->identifier)
-    //                    ->setInterfaceName(mx::EMPTY_STRING);
-    //                setDefaults(_graphNodes[upNode]->getInput());
-    //            }
-    //            for (UiPinPtr connect : pin->_connections) {
-    //                pin->deleteConnection(connect);
-    //            }
-    //            getMaterialXPinInput(pin)->setConnectedNode(nullptr);
-    //            pin->setConnected(false);
-    //            setDefaults(getMaterialXPinInput(pin));
-    //        }
-    //    }
-    //}
-    // else if (_graphNodes[downNode]->getOutput()) {
-    //    for (UiPinPtr pin : _graphNodes[downNode]->inputPins) {
-    //        if ((int)pin->ID.Get() == endAttr) {
-    //            removeEdge(downNode, upNode, pin);
-    //            _graphNodes[downNode]->getOutput()->removeAttribute("nodename");
-    //            for (UiPinPtr connect : pin->_connections) {
-    //                pin->deleteConnection(connect);
-    //            }
-    //            pin->setConnected(false);
-    //        }
-    //    }
-    //}
 }
 
 void MaterialXNodeTreeWidget::upNodeGraph()

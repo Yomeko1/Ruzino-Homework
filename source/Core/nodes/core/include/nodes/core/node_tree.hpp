@@ -176,7 +176,7 @@ class NODES_CORE_API NodeTree {
         LinkId linkId,
         bool refresh_topology = true,
         bool remove_from_group = true);
-    virtual void delete_link(
+    void delete_link(
         NodeLink* link,
         bool refresh_topology = true,
         bool remove_from_group = true);

@@ -153,12 +153,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     // endPinId - where the link was ended
     // void addLink(SocketID startPinId, SocketID endPinId);
 
-    // Delete link from current link vector and remove any connections in
-    // UiNode or MaterialX Nodes to update shader
-    // void deleteLink(LinkId deletedLinkId);
-
-    void deleteLinkInfo(int startAtrr, int endAttr);
-
     // Layout the x-position by assigning the node levels based on its distance
     // from the first node
     ImVec2
@@ -181,7 +175,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     void drawPinIcon(const std::string& type, bool connected, int alpha);
 
     UiPinPtr getPin(SocketID id);
-    void drawInputPin(UiPinPtr pin);
 
     void drawOutputPins(UiNodePtr node, const std::string& longestInputLabel);
 
@@ -208,7 +201,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
         const mx::UIProperties& uiProperties);
 
     void propertyEditor();
-    void setDefaults(mx::InputPtr input);
 
     void copyInputs();
 
@@ -320,7 +312,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     // Options
     bool _saveNodePositions;
 };
-
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
 

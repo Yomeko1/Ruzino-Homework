@@ -1027,24 +1027,6 @@ void MaterialXNodeTree::removeEdge(int downNode, int upNode, UiPinPtr pin)
     // upNode->removeOutputConnection(downNode->getName());
 }
 
-void MaterialXNodeTree::deleteLink(LinkId deletedLinkId)
-{
-    If you agree that link can be deleted,
-        accept deletion.if (ed::AcceptDeletedItem())
-    {
-        _renderer->setMaterialCompilation(true);
-        _frameCount = ImGui::GetFrameCount();
-        int link_id = int(deletedLinkId.Get());
-
-        // Then remove link from your data.
-        int pos = findLinkPosition(link_id);
-
-        // Link start -1 equals node num
-        Link currLink = links[pos];
-        links.erase(links.begin() + pos);
-    }
-}
-
 void MaterialXNodeTree::deleteNode(UiNodePtr node)
 {
     //    // Delete link
@@ -1264,12 +1246,14 @@ void MaterialXNodeTree::delete_node(NodeId nodeId, bool allow_repeat_delete)
 }
 
 void MaterialXNodeTree::delete_link(
-    LinkId linkId,
+    LinkId linkid,
     bool refresh_topology,
     bool remove_from_group)
 {
-    deleteLinkInfo(currLink._startAttr, currLink._endAttr);
-    NodeTree::delete_link(linkId, refresh_topology, remove_from_group);
+    auto link = find_link(linkid);
+
+    deleteLinkInfo(link->from_sock, link->to_sock);
+    NodeTree::delete_link(linkid, refresh_topology, remove_from_group);
 }
 
 mx::DocumentPtr MaterialXNodeTree::get_mtlx_stdlib()
@@ -1285,6 +1269,101 @@ void MaterialXNodeTree::addNodeInput(UiNodePtr node, mx::InputPtr& input)
                 input->getName(), input->getType());
             input->setConnectedNode(nullptr);
         }
+    }
+}
+
+void MaterialXNodeTree::setDefaults(mx::InputPtr input)
+{
+    if (input->getType() == "float") {
+        input->setValue(0.f, "float");
+    }
+    else if (input->getType() == "integer") {
+        input->setValue(0, "integer");
+    }
+    else if (input->getType() == "color3") {
+        input->setValue(mx::Color3(0.f, 0.f, 0.f), "color3");
+    }
+    else if (input->getType() == "color4") {
+        input->setValue(mx::Color4(0.f, 0.f, 0.f, 1.f), "color4");
+    }
+    else if (input->getType() == "vector2") {
+        input->setValue(mx::Vector2(0.f, 0.f), "vector2");
+    }
+    else if (input->getType() == "vector3") {
+        input->setValue(mx::Vector3(0.f, 0.f, 0.f), "vector3");
+    }
+    else if (input->getType() == "vector4") {
+        input->setValue(mx::Vector4(0.f, 0.f, 0.f, 0.f), "vector4");
+    }
+    else if (input->getType() == "string") {
+        input->setValue("", "string");
+    }
+    else if (input->getType() == "filename") {
+        input->setValue("", "filename");
+    }
+    else if (input->getType() == "boolean") {
+        input->setValue(false, "boolean");
+    }
+}
+
+void MaterialXNodeTree::deleteLinkInfo(
+    NodeSocket* from_sock,
+    NodeSocket* to_sock)
+{
+    auto upNode = from_sock->node;
+    auto downNode = to_sock->node;
+
+    // Change input to default value
+    if (getMaterialXNode(downNode)) {
+        mx::NodeDefPtr nodeDef = getMaterialXNode(downNode)->getNodeDef(
+            getMaterialXNode(downNode)->getName());
+
+        auto pin = to_sock;
+        mx::ValuePtr val =
+            nodeDef->getActiveInput(getMaterialXPinInput(pin)->getName())
+                ->getValue();
+        if (getMaterialXNode(downNode)->getType() ==
+                mx::SURFACE_SHADER_TYPE_STRING &&
+            getMaterialXNodeGraph(upNode)) {
+            getMaterialXPinInput(pin)->setConnectedOutput(nullptr);
+        }
+        else {
+            getMaterialXPinInput(pin)->setConnectedNode(nullptr);
+        }
+        if (getMaterialXInput(upNode)) {
+            // Remove interface value in order to set the default of the
+            // input
+            getMaterialXPinInput(pin)->setInterfaceName(mx::EMPTY_STRING);
+            setDefaults(getMaterialXPinInput(pin));
+            setDefaults(getMaterialXInput(upNode));
+        }
+
+        // Remove any output reference
+        getMaterialXPinInput(pin)->removeAttribute(
+            mx::PortElement::OUTPUT_ATTRIBUTE);
+
+        // If a value exists update the input with it
+        if (val) {
+            getMaterialXPinInput(pin)->setValueString(val->getValueString());
+        }
+    }
+    else if (getMaterialXNodeGraph(downNode)) {
+        // Set default values for nodegraph node pins ie nodegraph inputs
+        mx::NodeDefPtr nodeDef = getMaterialXNodeGraph(downNode)->getNodeDef();
+
+        auto pin = to_sock;
+        if (getMaterialXInput(upNode)) {
+            getMaterialXNodeGraph(downNode)
+                ->getInput(pin->identifier)
+                ->setInterfaceName(mx::EMPTY_STRING);
+            setDefaults(getMaterialXInput(upNode));
+        }
+
+        getMaterialXPinInput(pin)->setConnectedNode(nullptr);
+        setDefaults(getMaterialXPinInput(pin));
+    }
+    else if (getMaterialXOutput(downNode)) {
+        getMaterialXOutput(downNode)->removeAttribute("nodename");
     }
 }
 

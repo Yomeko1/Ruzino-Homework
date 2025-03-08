@@ -82,7 +82,7 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
     void removeEdge(int downNode, int upNode, UiPinPtr pin);
 
     void delete_link(
-        LinkId linkId,
+        LinkId linkid,
         bool refresh_topology,
         bool remove_from_group) override;
 
@@ -107,7 +107,9 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
 
     // Add input pointer to node based on input pin
     void addNodeInput(UiNodePtr node, mx::InputPtr& input);
+    void setDefaults(mx::InputPtr input);
 
+    void deleteLinkInfo(NodeSocket* from_sock, NodeSocket* to_sock);
     // document and initializing information
     mx::FilePath _materialFilename;
     mx::DocumentPtr _graphDoc;
