@@ -58,7 +58,6 @@ class NODES_UI_IMGUI_API NodeEditorWidgetBase : public IWidget {
     bool first_draw = true;
     ed::EditorContext* m_Editor = nullptr;
 
-    unsigned _level = 0;
     NodeSocket* newNodeLinkPin = nullptr;
     NodeSocket* newLinkPin = nullptr;
 

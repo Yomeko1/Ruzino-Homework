@@ -167,16 +167,7 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     void setYSpacing(int level, float startingPos);
     float findAvgY(const std::vector<UiNodePtr>& nodes);
 
-    // Return pin color based on the type of the value of that pin
-    void setPinColor();
-
-    // Based on the pin icon function in the ImGui Node Editor
-    // blueprints-example.cpp
-    void drawPinIcon(const std::string& type, bool connected, int alpha);
-
     UiPinPtr getPin(SocketID id);
-
-    void drawOutputPins(UiNodePtr node, const std::string& longestInputLabel);
 
     std::vector<int> createNodes(bool nodegraph);
     int getNodeId(SocketID pinId);
@@ -254,13 +245,14 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     std::vector<Link> _currLinks;
     std::vector<UiEdge> _currEdge;
     std::unordered_map<UiNodePtr, std::vector<UiPinPtr>> _downstreamInputs;
-    std::unordered_map<std::string, ImColor> _pinColor;
 
     // current nodes and nodegraphs
     UiNodePtr _currUiNode;
     UiNodePtr _prevUiNode;
     UiNodePtr _currRenderNode;
     std::vector<std::string> _currGraphName;
+
+    void addExtraNodes();
 
     // for adding new nodes
     std::vector<MenuItem> _nodesToAdd;

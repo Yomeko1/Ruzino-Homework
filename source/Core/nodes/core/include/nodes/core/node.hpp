@@ -92,6 +92,7 @@ struct NODES_CORE_API Node {
 
     [[nodiscard]] const std::vector<NodeSocket*>& get_outputs() const;
 
+    std::vector<Node*> getInputConnections() const;
     std::vector<Node*> getOutputConnections() const;
 
     bool valid();
@@ -136,6 +137,8 @@ struct NODES_CORE_API Node {
 
     bool pre_init_node(const char* idname);
     Node* paired_node = nullptr;
+
+    unsigned _level = 0;  // For auto-layouting.
 
    private:
     void remove_outdated_socket(NodeSocket* socket, PinKind kind);

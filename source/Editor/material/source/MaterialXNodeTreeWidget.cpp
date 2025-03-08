@@ -160,34 +160,6 @@ auto showLabel = [](const char* label, ImColor color) {
 //    //}
 //}
 //
-// void Graph::addExtraNodes()
-//{
-//    if (!_graphDoc) {
-//        return;
-//    }
-//
-//    // Get all types from the doc
-//    std::vector<std::string> types;
-//    std::vector<mx::TypeDefPtr> typeDefs = _graphDoc->getTypeDefs();
-//    types.reserve(typeDefs.size());
-//    for (auto typeDef : typeDefs) {
-//        types.push_back(typeDef->getName());
-//    }
-//
-//    // Add input and output nodes for all types
-//    for (const std::string& type : types) {
-//        std::string nodeName = "ND_input_" + type;
-//        _nodesToAdd.emplace_back(nodeName, type, "input", "Input Nodes");
-//        nodeName = "ND_output_" + type;
-//        _nodesToAdd.emplace_back(nodeName, type, "output", "Output Nodes");
-//    }
-//
-//    // Add group node
-//    _nodesToAdd.emplace_back("ND_group", "", "group", "Group Nodes");
-//
-//    // Add nodegraph node
-//    _nodesToAdd.emplace_back("ND_nodegraph", "", "nodegraph", "Node Graph");
-//}
 
 void MaterialXNodeTreeWidget::linkGraph()
 {
@@ -348,7 +320,6 @@ ImVec2 MaterialXNodeTreeWidget::layoutPosition(
                     ImVec2 outputPos = ed::GetNodePosition(outputCon[0]->ID);
                     ed::SetNodePosition(
                         node->ID, ImVec2(outputPos.x - 400, outputPos.y));
-                    node->setPos(ImVec2(outputPos.x - 400, outputPos.y));
                 }
             }
             else {
@@ -365,7 +336,6 @@ ImVec2 MaterialXNodeTreeWidget::layoutPosition(
                             x *= DEFAULT_NODE_SIZE.x;
                             y *= DEFAULT_NODE_SIZE.y;
                             ed::SetNodePosition(node->ID, ImVec2(x, y));
-                            node->setPos(ImVec2(x, y));
                         }
                     }
                 }
@@ -418,10 +388,10 @@ ImVec2 MaterialXNodeTreeWidget::layoutPosition(
             std::vector<UiNodePtr> newValue = { layoutNode };
             _levelMap.insert({ layoutNode->_level, newValue });
         }
-        std::vector<UiPinPtr> pins = layoutNode->inputPins;
+        std::vector<UiPinPtr> pins = layoutNode->get_inputs();
         if (initialLayout) {
             // Check number of inputs that are connected to node
-            if (layoutNode->getInputConnect() > 0) {
+            if (!layoutNode->getInputConnections().empty()) {
                 // Not top of node graph so stop recursion
                 if (pins.size() != 0 &&
                     getMaterialXInput(layoutNode) == nullptr) {
@@ -435,16 +405,14 @@ ImVec2 MaterialXNodeTreeWidget::layoutPosition(
                                 (1200.f - ((layoutNode->_level) * 250)) *
                                 _fontScale;
                             ed::SetNodePosition(layoutNode->ID, startingPos);
-                            layoutNode->setPos(ImVec2(startingPos));
 
-                            // Call layout position on upstream node with
-                            newPos
-                                // to the left of current node
-                                layoutPosition(
-                                    nextNode,
-                                    ImVec2(newPos.x, startingPos.y),
-                                    initialLayout,
-                                    layoutNode->_level + 1);
+                            // Call layout position on upstream node with newPos
+                            // to the left of current node
+                            layoutPosition(
+                                nextNode,
+                                ImVec2(newPos.x, startingPos.y),
+                                initialLayout,
+                                layoutNode->_level + 1);
                         }
                     }
                 }
@@ -452,7 +420,6 @@ ImVec2 MaterialXNodeTreeWidget::layoutPosition(
             else {
                 startingPos.x =
                     (1200.f - ((layoutNode->_level) * 250)) * _fontScale;
-                layoutNode->setPos(ImVec2(startingPos));
 
                 // Set current node position
                 ed::SetNodePosition(layoutNode->ID, ImVec2(startingPos));
@@ -494,46 +461,6 @@ void MaterialXNodeTreeWidget::layoutInputs()
             }
         }
     }
-}
-
-void MaterialXNodeTreeWidget::setPinColor()
-{
-    _pinColor.emplace("integer", ImColor(255, 255, 28, 255));
-    _pinColor.emplace("boolean", ImColor(255, 0, 255, 255));
-    _pinColor.emplace("float", ImColor(50, 100, 255, 255));
-    _pinColor.emplace("color3", ImColor(178, 34, 34, 255));
-    _pinColor.emplace("color4", ImColor(50, 10, 255, 255));
-    _pinColor.emplace("vector2", ImColor(100, 255, 100, 255));
-    _pinColor.emplace("vector3", ImColor(0, 255, 0, 255));
-    _pinColor.emplace("vector4", ImColor(100, 0, 100, 255));
-    _pinColor.emplace("matrix33", ImColor(0, 100, 100, 255));
-    _pinColor.emplace("matrix44", ImColor(50, 255, 100, 255));
-    _pinColor.emplace("filename", ImColor(255, 184, 28, 255));
-    _pinColor.emplace("string", ImColor(100, 100, 50, 255));
-    _pinColor.emplace("geomname", ImColor(121, 60, 180, 255));
-    _pinColor.emplace("BSDF", ImColor(10, 181, 150, 255));
-    _pinColor.emplace("EDF", ImColor(255, 50, 100, 255));
-    _pinColor.emplace("VDF", ImColor(0, 100, 151, 255));
-    _pinColor.emplace(
-        mx::SURFACE_SHADER_TYPE_STRING, ImColor(150, 255, 255, 255));
-    _pinColor.emplace(mx::MATERIAL_TYPE_STRING, ImColor(255, 255, 255, 255));
-    _pinColor.emplace(
-        mx::DISPLACEMENT_SHADER_TYPE_STRING, ImColor(155, 50, 100, 255));
-    _pinColor.emplace(
-        mx::VOLUME_SHADER_TYPE_STRING, ImColor(155, 250, 100, 255));
-    _pinColor.emplace(
-        mx::LIGHT_SHADER_TYPE_STRING, ImColor(100, 150, 100, 255));
-    _pinColor.emplace("none", ImColor(140, 70, 70, 255));
-    _pinColor.emplace(mx::MULTI_OUTPUT_TYPE_STRING, ImColor(70, 70, 70, 255));
-    _pinColor.emplace("integerarray", ImColor(200, 10, 100, 255));
-    _pinColor.emplace("floatarray", ImColor(25, 250, 100));
-    _pinColor.emplace("color3array", ImColor(25, 200, 110));
-    _pinColor.emplace("color4array", ImColor(50, 240, 110));
-    _pinColor.emplace("vector2array", ImColor(50, 200, 75));
-    _pinColor.emplace("vector3array", ImColor(20, 200, 100));
-    _pinColor.emplace("vector4array", ImColor(100, 200, 100));
-    _pinColor.emplace("geomnamearray", ImColor(150, 200, 100));
-    _pinColor.emplace("stringarray", ImColor(120, 180, 100));
 }
 
 void MaterialXNodeTreeWidget::setConstant(
@@ -1087,24 +1014,6 @@ UiPinPtr MaterialXNodeTreeWidget::getPin(SocketID pinId)
     return nullptr;
 }
 
-void MaterialXNodeTreeWidget::drawPinIcon(
-    const std::string& type,
-    bool connected,
-    int alpha)
-{
-    // ax::Drawing::IconType iconType = ax::Drawing::IconType::Flow;
-    // ImColor color = ImColor(0, 0, 0, 255);
-    // if (_pinColor.find(type) != _pinColor.end()) {
-    //     color = _pinColor[type];
-    // }
-
-    // color.Value.w = alpha / 255.0f;
-
-    // ax::Widgets::Icon(
-    //     ImVec2(24, 24), iconType, connected, color, ImColor(32, 32, 32,
-    //     alpha));
-}
-
 void MaterialXNodeTreeWidget::buildGroupNode(UiNodePtr node)
 {
     // const float commentAlpha = 0.75f;
@@ -1173,42 +1082,6 @@ bool MaterialXNodeTreeWidget::readOnly()
     /// modified
     // return _currGraphElem->getActiveSourceUri() !=
     //        _graphDoc->getActiveSourceUri();
-}
-
-void MaterialXNodeTreeWidget::drawOutputPins(
-    UiNodePtr node,
-    const std::string& longestInputLabel)
-{
-    // std::string longestLabel = longestInputLabel;
-    // for (UiPinPtr pin : node->get_outputs()) {
-    //     if (pin->identifier.size() > longestLabel.size())
-    //         longestLabel = pin->identifier;
-    // }
-
-    // Create output pins
-    // float nodeWidth = ImGui::CalcTextSize(longestLabel.c_str()).x;
-    // for (UiPinPtr pin : node->get_outputs()) {
-    //     const float indent =
-    //         nodeWidth - ImGui::CalcTextSize(pin->identifier.c_str()).x;
-    //     ImGui::Indent(indent);
-    //     ImGui::TextUnformatted(pin->identifier.c_str());
-    //     ImGui::SameLine();
-
-    //    ed::BeginPin(pin->ID, ed::PinKind::Output);
-    //    bool connected = pin->getConnected();
-    //    if (!_pinFilterType.empty()) {
-    //        drawPinIcon(
-    //            pin->_type,
-    //            connected,
-    //            _pinFilterType == pin->_type ? DEFAULT_ALPHA : FILTER_ALPHA);
-    //    }
-    //    else {
-    //        drawPinIcon(pin->_type, connected, DEFAULT_ALPHA);
-    //    }
-
-    //    ed::EndPin();
-    //    ImGui::Unindent(indent);
-    //}
 }
 
 std::vector<int> MaterialXNodeTreeWidget::createNodes(bool nodegraph)
@@ -2916,6 +2789,37 @@ void MaterialXNodeTreeWidget::execute_tree(Node* node)
         mtlx_tree->saveDocument("test.mtlx");
         mtlx_tree->SetDirty(false);
     }
+}
+
+void MaterialXNodeTreeWidget::addExtraNodes()
+{
+    auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
+
+    if (!mtlx_tree->_graphDoc) {
+        return;
+    }
+
+    // Get all types from the doc
+    std::vector<std::string> types;
+    std::vector<mx::TypeDefPtr> typeDefs = mtlx_tree->_graphDoc->getTypeDefs();
+    types.reserve(typeDefs.size());
+    for (auto typeDef : typeDefs) {
+        types.push_back(typeDef->getName());
+    }
+
+    // Add input and output nodes for all types
+    for (const std::string& type : types) {
+        std::string nodeName = "ND_input_" + type;
+        _nodesToAdd.emplace_back(nodeName, type, "input", "Input Nodes");
+        nodeName = "ND_output_" + type;
+        _nodesToAdd.emplace_back(nodeName, type, "output", "Output Nodes");
+    }
+
+    // Add group node
+    _nodesToAdd.emplace_back("ND_group", "", "group", "Group Nodes");
+
+    // Add nodegraph node
+    _nodesToAdd.emplace_back("ND_nodegraph", "", "nodegraph", "Node Graph");
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

@@ -274,6 +274,17 @@ const std::vector<NodeSocket*>& Node::get_outputs() const
     return outputs;
 }
 
+std::vector<Node*> Node::getInputConnections() const
+{
+    std::set<Node*> nodes;
+    for (auto& input : get_inputs()) {
+        for (auto& link : input->directly_linked_links) {
+            nodes.insert(link->from_sock->node);
+        }
+    }
+    return std::vector<Node*>(nodes.begin(), nodes.end());
+}
+
 std::vector<Node*> Node::getOutputConnections() const
 {
     std::set<Node*> nodes;
