@@ -86,7 +86,6 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
         bool refresh_topology,
         bool remove_from_group) override;
 
-    void deleteNode(UiNodePtr node);
 
     // bool edgeExists(UiEdge newEdge);
 
@@ -98,7 +97,6 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
     Node* find_node(NodeId id) const override;
     Node* find_node(const char* identifier) const override;
     Node* add_node(const char* str) override;
-    void delete_node(Node* nodeId, bool allow_repeat_delete) override;
     void delete_node(NodeId nodeId, bool allow_repeat_delete) override;
 
     mx::DocumentPtr get_mtlx_stdlib();

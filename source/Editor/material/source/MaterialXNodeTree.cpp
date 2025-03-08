@@ -538,12 +538,11 @@ void MaterialXNodeTree::setUiNodeInfo(
     const std::string& category)
 {
     // Do nothing if sockets are already set up.
-    if (!node->typeinfo->static_declaration.items.empty())
-        return;
-
-    // Lambda to create and add a socket declaration.
-    auto createSocketDeclaration =
-        [&](auto socketElement, PinKind kind, auto& targetVector) {
+    if (node->typeinfo->static_declaration.items.empty()) {
+        // Lambda to create and add a socket declaration.
+        auto createSocketDeclaration = [&](auto socketElement,
+                                           PinKind kind,
+                                           auto& targetVector) {
             auto socketDecl = std::make_shared<MaterialXSocketDeclaration>();
             std::string socketName = socketElement->getName();
             std::string socketCategory = socketElement->getType();
@@ -559,38 +558,41 @@ void MaterialXNodeTree::setUiNodeInfo(
             targetVector.push_back(socketDecl.get());
         };
 
-    // If the node stores a NodeGraph.
-    if (node->storage.allow_cast<mx::NodeGraphPtr>()) {
-        auto nodeGraph = node->storage.cast<mx::NodeGraphPtr>();
+        // If the node stores a NodeGraph.
+        if (node->storage.allow_cast<mx::NodeGraphPtr>()) {
+            auto nodeGraph = node->storage.cast<mx::NodeGraphPtr>();
 
-        for (mx::OutputPtr out : nodeGraph->getOutputs())
-            createSocketDeclaration(
-                out,
-                PinKind::Output,
-                node->typeinfo->static_declaration.outputs);
-        for (mx::InputPtr in : nodeGraph->getInputs())
-            createSocketDeclaration(
-                in, PinKind::Input, node->typeinfo->static_declaration.inputs);
-    }
-    // If the node stores a regular Node.
-    else if (node->storage.allow_cast<mx::NodePtr>()) {
-        auto mnode = node->storage.cast<mx::NodePtr>();
-        mx::NodeDefPtr nodeDef = mnode->getNodeDef(mnode->getName());
-        if (nodeDef) {
-            for (mx::InputPtr in : nodeDef->getActiveInputs())
-                createSocketDeclaration(
-                    in,
-                    PinKind::Input,
-                    node->typeinfo->static_declaration.inputs);
-            for (mx::OutputPtr out : nodeDef->getActiveOutputs())
+            for (mx::OutputPtr out : nodeGraph->getOutputs())
                 createSocketDeclaration(
                     out,
                     PinKind::Output,
                     node->typeinfo->static_declaration.outputs);
+            for (mx::InputPtr in : nodeGraph->getInputs())
+                createSocketDeclaration(
+                    in,
+                    PinKind::Input,
+                    node->typeinfo->static_declaration.inputs);
         }
-    }
+        // If the node stores a regular Node.
+        else if (node->storage.allow_cast<mx::NodePtr>()) {
+            auto mnode = node->storage.cast<mx::NodePtr>();
+            mx::NodeDefPtr nodeDef = mnode->getNodeDef(mnode->getName());
+            if (nodeDef) {
+                for (mx::InputPtr in : nodeDef->getActiveInputs())
+                    createSocketDeclaration(
+                        in,
+                        PinKind::Input,
+                        node->typeinfo->static_declaration.inputs);
+                for (mx::OutputPtr out : nodeDef->getActiveOutputs())
+                    createSocketDeclaration(
+                        out,
+                        PinKind::Output,
+                        node->typeinfo->static_declaration.outputs);
+            }
+        }
 
-    node->refresh_node();
+        node->refresh_node();
+    }
 
     // If the node stores a NodeGraph.
     if (node->storage.allow_cast<mx::NodeGraphPtr>()) {
@@ -708,46 +710,53 @@ void MaterialXNodeTree::addNode(
 
     // Create document or node graph is there is not already one
     if (category == "output") {
-        // std::string outName = "";
-        // mx::OutputPtr newOut;
-        //// add output as child of correct parent and create valid name
-        // outName = _currGraphElem->createValidChildName(name);
-        // newOut = _currGraphElem->addOutput(outName, type);
-        // auto outputNode =
-        //     std::make_shared<UiNode>(outName, int(++_graphTotalSize));
-        // outputNode->setOutput(newOut);
-        // setUiNodeInfo(outputNode, type, category);
+        std::string outName = "";
+        mx::OutputPtr newOut;
+        // add output as child of correct parent and create valid name
+        outName = _currGraphElem->createValidChildName(name);
+        newOut = _currGraphElem->addOutput(outName, type);
+
+        auto outputNode = add_node(type.c_str());
+        outputNode->ui_name = outName;
+        outputNode->storage = newOut;
+
+        setUiNodeInfo(outputNode, type, category);
         return;
     }
-    if (category == "input") {
-        // std::string inName = "";
-        // mx::InputPtr newIn = nullptr;
+    else if (category == "input") {
+        std::string inName = "";
+        mx::InputPtr newIn = nullptr;
 
-        //// Add input as child of correct parent and create valid name
-        // inName = _currGraphElem->createValidChildName(name);
-        // newIn = _currGraphElem->addInput(inName, type);
-        // auto inputNode =
-        //     std::make_shared<UiNode>(inName, int(++_graphTotalSize));
-        // setDefaults(newIn);
-        // inputNode->setInput(newIn);
-        // setUiNodeInfo(inputNode, type, category);
+        // Add input as child of correct parent and create valid name
+        inName = _currGraphElem->createValidChildName(name);
+        newIn = _currGraphElem->addInput(inName, type);
+        auto inputNode = add_node(type.c_str());
+        inputNode->ui_name = inName;
+        inputNode->storage = newIn;
+
+        setDefaults(newIn);
+        setUiNodeInfo(inputNode, type, category);
         return;
     }
-    // else
+    else if (category == "group") {
+        throw std::runtime_error("Not implemented");
 
-    // if (category == "group") {
-    //     auto groupNode = add_node("groupnode");
+        auto groupNode = add_node("groupnode");
+        groupNode->ui_name = name;
+        // Create new mx::NodeGraph and set as current node graph
+        _graphDoc->addNodeGraph();
+        std::string nodeGraphName =
+            _graphDoc->getNodeGraphs().back()->getName();
 
-    //    // Set message of group UiNode in order to identify it as such
-    //    // groupNode->setMessage("Comment");
-    //    setUiNodeInfo(groupNode, type, "group");
+        // Set message of group UiNode in order to identify it as such
+        // groupNode->setMessage("Comment");
+        setUiNodeInfo(groupNode, type, "group");
 
-    //    // Create ui portions of group node
-    //    // buildGroupNode(nodes.back());
-    //    return;
-    //}
-    // else
-    if (category == "nodegraph") {
+        // Create ui portions of group node
+        // buildGroupNode(nodes.back());
+        return;
+    }
+    else if (category == "nodegraph") {
         // Create new mx::NodeGraph and set as current node graph
         _graphDoc->addNodeGraph();
         std::string nodeGraphName =
@@ -1027,97 +1036,6 @@ void MaterialXNodeTree::removeEdge(int downNode, int upNode, UiPinPtr pin)
     // upNode->removeOutputConnection(downNode->getName());
 }
 
-void MaterialXNodeTree::deleteNode(UiNodePtr node)
-{
-    //    // Delete link
-    //    for (UiPinPtr inputPin : node->inputPins) {
-    //        UiNodePtr upNode = node->getConnectedNode(inputPin->identifier);
-    //        if (upNode) {
-    //            upNode->removeOutputConnection(node->getName());
-    //            int num = node->getEdgeIndex(upNode->getId(), inputPin);
-    //
-    //            // Erase edge between node and up node
-    //            if (num != -1) {
-    //                if (node->edges.size() == 1) {
-    //                    node->edges.erase(node->edges.begin() + 0);
-    //                }
-    //                else if (node->edges.size() > 1) {
-    //                    node->edges.erase(node->edges.begin() + num);
-    //                }
-    //            }
-    //        }
-    //    }
-    //
-    //    for (UiPinPtr outputPin : node->get_outputs()) {
-    //        // Update downNode info
-    //        for (UiPinPtr pin : outputPin.get()->getConnections()) {
-    //            mx::ValuePtr val;
-    //            if (pin->getMaterialXNode(node)) {
-    //                mx::NodeDefPtr nodeDef =
-    //                pin->getMaterialXNode(node)->getNodeDef(
-    //                    pin->getMaterialXNode(node)->getName());
-    //                val =
-    //                    nodeDef->getActiveInput(getMaterialXPinInput(pin)->getName())->getValue();
-    //                if (pin->getMaterialXNode(node)->getType() ==
-    //                    mx::SURFACE_SHADER_TYPE_STRING) {
-    //                    getMaterialXPinInput(pin)->setConnectedOutput(nullptr);
-    //                }
-    //                else {
-    //                    getMaterialXPinInput(pin)->setConnectedNode(nullptr);
-    //                }
-    //                if (getMaterialXInput(node)) {
-    //                    // Remove interface in order to set the default of
-    //                    the
-    //                    // input
-    //                    getMaterialXPinInput(pin)->setInterfaceName(mx::EMPTY_STRING);
-    //                    setDefaults(getMaterialXPinInput(pin));
-    //                    setDefaults(getMaterialXInput(node));
-    //                }
-    //            }
-    //            else if (pin->getMaterialXNodeGraph(node)) {
-    //                if (getMaterialXInput(node)) {
-    //                    pin->getMaterialXNodeGraph(node)
-    //                        ->getInput(pin->identifier)
-    //                        ->setInterfaceName(mx::EMPTY_STRING);
-    //                    setDefaults(getMaterialXInput(node));
-    //                }
-    //                getMaterialXPinInput(pin)->setConnectedNode(nullptr);
-    //                pin->setConnected(false);
-    //                setDefaults(getMaterialXPinInput(pin));
-    //            }
-    //
-    //            pin->setConnected(false);
-    //            if (val) {
-    //                getMaterialXPinInput(pin)->setValueString(val->getValueString());
-    //            }
-    //
-    //            int num = pin->node->getEdgeIndex(node->getId(), pin);
-    //            if (num != -1) {
-    //                if (pin->node->edges.size() == 1) {
-    //                    pin->node->edges.erase(
-    //                        pin->node->edges.begin() + 0);
-    //                }
-    //                else if (pin->node->edges.size() > 1) {
-    //                    pin->node->edges.erase(
-    //                        pin->node->edges.begin() + num);
-    //                }
-    //            }
-    //
-    //            pin->node->setInputNodeNum(-1);
-    //
-    //            // Not really necessary since it will be deleted
-    //            node->removeOutputConnection(pin->node->getName());
-    //        }
-    //    }
-    //
-    //    // Remove from NodeGraph
-    //    // All link information is handled in delete link which is called
-    //    before
-    //    // this
-    //    int nodeNum = findNode(node->getId());
-    //    _currGraphElem->removeChild(node->getName());
-    //    nodes.erase(nodes.begin() + nodeNum);
-}
 //
 // bool MaterialXNodeTree::edgeExists(UiEdge newEdge)
 //{
@@ -1235,13 +1153,61 @@ Node* MaterialXNodeTree::add_node(const char* str)
     return NodeTree::add_node(str);
 }
 
-void MaterialXNodeTree::delete_node(Node* nodeId, bool allow_repeat_delete)
-{
-    NodeTree::delete_node(nodeId, allow_repeat_delete);
-}
-
 void MaterialXNodeTree::delete_node(NodeId nodeId, bool allow_repeat_delete)
 {
+    // Delete link
+
+    auto node = find_node(nodeId);
+
+    for (UiPinPtr outputPin : node->get_outputs()) {
+        // Update downNode info
+        for (UiPinPtr pin : outputPin->directly_linked_sockets) {
+            mx::ValuePtr val;
+            if (getMaterialXNode(pin->node)) {
+                mx::NodeDefPtr nodeDef =
+                    getMaterialXNode(pin->node)->getNodeDef(
+                        getMaterialXNode(pin->node)->getName());
+                val = nodeDef
+                          ->getActiveInput(getMaterialXPinInput(pin)->getName())
+                          ->getValue();
+                if (getMaterialXNode(pin->node)->getType() ==
+                    mx::SURFACE_SHADER_TYPE_STRING) {
+                    getMaterialXPinInput(pin)->setConnectedOutput(nullptr);
+                }
+                else {
+                    getMaterialXPinInput(pin)->setConnectedNode(nullptr);
+                }
+                if (getMaterialXInput(node)) {
+                    // Remove interface in order to set the default of the input
+                    getMaterialXPinInput(pin)->setInterfaceName(
+                        mx::EMPTY_STRING);
+                    setDefaults(getMaterialXPinInput(pin));
+                    setDefaults(getMaterialXInput(node));
+                }
+            }
+            else if (getMaterialXNodeGraph(pin->node)) {
+                if (getMaterialXInput(node)) {
+                    getMaterialXNodeGraph(pin->node)
+                        ->getInput(pin->identifier)
+                        ->setInterfaceName(mx::EMPTY_STRING);
+                    setDefaults(getMaterialXInput(node));
+                }
+                getMaterialXPinInput(pin)->setConnectedNode(nullptr);
+                setDefaults(getMaterialXPinInput(pin));
+            }
+
+            if (val) {
+                getMaterialXPinInput(pin)->setValueString(
+                    val->getValueString());
+            }
+        }
+    }
+
+    // Remove from NodeGraph
+    // All link information is handled in delete link which is called    before
+    // this
+    _currGraphElem->removeChild(node->getName());
+
     NodeTree::delete_node(nodeId, allow_repeat_delete);
 }
 
@@ -1252,7 +1218,8 @@ void MaterialXNodeTree::delete_link(
 {
     auto link = find_link(linkid);
 
-    deleteLinkInfo(link->from_sock, link->to_sock);
+    if (link)
+        deleteLinkInfo(link->from_sock, link->to_sock);
     NodeTree::delete_link(linkid, refresh_topology, remove_from_group);
 }
 

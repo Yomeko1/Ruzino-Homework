@@ -181,7 +181,7 @@ class NODES_CORE_API NodeTree {
         bool refresh_topology = true,
         bool remove_from_group = true);
 
-    virtual void delete_node(Node* nodeId, bool allow_repeat_delete = false);
+    void delete_node(Node* nodeId, bool allow_repeat_delete = false);
     virtual void delete_node(NodeId nodeId, bool allow_repeat_delete = false);
 
     bool can_create_link(NodeSocket* node_socket, NodeSocket* node_socket1);
