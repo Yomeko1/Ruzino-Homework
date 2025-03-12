@@ -25,6 +25,12 @@ if(SLANG_FOUND)
 		target_link_libraries(RHI PUBLIC garch)
 	endif()
 
+	if (USTC_CG_WITH_OPENUSD)
+		target_compile_definitions(RHI PUBLIC USTC_CG_WITH_OPENUSD=1)
+	else()
+		target_compile_definitions(RHI PUBLIC USTC_CG_WITH_OPENUSD=0)
+	endif()
+
 	if(USTC_CG_WITH_CUDA)
 		include(nvrtc.cmake)
 	endif()

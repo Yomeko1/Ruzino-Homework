@@ -6,14 +6,14 @@
 
 find_path(NVAPI_INCLUDE_DIR
   NAMES nvapi.h
-  PATHS ${CMAKE_SOURCE_DIR}/external/nvapi
+  PATHS ${CMAKE_CURRENT_SOURCE_DIR}/external/nvapi
   PATH_SUFFIXES amd64
   NO_DEFAULT_PATH
 )
 
 find_library(NVAPI_LIBRARY
   NAMES nvapi64
-  PATHS ${CMAKE_SOURCE_DIR}/external/nvapi
+  PATHS ${CMAKE_CURRENT_SOURCE_DIR}/external/nvapi
   PATH_SUFFIXES amd64
   NO_DEFAULT_PATH
 )

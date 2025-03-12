@@ -9,18 +9,13 @@ project(
   LANGUAGES C CXX
 )
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(OUT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Binaries/${CMAKE_BUILD_TYPE})
-message("Build binaries to ${OUT_BINARY_DIR}")
-set(OUTPUT_DIR
-  RUNTIME_OUTPUT_DIRECTORY_DEBUG "${OUT_BINARY_DIR}"
-  RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${OUT_BINARY_DIR}"
-  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OUT_BINARY_DIR}"
-  RUNTIME_OUTPUT_DIRECTORY "${OUT_BINARY_DIR}"
-  LIBRARY_OUTPUT_DIRECTORY_DEBUG "${OUT_BINARY_DIR}"
-  LIBRARY_OUTPUT_DIRECTORY_RELWITHDEBINFO "${OUT_BINARY_DIR}"
-  LIBRARY_OUTPUT_DIRECTORY_RELEASE "${OUT_BINARY_DIR}"
-  LIBRARY_OUTPUT_DIRECTORY "${OUT_BINARY_DIR}"
-)
+
+include(cmake/AddLibrary.cmake)
+include(cmake/AddNodes.cmake)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Debug")
+endif()
 
 # For testing
 enable_testing()
@@ -28,14 +23,12 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest)
 set_target_properties(gtest PROPERTIES ${OUTPUT_DIR})
 set_target_properties(gtest_main PROPERTIES ${OUTPUT_DIR})
 
-include(cmake/AddLibrary.cmake)
-include(cmake/AddNodes.cmake)
-
 option(USTC_CG_WITH_CUDA OFF)
 option(USTC_CG_WITH_TORCH OFF)
 
 if(USTC_CG_WITH_CUDA)
   # Set the cuda compiler to be nvcc 12.6
+  message(STATUS "CUDA is enabled")
   set(CMAKE_CUDA_ARCHITECTURES 86)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
@@ -53,11 +46,6 @@ set(BUILD_SHARED_LIBS ON)
 
 # On mac, the cpp standard should >= 20
 set(CMAKE_CXX_STANDARD 20)
-
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Debug")
-endif()
-
 set(CMAKE_CUDA_STANDARD 20)
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
@@ -110,13 +98,13 @@ else()
 endif()
 
 # Include Slang
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 if(WIN32)
   find_package(NVAPI REQUIRED)
 endif()
 
-set(SLANG_ROOT_DIR ${PROJECT_SOURCE_DIR}/SDK/slang)
+set(SLANG_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/SDK/slang)
 find_package(Slang REQUIRED COMPONENTS slang slang-rt gfx)
 
 add_subdirectory(external)

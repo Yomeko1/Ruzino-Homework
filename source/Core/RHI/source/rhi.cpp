@@ -7,7 +7,10 @@
 
 #include "RHI/DeviceManager/DeviceManager.h"
 #include "nvrhi/utils.h"
+
+#if USTC_CG_WITH_OPENUSD
 #include "pxr/imaging/garch/glApi.h"
+#endif
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include "vulkan/vulkan.hpp"
 
@@ -33,7 +36,7 @@ int init(bool with_window, bool use_dx12)
     params.enableRayTracingExtensions = true;
     params.enableComputeQueue = true;
     params.enableCopyQueue = true;
-    //params.adapterIndex = 0;
+    // params.adapterIndex = 0;
 
     params.optionalVulkanInstanceExtensions = {
         VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME
@@ -162,7 +165,7 @@ inline void copy_from_texture(
     commandList->close();
     device->executeCommandList(commandList);
 }
-
+#if USTC_CG_WITH_OPENUSD
 nvrhi::TextureHandle load_ogl_texture(
     const nvrhi::TextureDesc& desc,
     unsigned gl_texture)
@@ -255,7 +258,7 @@ nvrhi::TextureHandle load_ogl_texture(
 
     return texture;
 }
-
+#endif
 DeviceManager* internal::get_device_manager()
 {
     return device_manager.get();

@@ -11,14 +11,14 @@ set(OptiX_ABSOLUTE_INCLUDE_DIRS "\\
   \"${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}/cuda/std\", \\
   \"${GLM_INCLUDE_DIR}\", \\
   \"${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}\", \\
-  \"${ENV_INCLUDE_LIST}\"")
+  \"${OptiX_ABSOLUTE_INCLUDE_DIRS}\", ")
 
   # NVRTC include paths relative to the sample path
 set(OptiX_RELATIVE_INCLUDE_DIRS "\\
   \"include\", \\
   \".\", ")
 
-set(CUDA_NVRTC_FLAGS -std=c++17 -arch compute_70 -lineinfo -use_fast_math -default-device -rdc true -D__x86_64 -D__CUDACC_RTC__ CACHE STRING "Semi-colon delimit multiple arguments." FORCE)
+set(CUDA_NVRTC_FLAGS -std=c++20 -arch compute_70 -lineinfo -use_fast_math -default-device -rdc true -D__x86_64 -D__CUDACC_RTC__ CACHE STRING "Semi-colon delimit multiple arguments." FORCE)
 mark_as_advanced(CUDA_NVRTC_FLAGS)
 
 # Build a null-terminated option list for NVRTC
