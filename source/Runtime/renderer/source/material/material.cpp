@@ -569,43 +569,43 @@ void Hd_USTC_CG_Material::Sync(
     HdRenderParam* renderParam,
     HdDirtyBits* dirtyBits)
 {
-    //VtValue material = sceneDelegate->GetMaterialResource(GetId());
-    //HdMaterialNetworkMap networkMap = material.Get<HdMaterialNetworkMap>();
+    // VtValue material = sceneDelegate->GetMaterialResource(GetId());
+    // HdMaterialNetworkMap networkMap = material.Get<HdMaterialNetworkMap>();
 
-    //bool isVolume;
-    //HdMaterialNetwork2 hdNetwork =
-    //    HdConvertToHdMaterialNetwork2(networkMap, &isVolume);
+    // bool isVolume;
+    // HdMaterialNetwork2 hdNetwork =
+    //     HdConvertToHdMaterialNetwork2(networkMap, &isVolume);
 
-    //auto materialPath = GetId();
+    // auto materialPath = GetId();
 
-    //HdMaterialNetwork2Interface netInterface(materialPath, &hdNetwork);
+    // HdMaterialNetwork2Interface netInterface(materialPath, &hdNetwork);
     //_FixNodeTypes(&netInterface);
     //_FixNodeValues(&netInterface);
 
-    //const TfToken& terminalNodeName = HdMaterialTerminalTokens->surface;
-    //SdfPath surfTerminalPath;
+    // const TfToken& terminalNodeName = HdMaterialTerminalTokens->surface;
+    // SdfPath surfTerminalPath;
 
-    //HdMaterialNode2 const* surfTerminal =
-    //    _GetTerminalNode(hdNetwork, terminalNodeName, &surfTerminalPath);
+    // HdMaterialNode2 const* surfTerminal =
+    //     _GetTerminalNode(hdNetwork, terminalNodeName, &surfTerminalPath);
 
-    //std::cout << surfTerminal->nodeTypeId.GetString() << std::endl;
-    //std::cout << surfTerminalPath.GetString() << std::endl;
+    // std::cout << surfTerminal->nodeTypeId.GetString() << std::endl;
+    // std::cout << surfTerminalPath.GetString() << std::endl;
 
-    //for (const auto& node : hdNetwork.nodes) {
-    //    std::cout << node.first.GetString() << std::endl;
-    //    std::cout << node.second.nodeTypeId.GetString() << std::endl;
-    //}
+    // for (const auto& node : hdNetwork.nodes) {
+    //     std::cout << node.first.GetString() << std::endl;
+    //     std::cout << node.second.nodeTypeId.GetString() << std::endl;
+    // }
 
-    //if (surfTerminal) {
-    //    HdMtlxTexturePrimvarData hdMtlxData;
-    //    MaterialX::DocumentPtr mtlx_document =
-    //        HdMtlxCreateMtlxDocumentFromHdNetwork(
-    //            hdNetwork,
-    //            *surfTerminal,
-    //            surfTerminalPath,
-    //            materialPath,
-    //            libraries,
-    //            &hdMtlxData);
+    // if (surfTerminal) {
+    //     HdMtlxTexturePrimvarData hdMtlxData;
+    //     MaterialX::DocumentPtr mtlx_document =
+    //         HdMtlxCreateMtlxDocumentFromHdNetwork(
+    //             hdNetwork,
+    //             *surfTerminal,
+    //             surfTerminalPath,
+    //             materialPath,
+    //             libraries,
+    //             &hdMtlxData);
 
     //    _UpdateTextureNodes(
     //        &netInterface, hdMtlxData.hdTextureNodes, mtlx_document);

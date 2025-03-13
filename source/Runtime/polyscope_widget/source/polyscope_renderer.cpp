@@ -1,15 +1,21 @@
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include <cstddef>
+
+#include <string>
 
 #include "imgui_internal.h"
 
 #endif
 
+#include <pxr/usd/usdGeom/primvarsAPI.h>
+
+#include <cstddef>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "RHI/rhi.hpp"
+#include "glm/ext/matrix_transform.hpp"
 #include "imgui.h"
 #include "nvrhi/nvrhi.h"
 #include "polyscope/curve_network.h"
@@ -17,12 +23,27 @@
 #include "polyscope/pick.h"
 #include "polyscope/point_cloud.h"
 #include "polyscope/polyscope.h"
+#include "polyscope/render/engine.h"
 #include "polyscope/screenshot.h"
 #include "polyscope/surface_mesh.h"
 #include "polyscope/transformation_gizmo.h"
+#include "polyscope/view.h"
 #include "polyscope_widget/polyscope_renderer.h"
+#include "pxr/base/gf/vec3f.h"
+#include "pxr/base/vt/array.h"
+#include "pxr/usd/usd/primRange.h"
+#include "pxr/usd/usdGeom/curves.h"
+#include "pxr/usd/usdGeom/points.h"
+#include "pxr/usd/usdGeom/xform.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
+
+// [0]: left Ctrl + left mouse button, [1]: left mouse button, [2]: middle mouse
+// button
+std::vector<std::pair<polyscope::Structure*, size_t>>
+    PolyscopeRenderer::pick_result = { { nullptr, 0 },
+                                       { nullptr, 0 },
+                                       { nullptr, 0 } };
 
 // int nPts = 2000;
 // float anotherParam = 0.0;
@@ -66,11 +87,14 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 //     ImGui::PopItemWidth();
 // }
 
-PolyscopeRenderer::PolyscopeRenderer()
+PolyscopeRenderer::PolyscopeRenderer(Stage* stage)
+    : stage_(stage),
+      stage_listener(stage_)
 {
     // polyscope::options::buildGui = false;
     polyscope::options::automaticallyComputeSceneExtents = false;
     polyscope::init();
+    // polyscope::view::bgColor = { 1.0, 1.0, 1.0, 1.0 };
     // Test register a structure
     // std::vector<glm::vec3> points;
     // for (int i = 0; i < 2000; i++) {
@@ -80,6 +104,12 @@ PolyscopeRenderer::PolyscopeRenderer()
     // }
     // polyscope::registerPointCloud("my point cloud", points);
     // polyscope::state::userCallback = testCallback;
+    xform_cache = pxr::UsdGeomXformCache(pxr::UsdTimeCode::Default());
+
+    for (const auto& prim : stage_->get_usd_stage()->Traverse()) {
+        dirty_paths.insert(prim.GetPath());
+    }
+    UpdateStructures(dirty_paths);
 }
 
 PolyscopeRenderer::~PolyscopeRenderer()
@@ -180,6 +210,9 @@ void PolyscopeRenderer::BackBufferResized(
 void PolyscopeRenderer::GetFrameBuffer()
 {
     buffer = polyscope::screenshotToBufferCustom(false);
+    // polyscope::drawCustom();
+    // polyscope::render::engine->swapDisplayBuffers();
+    // buffer = polyscope::render::engine->readDisplayBuffer();
 }
 
 void PolyscopeRenderer::DrawMenuBar()
@@ -192,6 +225,259 @@ void PolyscopeRenderer::DrawMenuBar()
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
+    }
+}
+
+void RegisterMeshQuantities(
+    const pxr::UsdGeomMesh& mesh,
+    polyscope::SurfaceMesh* surface_mesh)
+{
+    auto primVarAPI = pxr::UsdGeomPrimvarsAPI(mesh);
+    auto primvars = primVarAPI.GetPrimvars();
+
+    for (const auto& primvar : primvars) {
+        std::string full_name = primvar.GetName();
+
+        if (full_name.find("primvars:polyscope:") == 0) {
+            std::string name_without_prefix = full_name.substr(19);
+
+            // Vertex scalar
+            if (name_without_prefix.find("vertex:scalar:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(14);
+                pxr::VtArray<float> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addVertexScalarQuantity(
+                        quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Face scalar
+            if (name_without_prefix.find("face:scalar:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(12);
+                pxr::VtArray<float> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addFaceScalarQuantity(quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Vertex color
+            if (name_without_prefix.find("vertex:color:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(13);
+                pxr::VtArray<pxr::GfVec3f> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addVertexColorQuantity(quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Face color
+            if (name_without_prefix.find("face:color:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(11);
+                pxr::VtArray<pxr::GfVec3f> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addFaceColorQuantity(quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Vertex vector
+            if (name_without_prefix.find("vertex:vector:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(14);
+                pxr::VtArray<pxr::GfVec3f> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addVertexVectorQuantity(
+                        quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Face vector
+            if (name_without_prefix.find("face:vector:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(12);
+                pxr::VtArray<pxr::GfVec3f> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addFaceVectorQuantity(quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Vertex parameterization
+            if (name_without_prefix.find("vertex:parameterization:") == 0) {
+                std::string quantity_name = name_without_prefix.substr(24);
+                pxr::VtArray<pxr::GfVec2f> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addVertexParameterizationQuantity(
+                        quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+
+            // Face corner parameterization
+            if (name_without_prefix.find("face_corner:parameterization:") ==
+                0) {
+                std::string quantity_name = name_without_prefix.substr(29);
+                pxr::VtArray<pxr::GfVec2f> values;
+                primvar.Get(&values);
+                try {
+                    surface_mesh->addParameterizationQuantity(
+                        quantity_name, values);
+                }
+                catch (std::exception& e) {
+                    std::cerr << e.what() << std::endl;
+                }
+            }
+        }
+    }
+}
+
+void PolyscopeRenderer::RegisterGeometryFromPrim(const pxr::UsdPrim& prim)
+{
+    // Register structures from stage
+    if (!prim) {
+        return;
+    }
+
+    auto xform = xform_cache.GetLocalToWorldTransform(prim);
+    auto primTypeName = prim.GetTypeName().GetString();
+
+    // Remove pick result if the structure is picked
+    for (auto& result : pick_result) {
+        if (result.first != nullptr &&
+            result.first->name == prim.GetPath().GetString()) {
+            result = { nullptr, 0 };
+        }
+    }
+    if (curr_visualization_structure != nullptr) {
+        curr_visualization_structure->remove();
+        curr_visualization_structure = nullptr;
+    }
+
+    // If the prim already exists, the type of the prim may have changed
+    // Remove the existing prim and re-register it
+
+    if (primTypeName == "Mesh") {
+        polyscope::removeStructure("Point Cloud", prim.GetPath().GetString());
+        polyscope::removeStructure("Curve Network", prim.GetPath().GetString());
+
+        auto mesh = pxr::UsdGeomMesh(prim);
+
+        pxr::VtArray<pxr::GfVec3f> points;
+        mesh.GetPointsAttr().Get(&points);
+        // std::vector<glm::vec3> vertices;
+        // vertices.reserve(points.size());
+        // for (const auto& point : points) {
+        //     vertices.emplace_back(glm::make_vec3(point.GetArray()));
+        // }
+
+        pxr::VtArray<int> faceVertexCounts, faceVertexIndices;
+        mesh.GetFaceVertexCountsAttr().Get(&faceVertexCounts);
+        mesh.GetFaceVertexIndicesAttr().Get(&faceVertexIndices);
+        // Nested list of faces
+        std::vector<std::vector<size_t>> faceVertexIndicesNested;
+        faceVertexIndicesNested.reserve(faceVertexCounts.size());
+        size_t start = 0;
+        for (int count : faceVertexCounts) {
+            std::vector<size_t> face;
+            face.reserve(count);
+            for (int j = 0; j < count; ++j) {
+                face.push_back(faceVertexIndices[start + j]);
+            }
+            faceVertexIndicesNested.push_back(std::move(face));
+            start += count;
+        }
+        auto surface_mesh = polyscope::registerSurfaceMesh(
+            prim.GetPath().GetString(),
+            std::move(points),
+            std::move(faceVertexIndicesNested));
+        surface_mesh->setTransform(glm::make_mat4(xform.GetArray()));
+        RegisterMeshQuantities(mesh, surface_mesh);
+    }
+    else if (primTypeName == "Points") {
+        polyscope::removeStructure("Surface Mesh", prim.GetPath().GetString());
+        polyscope::removeStructure("Curve Network", prim.GetPath().GetString());
+
+        auto points = pxr::UsdGeomPoints(prim);
+        pxr::VtArray<pxr::GfVec3f> positions;
+        points.GetPointsAttr().Get(&positions);
+        auto point_cloud = polyscope::registerPointCloud(
+            prim.GetPath().GetString(), std::move(positions));
+        point_cloud->setTransform(glm::make_mat4(xform.GetArray()));
+    }
+    else if (primTypeName == "BasisCurves") {
+        polyscope::removeStructure("Surface Mesh", prim.GetPath().GetString());
+        polyscope::removeStructure("Point Cloud", prim.GetPath().GetString());
+
+        auto curves = pxr::UsdGeomCurves(prim);
+        pxr::VtArray<pxr::GfVec3f> points;
+        curves.GetPointsAttr().Get(&points);
+        pxr::VtArray<int> curveVertexCounts;
+        curves.GetCurveVertexCountsAttr().Get(&curveVertexCounts);
+
+        size_t nEdges = 0;
+        for (int count : curveVertexCounts) {
+            nEdges += count - 1;
+        }
+
+        std::vector<std::array<size_t, 2>> edges;
+        edges.reserve(nEdges);
+
+        size_t start = 0;
+        for (int count : curveVertexCounts) {
+            for (int j = 0; j < count - 1; ++j) {
+                edges.push_back({ start + j, start + j + 1 });
+            }
+            start += count;
+        }
+        auto curve_network = polyscope::registerCurveNetwork(
+            prim.GetPath().GetString(), std::move(points), std::move(edges));
+        curve_network->setTransform(glm::make_mat4(xform.GetArray()));
+    }
+    else {
+        // TODO
+    }
+}
+
+void PolyscopeRenderer::UpdateStructures(DirtyPathSet paths)
+{
+    // if (paths.size() > 0) {
+    //     std::cout << "Update structures: " << std::endl;
+    //     for (const auto& path : paths) {
+    //         std::cout << path.GetString() << std::endl;
+    //     }
+    // }
+    xform_cache = pxr::UsdGeomXformCache(stage_->get_current_time());
+
+    for (const auto& path : dirty_paths) {
+        pxr::UsdPrim prim = stage_->get_usd_stage()->GetPrimAtPath(path);
+        if (!prim.IsValid()) {
+            // Prim已删除，从渲染器移除
+            polyscope::removeStructure(path.GetString());
+            continue;
+        }
+        RegisterGeometryFromPrim(prim);
     }
 }
 
@@ -209,6 +495,11 @@ void PolyscopeRenderer::DrawFrame()
     //     "io.WantCaptureKeyboard: %d", ImGui::GetIO().WantCaptureKeyboard);
     // ImGui::Text("num widgets: %d", polyscope::state::widgets.size());
 
+    // scene_dirty = true;
+    {
+        stage_listener.GetDirtyPaths(dirty_paths);
+    }
+    UpdateStructures(dirty_paths);
     GetFrameBuffer();
 
     ImVec2 imgui_frame_size =
@@ -239,85 +530,119 @@ void PolyscopeRenderer::DrawFrame()
     ImGui::EndChild();
 }
 
-// 根据选中的东西的内容，创建一个polyscope::structure，用于突出选中的内容
-void PolyscopeRenderer::VisualizePickResult(
+// 当选中顶点时，生成一个不显示的pointcloud，并显示transformation
+// gizmo，用于控制顶点的位置
+void PolyscopeRenderer::VisualizePickVertexGizmo(
     std::pair<polyscope::Structure*, size_t> pickResult)
 {
-    // 若选中的东西和currPickStructure相同，则不做任何操作
-    // if (currPickStructure != nullptr &&
-    //     pickResult.first == currPickStructure) {
+    // 若选中的东西和curr_visualization_structure相同，则不做任何操作
+    // if (curr_visualization_structure != nullptr &&
+    //     pickResult.first == curr_visualization_structure) {
     //     return;
     // }
 
     // 若选中的东西为空，则删除当前的polyscope::structure
     if (pickResult.first == nullptr) {
-        if (currPickStructure != nullptr) {
-            currPickStructure->remove();
-            currPickStructure = nullptr;
+        if (curr_visualization_structure != nullptr) {
+            curr_visualization_structure->remove();
+            curr_visualization_structure = nullptr;
         }
     }
     else {
         // 若选中的东西不为空，则创建一个polyscope::structure
-        if (currPickStructure != nullptr) {
-            if (currPickStructure == pickResult.first) {
+        if (curr_visualization_structure != nullptr) {
+            if (curr_visualization_structure == pickResult.first) {
                 return;
             }
-            currPickStructure->remove();
+            curr_visualization_structure->remove();
+            curr_visualization_structure = nullptr;
         }
         // 得到选中的东西的类型
         auto type = pickResult.first->typeName();
         auto transform = pickResult.first->getTransform();
         if (type == "Surface Mesh") {
             // 检查选中的是顶点、面、边、半边还是角
-            auto mesh = dynamic_cast<polyscope::SurfaceMesh*>(pickResult.first);
+            auto surface_mesh =
+                dynamic_cast<polyscope::SurfaceMesh*>(pickResult.first);
             auto ind = pickResult.second;
-            if (ind < mesh->nVertices()) {
+            // 仅当选中的是顶点时，才创建一个点云
+            if (ind < surface_mesh->nVertices()) {
                 // 获取顶点坐标
-                auto pos = mesh->vertexPositions.getValue(ind);
+                auto pos = surface_mesh->vertexPositions.getValue(ind);
+                // 根据顶点坐标创建一个transform
+                transform = glm::translate(transform, pos);
                 // 创建一个点云
                 std::vector<glm::vec3> points;
-                points.push_back(pos);
-                currPickStructure =
-                    polyscope::registerPointCloud("picked point", points);
-            }
-            else if (ind < mesh->nVertices() + mesh->nFaces()) {
-                // 获取面的顶点索引和顶点坐标
-                ind = ind - mesh->nVertices();
-                auto start = mesh->faceIndsStart[ind];
-                auto D = mesh->faceIndsStart[ind + 1] - start;
-                std::vector<glm::vec3> vertices;
-                for (size_t j = 0; j < D; j++) {
-                    auto iV = mesh->faceIndsEntries[start + j];
-                    vertices.push_back(mesh->vertexPositions.getValue(iV));
-                }
-                // 创建一个折线
-                currPickStructure = polyscope::registerCurveNetworkLoop(
-                    "picked face", vertices);
-            }
-            else if (
-                ind < mesh->nVertices() + mesh->nFaces() + mesh->nEdges()) {
-                // TODO
-            }
-            else if (
-                ind < mesh->nVertices() + mesh->nFaces() + mesh->nEdges() +
-                          mesh->nHalfedges()) {
-                // TODO
-            }
-            else {
-                // TODO
+                points.push_back({ 0, 0, 0 });
+                curr_visualization_structure =
+                    polyscope::registerPointCloud("picked point", points)
+                        ->setEnabled(false)
+                        ->setTransformationGizmoEnabled(true);
             }
         }
         else if (type == "Point Cloud") {
-            // TODO
+            auto point_cloud =
+                dynamic_cast<polyscope::PointCloud*>(pickResult.first);
+            auto ind = pickResult.second;
+            auto pos = point_cloud->getPointPosition(ind);
+            std::vector<glm::vec3> points;
+            points.push_back(pos);
+            curr_visualization_structure =
+                polyscope::registerPointCloud("picked point", points)
+                    ->setEnabled(false)
+                    ->setTransformationGizmoEnabled(true);
         }
         else if (type == "Curve Network") {
-            // TODO
+            auto curve_network =
+                dynamic_cast<polyscope::CurveNetwork*>(pickResult.first);
+            auto ind = pickResult.second;
+            if (ind < curve_network->nNodes()) {
+                auto pos = curve_network->nodePositions.getValue(ind);
+                std::vector<glm::vec3> points;
+                points.push_back(pos);
+                curr_visualization_structure =
+                    polyscope::registerPointCloud("picked point", points)
+                        ->setEnabled(false)
+                        ->setTransformationGizmoEnabled(true);
+            }
         }
         else {
             // TODO
         }
-        if (currPickStructure != nullptr) {
-            currPickStructure->setTransform(transform);
+        if (curr_visualization_structure != nullptr) {
+            curr_visualization_structure->setTransform(transform);
+        }
+    }
+}
+
+void PolyscopeRenderer::UpdatePickStructure(
+    std::pair<polyscope::Structure*, size_t> pickResult)
+{
+    if (pickResult.first == nullptr ||
+        curr_visualization_structure == nullptr) {
+        return;
+    }
+    auto type = pickResult.first->typeName();
+    if (type == "Surface Mesh") {
+        auto surface_mesh =
+            dynamic_cast<polyscope::SurfaceMesh*>(pickResult.first);
+        auto ind = pickResult.second;
+        // 当选中的是顶点时，用点云的transform更新顶点的位置
+        if (ind < surface_mesh->nVertices()) {
+            // 获取原始网格和点云的变换矩阵
+            glm::mat4 meshTransform = pickResult.first->getTransform();  // T1
+            glm::mat4 pointTransform =
+                curr_visualization_structure->getTransform();  // T2'
+
+            // 新顶点位置 = T1^(-1) * T2' * {0,0,0,1}
+            glm::mat4 invMeshTransform = glm::inverse(meshTransform);
+            glm::vec4 newPos = invMeshTransform * pointTransform *
+                               glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+            // 更新网格顶点位置
+            auto vertex_pos = surface_mesh->vertexPositions.data;
+            vertex_pos[ind] = newPos;
+            surface_mesh->updateVertexPositions(vertex_pos);
         }
     }
 }
@@ -326,6 +651,7 @@ void PolyscopeRenderer::VisualizePickResult(
 void PolyscopeRenderer::ProcessInputEvents()
 {
     input_transform_triggered = false;
+    input_pick_triggered = false;
 
     ImGuiIO& io = ImGui::GetIO();
 
@@ -355,6 +681,9 @@ void PolyscopeRenderer::ProcessInputEvents()
                     widgetCapturedMouse = tg->interactCustom(windowPos);
                     if (widgetCapturedMouse) {
                         input_transform_triggered = true;
+                        if (curr_visualization_structure) {
+                            UpdatePickStructure(pick_result[2]);
+                        }
                         break;
                     }
                 }
@@ -439,8 +768,10 @@ void PolyscopeRenderer::ProcessInputEvents()
             }
 
             // Click picks
+
+            // Left Ctrl + left click picks
             float dragIgnoreThreshold = 0.01;
-            if (ImGui::IsMouseReleased(0)) {
+            if (io.KeyCtrl && ImGui::IsMouseReleased(0)) {
                 // Don't pick at the end of a long drag
                 if (drag_distSince_last_release < dragIgnoreThreshold) {
                     // ImVec2 p = ImGui::GetMousePos();
@@ -448,8 +779,51 @@ void PolyscopeRenderer::ProcessInputEvents()
                     std::pair<polyscope::Structure*, size_t> pickResult =
                         polyscope::pick::pickAtScreenCoords(
                             glm::vec2{ p.x, p.y });
+                    if (pickResult.first != pick_result[0].first ||
+                        pickResult.second != pick_result[0].second) {
+                        input_pick_triggered = true;
+                    }
                     polyscope::pick::setSelection(pickResult);
-                    // VisualizePickResult(pickResult);
+                    pick_result[0] = pickResult;
+                }
+
+                // Reset the drag distance after any release
+                drag_distSince_last_release = 0.0;
+            }
+            // Left click picks
+            else if (ImGui::IsMouseReleased(0)) {
+                // Don't pick at the end of a long drag
+                if (drag_distSince_last_release < dragIgnoreThreshold) {
+                    // ImVec2 p = ImGui::GetMousePos();
+                    ImVec2 p = ImGui::GetMousePos() - window->Pos;
+                    std::pair<polyscope::Structure*, size_t> pickResult =
+                        polyscope::pick::pickAtScreenCoords(
+                            glm::vec2{ p.x, p.y });
+                    if (pickResult.first != pick_result[1].first ||
+                        pickResult.second != pick_result[1].second) {
+                        input_pick_triggered = true;
+                    }
+                    polyscope::pick::setSelection(pickResult);
+                    pick_result[1] = pickResult;
+                }
+
+                // Reset the drag distance after any release
+                drag_distSince_last_release = 0.0;
+            }
+            else if (ImGui::IsMouseReleased(2)) {
+                // Don't pick at the end of a long drag
+                if (drag_distSince_last_release < dragIgnoreThreshold) {
+                    // ImVec2 p = ImGui::GetMousePos();
+                    ImVec2 p = ImGui::GetMousePos() - window->Pos;
+                    std::pair<polyscope::Structure*, size_t> pickResult =
+                        polyscope::pick::pickAtScreenCoords(
+                            glm::vec2{ p.x, p.y });
+                    if (pickResult.first != pick_result[2].first ||
+                        pickResult.second != pick_result[2].second) {
+                        input_pick_triggered = true;
+                    }
+                    pick_result[2] = pickResult;
+                    VisualizePickVertexGizmo(pickResult);
                 }
 
                 // Reset the drag distance after any release
@@ -459,6 +833,13 @@ void PolyscopeRenderer::ProcessInputEvents()
             if (ImGui::IsMouseReleased(1)) {
                 if (drag_distSince_last_release < dragIgnoreThreshold) {
                     polyscope::pick::resetSelection();
+                    pick_result[0] = { nullptr, 0 };
+                    pick_result[1] = { nullptr, 0 };
+                    pick_result[2] = { nullptr, 0 };
+                    if (curr_visualization_structure != nullptr) {
+                        curr_visualization_structure->remove();
+                        curr_visualization_structure = nullptr;
+                    }
                 }
                 drag_distSince_last_release = 0.0;
             }

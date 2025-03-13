@@ -26,15 +26,15 @@ int main()
 #endif
     log::EnableOutputToConsole(true);
 
+    auto stage = create_global_stage();
+    init(stage.get());
+
     // Polyscope need to be initialized before window, or it cannot load opengl
     // backend correctly.
-    auto polyscope_render = std::make_unique<PolyscopeRenderer>();
+    auto polyscope_render = std::make_unique<PolyscopeRenderer>(stage.get());
     auto polyscope_info_viewer = std::make_unique<PolyscopeInfoViewer>();
 
     auto window = std::make_unique<Window>();
-
-    auto stage = create_global_stage();
-    init(stage.get());
 
     auto usd_file_viewer = std::make_unique<UsdFileViewer>(stage.get());
 
@@ -48,9 +48,10 @@ int main()
         auto polyscope_render = static_cast<PolyscopeRenderer*>(
             window->get_widget("Polyscope Renderer"));
         if (polyscope_render) {
-            bool input_transform_triggered =
-                polyscope_render->GetInputTransformTriggered();
-            if (input_transform_triggered) {
+            bool input_triggered =
+                polyscope_render->GetInputTransformTriggered() ||
+                polyscope_render->GetInputPickTriggered();
+            if (input_triggered) {
                 window->set_all_node_system_dirty();
             }
         }

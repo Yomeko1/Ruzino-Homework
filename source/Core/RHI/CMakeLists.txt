@@ -5,10 +5,10 @@ if(SLANG_FOUND)
 		WITH_CUDA
 		PUBLIC_LIBS nvrhi SLANG::slang
 		PRIVATE_LIBS Vulkan::Headers Logger glfw glm::glm nodes_core
-		COMPILE_DEFS 
-			NOMINMAX 
-			VULKAN_HPP_STORAGE_SHARED 
-			VULKAN_HPP_STORAGE_SHARED_IMPORT
+		COMPILE_DEFS
+		NOMINMAX
+		VULKAN_HPP_STORAGE_SHARED
+		VULKAN_HPP_STORAGE_SHARED_IMPORT
 	)
 
 	if(TARGET hgi)
@@ -28,5 +28,4 @@ if(SLANG_FOUND)
 	if(USTC_CG_WITH_CUDA)
 		include(nvrtc.cmake)
 	endif()
-
 endif()

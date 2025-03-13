@@ -1,3 +1,4 @@
+#include <pxr/base/tf/stringUtils.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usdGeom/basisCurves.h>
 #include <pxr/usd/usdGeom/mesh.h>
@@ -5,6 +6,8 @@
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
+
+#include <string>
 
 #include "GCore/Components/CurveComponent.h"
 #include "GCore/Components/MaterialComponent.h"
@@ -54,6 +57,8 @@ NODE_EXECUTION_FUNCTION(write_usd)
     auto stage = global_payload.stage;
     auto sdf_path = global_payload.prim_path;
 
+    stage->RemovePrim(sdf_path);
+
     if (mesh) {
         pxr::UsdGeomMesh usdgeom = pxr::UsdGeomMesh::Define(stage, sdf_path);
         if (usdgeom) {
@@ -91,6 +96,110 @@ NODE_EXECUTION_FUNCTION(write_usd)
 
 #endif
             usdgeom.CreateDoubleSidedAttr().Set(true);
+
+            // Store polyscope quantities
+            auto primVarAPI = pxr::UsdGeomPrimvarsAPI(usdgeom);
+
+            // It's invalid to use pxr::TfToken("some_prefix" + some_string)
+            // directly, so we need to create a new string first.
+
+            for (const std::string& name :
+                 mesh->get_vertex_scalar_quantity_names()) {
+                auto values = mesh->get_vertex_scalar_quantity(name);
+                std::string primvar_name = "polyscope:vertex:scalar:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->FloatArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_scalar_quantity_names()) {
+                auto values = mesh->get_face_scalar_quantity(name);
+                std::string primvar_name = "polyscope:face:scalar:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->FloatArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->uniform);
+                primvar.Set(values);
+            }
+
+            for (std::string& name : mesh->get_vertex_color_quantity_names()) {
+                auto values = mesh->get_vertex_color_quantity(name);
+                std::string primvar_name = "polyscope:vertex:color:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->Color3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_color_quantity_names()) {
+                auto values = mesh->get_face_color_quantity(name);
+                std::string primvar_name = "polyscope:face:color:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->Color3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->uniform);
+                primvar.Set(values);
+            }
+
+            for (const std::string& name :
+                 mesh->get_vertex_vector_quantity_names()) {
+                auto values = mesh->get_vertex_vector_quantity(name);
+                std::string primvar_name = "polyscope:vertex:vector:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->Vector3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_vector_quantity_names()) {
+                auto values = mesh->get_face_vector_quantity(name);
+                std::string primvar_name = "polyscope:face:vector:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->Vector3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->uniform);
+                primvar.Set(values);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_corner_parameterization_quantity_names()) {
+                auto values =
+                    mesh->get_face_corner_parameterization_quantity(name);
+                std::string primvar_name =
+                    "polyscope:face_corner:parameterization:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->TexCoord2fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->faceVarying);
+                primvar.Set(values);
+            }
+
+            for (const std::string& name :
+                 mesh->get_vertex_parameterization_quantity_names()) {
+                auto values = mesh->get_vertex_parameterization_quantity(name);
+                std::string primvar_name =
+                    "polyscope:vertex:parameterization:" + name;
+                primvar_name = std::string(primvar_name.c_str());
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name),
+                    pxr::SdfValueTypeNames->TexCoord2fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values);
+            }
         }
     }
     else if (points) {

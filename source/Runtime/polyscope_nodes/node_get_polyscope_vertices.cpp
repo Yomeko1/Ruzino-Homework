@@ -1,3 +1,6 @@
+#include <pxr/base/gf/vec3f.h>
+#include <pxr/base/vt/array.h>
+
 #include <string>
 
 #include "nodes/core/def/node_def.hpp"
@@ -8,61 +11,51 @@
 
 NODE_DEF_OPEN_SCOPE
 
-NODE_DECLARATION_FUNCTION(get_polyscope_vertex_pos)
+NODE_DECLARATION_FUNCTION(get_polyscope_vertices)
 {
     b.add_input<std::string>("Structure Name");
-    b.add_input<size_t>("Vertex Index");
-    b.add_output<float>("Vertex Position X");
-    b.add_output<float>("Vertex Position Y");
-    b.add_output<float>("Vertex Position Z");
+    b.add_output<pxr::VtVec3fArray>("Vertices");
 }
 
-NODE_EXECUTION_FUNCTION(get_polyscope_vertex_pos)
+NODE_EXECUTION_FUNCTION(get_polyscope_vertices)
 {
     auto structure_name = params.get_input<std::string>("Structure Name");
     structure_name = std::string(structure_name.c_str());
-    auto vertex_index = params.get_input<size_t>("Vertex Index");
 
     // If the input structure is a surface mesh
     if (polyscope::hasStructure("Surface Mesh", structure_name)) {
         auto structure =
             polyscope::getStructure("Surface Mesh", structure_name);
         auto mesh = dynamic_cast<polyscope::SurfaceMesh *>(structure);
-        if (vertex_index < mesh->nVertices()) {
-            auto pos = mesh->vertexPositions.getValue(vertex_index);
-            params.set_output("Vertex Position X", pos.x);
-            params.set_output("Vertex Position Y", pos.y);
-            params.set_output("Vertex Position Z", pos.z);
+        auto vertices = mesh->vertexPositions.data;
+        pxr::VtVec3fArray v;
+        for (auto vertex : vertices) {
+            v.push_back(pxr::GfVec3f(vertex[0], vertex[1], vertex[2]));
         }
-        else {
-            std::cerr << "The picked index is not a vertex index." << std::endl;
-            return false;
-        }
+        params.set_output("Vertices", v);
     }
     // If the input structure is a point cloud
     else if (polyscope::hasStructure("Point Cloud", structure_name)) {
         auto structure = polyscope::getStructure("Point Cloud", structure_name);
         auto point_cloud = dynamic_cast<polyscope::PointCloud *>(structure);
-        auto point = point_cloud->getPointPosition(vertex_index);
-        params.set_output("Vertex Position X", point.x);
-        params.set_output("Vertex Position Y", point.y);
-        params.set_output("Vertex Position Z", point.z);
+        auto points = point_cloud->points.data;
+        pxr::VtVec3fArray p;
+        for (auto point : points) {
+            p.push_back(pxr::GfVec3f(point[0], point[1], point[2]));
+        }
+        params.set_output("Vertices", p);
     }
     // If the input is a curve network
     else if (polyscope::hasStructure("Curve Network", structure_name)) {
         auto structure =
             polyscope::getStructure("Curve Network", structure_name);
         auto curve_network = dynamic_cast<polyscope::CurveNetwork *>(structure);
-        if (vertex_index < curve_network->nNodes()) {
-            auto pos = curve_network->nodePositions.getValue(vertex_index);
-            params.set_output("Vertex Position X", pos.x);
-            params.set_output("Vertex Position Y", pos.y);
-            params.set_output("Vertex Position Z", pos.z);
+        auto nodes = curve_network->nodePositions.data;
+        pxr::VtVec3fArray n;
+        for (auto node : nodes) {
+            n.push_back(pxr::GfVec3f(node[0], node[1], node[2]));
         }
-        else {
-            std::cerr << "The picked index is not a vertex index." << std::endl;
-            return false;
-        }
+        params.set_output("Vertices", n);
     }
     else {
         std::cerr << "The picked structure is not a surface mesh, point cloud, "
@@ -74,5 +67,5 @@ NODE_EXECUTION_FUNCTION(get_polyscope_vertex_pos)
     return true;
 }
 
-NODE_DECLARATION_UI(get_polyscope_vertex_pos);
+NODE_DECLARATION_UI(get_polyscope_vertices);
 NODE_DEF_CLOSE_SCOPE

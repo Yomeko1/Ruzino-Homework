@@ -9,6 +9,11 @@ project(
   LANGUAGES C CXX
 )
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Debug")
+endif()
+
 set(OUT_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Binaries/${CMAKE_BUILD_TYPE})
 message("Build binaries to ${OUT_BINARY_DIR}")
 set(OUTPUT_DIR
@@ -53,9 +58,14 @@ set(BUILD_SHARED_LIBS ON)
 
 # On mac, the cpp standard should >= 20
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE "Debug")
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
+
+if(NOT MSVC)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fms-extensions")
 endif()
 
 set(CMAKE_CUDA_STANDARD 20)
@@ -98,7 +108,6 @@ if(pxr_FOUND)
   set(USTC_CG_WITH_OPENUSD ON)
 
   if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
-
     if(Python3_LIBRARY MATCHES "_d.lib$")
       set_target_properties(usd PROPERTIES INTERFACE_COMPILE_DEFINITIONS "TBB_USE_DEBUG=1; BOOST_DEBUG_PYTHON")
     else()
