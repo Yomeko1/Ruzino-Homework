@@ -11,6 +11,9 @@ add_dependencies(USTC_CG_test geometry_nodes)
 add_dependencies(USTC_CG_test basic_nodes)
 add_dependencies(USTC_CG_test polyscope_nodes)
 add_dependencies(USTC_CG_test optimization)
+# add back the renderer
+add_dependencies(USTC_CG_test hd_USTC_CG)
+add_dependencies(USTC_CG_test render_nodes)
 
 add_dependencies(USTC_CG_polyscope_test geometry_nodes)
 add_dependencies(USTC_CG_polyscope_test basic_nodes)
