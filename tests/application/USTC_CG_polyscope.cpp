@@ -26,15 +26,15 @@ int main()
 #endif
     log::EnableOutputToConsole(true);
 
+    auto stage = create_global_stage();
+    init(stage.get());
+
     // Polyscope need to be initialized before window, or it cannot load opengl
     // backend correctly.
-    auto polyscope_render = std::make_unique<PolyscopeRenderer>();
+    auto polyscope_render = std::make_unique<PolyscopeRenderer>(stage.get());
     auto polyscope_info_viewer = std::make_unique<PolyscopeInfoViewer>();
 
     auto window = std::make_unique<Window>();
-
-    auto stage = create_global_stage();
-    init(stage.get());
 
     auto usd_file_viewer = std::make_unique<UsdFileViewer>(stage.get());
 

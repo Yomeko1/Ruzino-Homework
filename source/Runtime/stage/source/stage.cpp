@@ -17,13 +17,46 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 
 Stage::Stage()
 {
+    std::string stage_path = "../../Assets/stage.usdc";
+
+    std::filesystem::path executable_path;
+
+#ifdef _WIN32
+    char p[MAX_PATH];
+    GetModuleFileNameA(NULL, p, MAX_PATH);
+    executable_path = std::filesystem::path(p).parent_path();
+#else
+    char p[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", p, PATH_MAX);
+    if (count != -1) {
+        p[count] = '\0';
+        executable_path = std::filesystem::path(path).parent_path();
+    }
+    else {
+        throw std::runtime_error("Failed to get executable path.");
+    }
+#endif
+
+    std::filesystem::path abs_path;
+    if (!stage_path.empty()) {
+        abs_path = std::filesystem::path(stage_path);
+    }
+    else {
+        log::error("Path is empty.");
+        return;
+    }
+    if (!abs_path.is_absolute()) {
+        abs_path = executable_path / abs_path;
+    }
+    abs_path = abs_path.lexically_normal();
+
     // if stage.usda exists, load it
-    stage = pxr::UsdStage::Open("../../Assets/stage.usdc");
+    stage = pxr::UsdStage::Open(abs_path.string());
     if (stage) {
         return;
     }
 
-    stage = pxr::UsdStage::CreateNew("../../Assets/stage.usdc");
+    stage = pxr::UsdStage::CreateNew(abs_path.string());
     stage->SetMetadata(pxr::UsdGeomTokens->metersPerUnit, 1.0);
     stage->SetMetadata(pxr::UsdGeomTokens->upAxis, pxr::TfToken("Z"));
 }

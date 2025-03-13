@@ -1,12 +1,14 @@
 #pragma once
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usdSkel/skeletonQuery.h>
 
 #include "pxr/usd/usdGeom/cube.h"
 #include "pxr/usd/usdGeom/cylinder.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/sphere.h"
 #include "pxr/usd/usdGeom/xform.h"
+#include "pxr/usd/usdGeom/xformCache.h"
 #include "stage/api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE

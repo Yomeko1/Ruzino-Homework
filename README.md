@@ -1,6 +1,8 @@
 # USTC_CG_2024
 The assignments for the computer graphics course for 2024，Spring.
 
+# 常见问题 [点击跳转->](./doc/FAQ.md)
+
 # Build
 首先执行git系列操作
 ```
@@ -83,6 +85,32 @@ pip install PyOpenGL PySide6 numpy
 
 最后用编辑器/IDE打开文件夹，或cmake后打开sln文件即配置完成
 
+-   例如，你可以用已经配置好CMake插件的VS Code打开文件夹，并将CMake插件中的编译器设置为MSVC(如Visual Studio Community 2022 - amd64)。
+
+-   你也可以直接用VS打开文件夹，VS会自动进行CMake操作。当CMake操作完成后，就可以在屏幕上方的下拉菜单选择启动项，选择`USTC_CG_polyscope_test`即可点击调试运行。
+
+-   你也可以用CMake Gui打开文件夹，选择生成文件夹为`build`，选择MSVC编译器，点击Configure，然后点击Generate，生成的sln文件即可用VS打开。
+
+-   你也可以在项目根目录打开终端，输入以下命令
+
+    ```shell
+    mkdir build # 创建build文件夹
+    cd build # 进入build文件夹
+    cmake .. # 生成sln文件
+    ```
+
+    然后用VS打开build文件夹下的sln文件即可。
+
+    如果你不想打开VS编译，你也可以用命令行编译：
+
+    ```shell
+    # 在build文件夹下
+    cmake --build . --config Debug
+    ```
+
+    如果你想编译Release版本，将`Debug`替换为`Release`即可。
+
+
 ## Mac (macOS Catalina) + Homebrew + Xcode
 App Store 下载Xcode安装
 运行命令
@@ -137,7 +165,7 @@ python configure.py --all --build_variant Debug
 在构建依赖过程中python可能会缺少一些安装包，通过 pip install ... 安装后再次构建依赖即可
 
 ## 使用方法简介
-打开项目并编译后，运行`USTC_CG_polyscope_test`项目（可执行文件位于`Binaries`下），可以看到其中包含数个窗口，堆叠在右上角。如图所示：
+打开项目并编译后，运行`USTC_CG_polyscope_test`项目（可执行文件位于`Binaries/Debug`下），可以看到其中包含数个窗口，堆叠在右上角。如图所示：
 
 ![image-1](images/image_1.png)
 

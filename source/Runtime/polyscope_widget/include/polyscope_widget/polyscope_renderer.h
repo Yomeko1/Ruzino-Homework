@@ -11,6 +11,10 @@
 #include "polyscope/types.h"
 #include "polyscope/view.h"
 #include "polyscope_widget/api.h"
+#include "pxr/base/tf/token.h"
+#include "pxr/usd/usd/stage.h"
+#include "stage/stage.hpp"
+#include "stage_listener/stage_listener.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
@@ -18,9 +22,11 @@ class BaseCamera;
 class FreeCamera;
 class NodeTree;
 
+using DirtyPathSet = std::unordered_set<pxr::SdfPath, pxr::SdfPath::Hash>;
+
 class POLYSCOPE_WIDGET_API PolyscopeRenderer final : public IWidget {
    public:
-    explicit PolyscopeRenderer();
+    explicit PolyscopeRenderer(Stage* stage);
     ~PolyscopeRenderer() override;
 
     bool BuildUI() override;
@@ -56,6 +62,7 @@ class POLYSCOPE_WIDGET_API PolyscopeRenderer final : public IWidget {
     // void End() override;
 
    private:
+    Stage* stage_;
     std::vector<unsigned char> buffer;
     std::vector<unsigned char> flipped_buffer;
 
@@ -66,10 +73,16 @@ class POLYSCOPE_WIDGET_API PolyscopeRenderer final : public IWidget {
     bool is_active = false;
     bool is_hovered = false;
 
+    StageListener stage_listener;
+    DirtyPathSet dirty_paths;
+
     std::chrono::time_point<std::chrono::steady_clock> lastMainLoopIterTime;
 
     void GetFrameBuffer();
     void DrawMenuBar();
+    pxr::UsdGeomXformCache xform_cache;
+    void RegisterGeometryFromPrim(const pxr::UsdPrim& prim);
+    void UpdateStructures(DirtyPathSet paths);
     void DrawFrame();
 
     static std::vector<std::pair<polyscope::Structure*, size_t>> pick_result;

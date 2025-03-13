@@ -136,22 +136,26 @@ NODE_EXECUTION_FUNCTION(shortest_path)
 
     // Convert the mesh to OpenMesh
     MyMesh omesh;
+
     // Add vertices
     std::vector<OpenMesh::VertexHandle> vhandles;
-    for (size_t i = 0; i < vertices.size(); i++) {
-        omesh.add_vertex(
-            OpenMesh::Vec3f(vertices[i][0], vertices[i][1], vertices[i][2]));
+    vhandles.reserve(vertices.size());
+
+    for (auto vertex : vertices) {
+        omesh.add_vertex(OpenMesh::Vec3f(vertex[0], vertex[1], vertex[2]));
     }
+
     // Add faces
     size_t start = 0;
-    for (size_t i = 0; i < face_vertex_counts.size(); i++) {
+    for (int face_vertex_count : face_vertex_counts) {
         std::vector<OpenMesh::VertexHandle> face;
-        for (size_t j = 0; j < face_vertex_counts[i]; j++) {
+        face.reserve(face_vertex_count);
+        for (int j = 0; j < face_vertex_count; j++) {
             face.push_back(
                 OpenMesh::VertexHandle(face_vertex_indices[start + j]));
         }
         omesh.add_face(face);
-        start += face_vertex_counts[i];
+        start += face_vertex_count;
     }
 
     auto start_vertex_index =
