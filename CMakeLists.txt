@@ -136,3 +136,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/Runtime)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/Plugins)
 
 add_subdirectory(tests)
+
+
+# submission directory
+add_subdirectory(submissions)

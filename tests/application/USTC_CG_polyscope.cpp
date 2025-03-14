@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <filesystem>
 #include <memory>
+#include <regex>
+#include "cmdparser.hpp"
 
 #include "GCore/GOP.h"
 #include "GCore/geom_payload.hpp"
@@ -18,15 +21,27 @@
 #include "widgets/usdview/usdview_widget.hpp"
 
 using namespace USTC_CG;
-
-int main()
+/**
+ * I will add a cmd parser to the main function
+ * because I need the ability to use custom stage.usdc file
+ * */
+int main(int argc, char* argv[])
 {
+    cmdline::parser parser;
+    parser.add<std::string>("stage", 's', "Custom stage file", false, "");
+    parser.parse_check(argc, argv);
+    std::string stage_filename{parser.get<std::string>("stage")};
+    // if the length == 0, use the default stage file
+
 #ifdef _DEBUG
     log::SetMinSeverity(Severity::Debug);
 #endif
     log::EnableOutputToConsole(true);
 
-    auto stage = create_global_stage();
+    std::unique_ptr<Stage> stage;
+//    auto stage = create_global_stage();
+    if (stage_filename.empty()) {stage = create_global_stage();log::info("Use the default stage file!");}
+    else {stage = create_custom_global_stage(stage_filename);log::info("Use the custom stage file! %s", stage_filename.c_str());}
     init(stage.get());
 
     // Polyscope need to be initialized before window, or it cannot load opengl
@@ -66,6 +81,18 @@ int main()
             loaded = system->load_configuration("basic_nodes.json");
             loaded = system->load_configuration("polyscope_nodes.json");
             loaded = system->load_configuration("optimization.json");
+
+            namespace fs = std::filesystem;
+            std::regex submission_suffix(R"(.*_nodes_hw_submissions\.json)");
+            std::cerr << "[INFO] LOADING SUBMISSIONS"<< "\n";
+
+            for (auto &itr: fs::directory_iterator(".")){
+                if (std::regex_match(itr.path().string(), submission_suffix)){
+                    std::cerr << "[INFO] Found:"<< itr.path() <<"\n";
+                    loaded = system->load_configuration(itr.path());
+                }
+            }
+
             system->init();
             system->set_node_tree_executor(create_node_tree_executor({}));
 

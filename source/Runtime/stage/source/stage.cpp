@@ -61,6 +61,27 @@ Stage::Stage()
     stage->SetMetadata(pxr::UsdGeomTokens->upAxis, pxr::TfToken("Z"));
 }
 
+Stage::Stage(const std::string& stage_path)
+{
+    std::filesystem::path abs_path;
+    if (!stage_path.empty()) {
+        abs_path = std::filesystem::path(stage_path);
+    }
+    else {
+        log::error("Path is empty.");
+        return;
+    }
+    abs_path = abs_path.lexically_normal();
+    // if stage.usda exists, load it
+    stage = pxr::UsdStage::Open(abs_path.string());
+    if (stage) {
+        return;
+    }
+    stage = pxr::UsdStage::CreateNew(abs_path.string());
+    stage->SetMetadata(pxr::UsdGeomTokens->metersPerUnit, 1.0);
+    stage->SetMetadata(pxr::UsdGeomTokens->upAxis, pxr::TfToken("Z"));
+}
+
 Stage::~Stage()
 {
     remove_prim(pxr::SdfPath("/scratch_buffer"));
@@ -249,6 +270,10 @@ void Stage::import_usd(
 std::unique_ptr<Stage> create_global_stage()
 {
     return std::make_unique<Stage>();
+}
+
+std::unique_ptr<Stage> create_custom_global_stage(const std::string& filename){
+    return std::make_unique<Stage>(filename);
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

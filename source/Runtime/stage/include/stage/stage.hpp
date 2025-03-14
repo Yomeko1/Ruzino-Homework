@@ -20,6 +20,8 @@ class STAGE_API Stage {
    public:
     Stage();
     ~Stage();
+    // Add a new initializer for custom stage file
+    Stage(const std::string& stage_path);
 
     void tick(float ellapsed_time);
     void finish_tick();
@@ -71,5 +73,5 @@ class STAGE_API Stage {
 };
 
 STAGE_API std::unique_ptr<Stage> create_global_stage();
-
+STAGE_API std::unique_ptr<Stage> create_custom_global_stage(const std::string& filename);
 USTC_CG_NAMESPACE_CLOSE_SCOPE
