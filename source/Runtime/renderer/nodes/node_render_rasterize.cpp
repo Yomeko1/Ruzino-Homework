@@ -58,18 +58,11 @@ NODE_EXECUTION_FUNCTION(rasterize)
 
     ProgramVars program_vars(resource_allocator, vs_program, ps_program);
     program_vars["viewConstant"] = view_cb;
-    program_vars["index_buffer"] =
-        instance_collection->index_pool.get_device_buffer();
+
     program_vars["instanceDescBuffer"] =
         instance_collection->instance_pool.get_device_buffer();
     program_vars["meshDescBuffer"] =
         instance_collection->mesh_pool.get_device_buffer();
-
-    DescriptorHandle handle =
-        instance_collection->bindlessData.descriptorTableManager
-            ->CreateDescriptorHandle(
-                nvrhi::BindingSetItem::StructuredBuffer_SRV(
-                    0, instance_collection->vertex_pool.get_device_buffer()));
 
     program_vars.set_descriptor_table(
         "t_BindlessBuffers",
@@ -93,9 +86,6 @@ NODE_EXECUTION_FUNCTION(rasterize)
     instance_collection->draw_indirect_pool.compress();
 
     GraphicsRenderState state;
-    state.indexBuffer = { instance_collection->index_pool.get_device_buffer(),
-                          nvrhi::Format::R32_UINT,
-                          0 };
 
     // find the named mesh
     context.begin();

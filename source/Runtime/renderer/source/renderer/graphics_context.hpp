@@ -56,6 +56,11 @@ class HD_USTC_CG_API GraphicsContext : public GPUContext {
     void draw_indirect(
         const GraphicsRenderState& state,
         const ProgramVars& program_vars,
+        nvrhi::IBuffer* indirect_buffer,uint32_t draw_count);
+
+    void draw_indexed_indirect(
+        const GraphicsRenderState& state,
+        const ProgramVars& program_vars,
         nvrhi::IBuffer* indirect_buffer,
         uint32_t draw_count);
 

@@ -22,12 +22,12 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
         return bindlessData.descriptorTableManager.get();
     }
 
-    DeviceMemoryPool<unsigned> index_pool;
-    DeviceMemoryPool<float> vertex_pool;
+    // DeviceMemoryPool<unsigned> index_pool;
+    // DeviceMemoryPool<float> vertex_pool;
     DeviceMemoryPool<GeometryInstanceData> instance_pool;
     DeviceMemoryPool<nvrhi::rt::InstanceDesc> rt_instance_pool;
     DeviceMemoryPool<MeshDesc> mesh_pool;
-    DeviceMemoryPool<nvrhi::DrawIndexedIndirectArguments> draw_indirect_pool;
+    DeviceMemoryPool<nvrhi::DrawIndirectArguments> draw_indirect_pool;
 
     struct BindlessData {
         BindlessData();

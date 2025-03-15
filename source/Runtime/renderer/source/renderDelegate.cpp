@@ -339,7 +339,7 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateFallbackSprim(const TfToken& typeId)
 
 void Hd_USTC_CG_RenderDelegate::DestroySprim(HdSprim* sPrim)
 {
-    //log::info((sPrim->GetId().GetAsString() + " destroyed").c_str());
+    // log::info((sPrim->GetId().GetAsString() + " destroyed").c_str());
     lights.erase(
         std::remove(lights.begin(), lights.end(), sPrim), lights.end());
     cameras.erase(
@@ -353,9 +353,9 @@ HdBprim* Hd_USTC_CG_RenderDelegate::CreateBprim(
     const SdfPath& bprimId)
 {
     if (typeId == HdPrimTypeTokens->renderBuffer) {
-        //log::info(("Create bprim: type id=" + typeId.GetString() +
-        //           ",prim id = " + bprimId.GetString())
-        //              .c_str());
+        // log::info(("Create bprim: type id=" + typeId.GetString() +
+        //            ",prim id = " + bprimId.GetString())
+        //               .c_str());
 
         return new Hd_USTC_CG_RenderBuffer(bprimId);
     }
@@ -379,7 +379,7 @@ void Hd_USTC_CG_RenderDelegate::DestroyBprim(HdBprim* bPrim)
     if (!bprim_name.empty()) {
         sentence += " id=" + bprim_name;
     }
-    //log::info(sentence.c_str());
+    // log::info(sentence.c_str());
     delete bPrim;
 }
 
@@ -394,8 +394,8 @@ void Hd_USTC_CG_RenderDelegate::DestroyInstancer(HdInstancer* instancer)
 {
     // TF_CODING_ERROR("Destroy instancer not supported");
 
-    //log::info(
-    //    ("Destroy Instancer id=" + instancer->GetId().GetString()).c_str());
+    // log::info(
+    //     ("Destroy Instancer id=" + instancer->GetId().GetString()).c_str());
 }
 
 HdRenderParam* Hd_USTC_CG_RenderDelegate::GetRenderParam() const

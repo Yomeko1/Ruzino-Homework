@@ -3,9 +3,8 @@ import Scene.SceneTypes;
 import Scene.Scene;
 
 [[vk::binding(0, 1)]]
-StructuredBuffer<float> t_BindlessBuffers[] : register(t0, space1);
+ByteAddressBuffer t_BindlessBuffers[] : register(t0, space1);
 
-StructuredBuffer<uint> index_buffer;
 StructuredBuffer<GeometryInstanceData> instanceDescBuffer;
 StructuredBuffer<MeshDesc> meshDescBuffer;
 
@@ -13,24 +12,20 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
 {
     var vb_offset = mesh_data.vbOffset;
     var normal_offset = mesh_data.normalOffset;
+    var bindlessIndex = mesh_data.bindlessIndex;
 
-    // normal_offset = 0;
+    ByteAddressBuffer vertex_buffer = t_BindlessBuffers[bindlessIndex];
+
+    if (mesh_data.ibOffset > 0) {
+        vertex_id = vertex_buffer.Load(mesh_data.ibOffset + vertex_id * 4);
+    }
 
     var id = vertex_id;
-
-    float3 pos = float3(
-        t_BindlessBuffers[0][3 * vertex_id + vb_offset + 0],
-        t_BindlessBuffers[0][3 * vertex_id + vb_offset + 1],
-        t_BindlessBuffers[0][3 * vertex_id + vb_offset + 2]);
-
-    float3 normal = float3(
-        t_BindlessBuffers[0][3 * vertex_id + normal_offset + 0],
-        t_BindlessBuffers[0][3 * vertex_id + normal_offset + 1],
-        t_BindlessBuffers[0][3 * vertex_id + normal_offset + 2]);
-
-    float2 texCrd = float2(
-        t_BindlessBuffers[0][2 * vertex_id + mesh_data.texCrdOffset + 0],
-        t_BindlessBuffers[0][2 * vertex_id + mesh_data.texCrdOffset + 1]);
+    float3 pos = asfloat(vertex_buffer.Load3(3 * vertex_id * 4 + vb_offset));
+    float3 normal =
+        asfloat(vertex_buffer.Load3(3 * vertex_id * 4 + normal_offset));
+    float2 texCrd = asfloat(
+        vertex_buffer.Load2(2 * vertex_id * 4 + mesh_data.texCrdOffset));
 
     StaticVertexData data =
         StaticVertexData(pos, normal, float4(0, 0, 0, 0), texCrd, 0);
@@ -44,11 +39,12 @@ VertexData get_interpolated_vertex(
 {
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
-    var id_in_indexbuffer = mesh.ibOffset + primitive_id * 3;
+    var id_in_indexbuffer = mesh.ibOffset + primitive_id * 3 * 4;
 
-    uint i0 = index_buffer[id_in_indexbuffer + 0];
-    uint i1 = index_buffer[id_in_indexbuffer + 1];
-    uint i2 = index_buffer[id_in_indexbuffer + 2];
+    ByteAddressBuffer vertex_buffer = t_BindlessBuffers[mesh.bindlessIndex];
+    uint i0 = primitive_id * 3;
+    uint i1 = primitive_id * 3 + 1;
+    uint i2 = primitive_id * 3 + 2;
 
     StaticVertexData v[3];
 

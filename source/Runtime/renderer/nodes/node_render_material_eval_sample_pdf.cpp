@@ -94,19 +94,11 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     program_vars["Weight"] = weight_buffer;
     program_vars["Pdf"] = pdf_buffer;
     program_vars["random_seeds"] = random_seeds;
-    program_vars["index_buffer"] =
-        instance_collection->index_pool.get_device_buffer();
 
     program_vars["instanceDescBuffer"] =
         instance_collection->instance_pool.get_device_buffer();
     program_vars["meshDescBuffer"] =
         instance_collection->mesh_pool.get_device_buffer();
-
-    DescriptorHandle handle =
-        instance_collection->bindlessData.descriptorTableManager
-            ->CreateDescriptorHandle(
-                nvrhi::BindingSetItem::StructuredBuffer_SRV(
-                    0, instance_collection->vertex_pool.get_device_buffer()));
 
     program_vars.set_descriptor_table(
         "t_BindlessBuffers",

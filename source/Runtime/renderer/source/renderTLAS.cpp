@@ -6,20 +6,12 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 
 Hd_USTC_CG_RenderInstanceCollection::Hd_USTC_CG_RenderInstanceCollection()
     : rt_instance_pool(BufferDesc{}.setIsAccelStructBuildInput(true)),
-      index_pool(
-          BufferDesc{}.setIsIndexBuffer(true).setIsAccelStructBuildInput(true)),
-      vertex_pool(
-          BufferDesc{}.setIsVertexBuffer(true).setIsAccelStructBuildInput(
-              true)),
       draw_indirect_pool(BufferDesc{}.setIsDrawIndirectArgs(true))
 {
     nvrhi::rt::AccelStructDesc tlasDesc;
     tlasDesc.isTopLevel = true;
     tlasDesc.topLevelMaxInstances = 1024 * 1024;
     TLAS = RHI::get_device()->createAccelStruct(tlasDesc);
-
-    vertex_pool.reserve(64 * 1024 * 3);
-    index_pool.reserve(64 * 1024);
 }
 
 Hd_USTC_CG_RenderInstanceCollection::~Hd_USTC_CG_RenderInstanceCollection()
@@ -45,7 +37,7 @@ Hd_USTC_CG_RenderInstanceCollection::BindlessData::BindlessData()
     nvrhi::BindlessLayoutDesc desc;
     desc.visibility = nvrhi::ShaderType::All;
     desc.maxCapacity = 8 * 1024;
-    desc.addRegisterSpace(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(1));
+    desc.addRegisterSpace(nvrhi::BindingLayoutItem::RawBuffer_SRV(1));
     desc.addRegisterSpace(nvrhi::BindingLayoutItem::Texture_SRV(2));
     bindlessLayout = device->createBindlessLayout(desc);
     descriptorTableManager =

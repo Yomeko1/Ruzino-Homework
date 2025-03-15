@@ -26,15 +26,15 @@
 #include "DescriptorTableManager.h"
 #include "RHI/rhi.hpp"
 #include "api.h"
-#include "nodes/system/node_system.hpp"
 #include "pxr/imaging/hd/renderDelegate.h"
 #include "pxr/imaging/hd/renderThread.h"
 #include "pxr/pxr.h"
 #include "renderTLAS.h"
 
 namespace USTC_CG {
+class NodeSystem;
 class LensSystem;
-}
+}  // namespace USTC_CG
 
 namespace USTC_CG {
 struct RenderGlobalPayload;

@@ -23,6 +23,7 @@ NODE_EXECUTION_FUNCTION(create_grid)
 
     pxr::VtArray<pxr::GfVec3f> points;
     pxr::VtArray<pxr::GfVec2f> texcoord;
+    pxr::VtArray<pxr::GfVec3f> normals;
     pxr::VtArray<int> faceVertexIndices;
     pxr::VtArray<int> faceVertexCounts;
 
@@ -35,6 +36,7 @@ NODE_EXECUTION_FUNCTION(create_grid)
             float v = static_cast<float>(j) / (resolution - 1);
             points.push_back(pxr::GfVec3f(0, y, z));
             texcoord.push_back(pxr::GfVec2f(u, v));
+            normals.push_back(pxr::GfVec3f(1.0f, 0.0f, 0.0f));
         }
     }
 
@@ -52,6 +54,7 @@ NODE_EXECUTION_FUNCTION(create_grid)
     mesh->set_face_vertex_indices(faceVertexIndices);
     mesh->set_face_vertex_counts(faceVertexCounts);
     mesh->set_texcoords_array(texcoord);
+    mesh->set_normals(normals);
 
     params.set_output("Geometry", std::move(geometry));
     return true;
@@ -249,6 +252,8 @@ NODE_EXECUTION_FUNCTION(create_uv_sphere)
         faceVertexIndices.push_back(lastRingStart + segment);
         faceVertexIndices.push_back(lastRingStart + (segment + 1) % segments);
     }
+
+    assert(points.size() == normals.size());
 
     mesh->set_vertices(points);
     mesh->set_normals(normals);

@@ -60,16 +60,13 @@ class HD_USTC_CG_API Hd_USTC_CG_Mesh final : public HdMesh {
     nvrhi::rt::AccelStructHandle BLAS;
 
    protected:
-    DeviceMemoryPool<unsigned>::MemoryHandle indexBuffer;
-
-    DeviceMemoryPool<float>::MemoryHandle vertexBuffer;
-    DeviceMemoryPool<float>::MemoryHandle texcoordBuffer;
-    DeviceMemoryPool<float>::MemoryHandle normalBuffer;
+    nvrhi::BufferHandle vertexBuffer;
+    DescriptorHandle descriptor_handle;
 
     DeviceMemoryPool<GeometryInstanceData>::MemoryHandle instanceBuffer;
     DeviceMemoryPool<nvrhi::rt::InstanceDesc>::MemoryHandle rt_instanceBuffer;
     DeviceMemoryPool<MeshDesc>::MemoryHandle mesh_desc_buffer;
-    DeviceMemoryPool<nvrhi::DrawIndexedIndirectArguments>::MemoryHandle
+    DeviceMemoryPool<nvrhi::DrawIndirectArguments>::MemoryHandle
         draw_indirect;
 
     GfMatrix4f transform;
@@ -97,8 +94,6 @@ class HD_USTC_CG_API Hd_USTC_CG_Mesh final : public HdMesh {
     TfTokenVector _UpdateComputedPrimvarSources(
         HdSceneDelegate* sceneDelegate,
         HdDirtyBits dirtyBits);
-
-    void _CreateTexcoordsBuffer(Hd_USTC_CG_RenderParam* param);
 
     void _UpdatePrimvarSources(
         HdSceneDelegate* sceneDelegate,

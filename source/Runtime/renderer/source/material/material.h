@@ -55,6 +55,14 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
 
     void BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param);
 
+    void MtlxGenerateShader(
+        HdMaterialNetwork2 hdNetwork,
+        SdfPath materialPath,
+        HdMaterialNetwork2Interface netInterface,
+        SdfPath surfTerminalPath,
+        HdMaterialNode2 const* surfTerminal,
+        HdMtlxTexturePrimvarData& hdMtlxData);
+
     static MaterialX::GenContextPtr shader_gen_context_;
     static MaterialX::DocumentPtr libraries;
 

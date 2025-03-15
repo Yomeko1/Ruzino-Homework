@@ -100,6 +100,7 @@ TfTokenVector Hd_USTC_CG_Mesh::_UpdateComputedPrimvarSources(
             sceneDelegate->GetExtComputationPrimvarDescriptors(GetId(), interp);
 
         for (const auto& pv : compPrimvars) {
+            std::cout << "Checking primvar " << pv.name.GetText() << std::endl;
             if (HdChangeTracker::IsPrimvarDirty(dirtyBits, id, pv.name)) {
                 dirtyCompPrimvars.emplace_back(pv);
             }
@@ -143,8 +144,11 @@ void Hd_USTC_CG_Mesh::_UpdatePrimvarSources(
         auto interp = static_cast<HdInterpolation>(i);
         primvars = GetPrimvarDescriptors(sceneDelegate, interp);
         for (const HdPrimvarDescriptor& pv : primvars) {
+            log::info("Checking primvar %s", pv.name.GetText());
+
             if (HdChangeTracker::IsPrimvarDirty(dirtyBits, id, pv.name) &&
                 pv.name != HdTokens->points) {
+                log::info("primvar %s is dirty", pv.name.GetText());
                 _primvarSourceMap[pv.name] = {
                     GetPrimvar(sceneDelegate, pv.name), interp
                 };
@@ -157,31 +161,88 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
 {
     auto device = RHI::get_device();
 
+    auto copy_commandlist =
+        device->createCommandList({ .enableImmediateExecution = false });
+
     auto descriptor_table =
         render_param->InstanceCollection->get_descriptor_table();
 
-    auto& vertex_buffer_pool = render_param->InstanceCollection->vertex_pool;
-    vertexBuffer = vertex_buffer_pool.allocate(points.size() * 3);
-    vertexBuffer->write_data(points.data());
+    unsigned index_buffer_offset = 0;
+    unsigned normal_buffer_offset = 0;
+    unsigned texcoord_buffer_offset = 0;
 
-    indexBuffer = render_param->InstanceCollection->index_pool.allocate(
-        triangulatedIndices.size() * 3);
-    indexBuffer->write_data(triangulatedIndices.data());
+    unsigned total_buffer_size = points.size() * 3 * sizeof(float);
+    index_buffer_offset = total_buffer_size;
+    total_buffer_size += triangulatedIndices.size() * 3 * sizeof(uint);
+    normal_buffer_offset = total_buffer_size;
+    total_buffer_size += normals.size() * 3 * sizeof(float);
+    texcoord_buffer_offset = total_buffer_size;
 
-    normalBuffer = render_param->InstanceCollection->vertex_pool.allocate(
-        normals.size() * 3);
+    VtVec2fArray texcoords;
 
-    normalBuffer->write_data(normals.data());
+    for (auto pv : _primvarSourceMap) {
+        if (pv.first == pxr::TfToken("UVMap") ||
+            pv.first == pxr::TfToken("st")) {
+            texcoords = pv.second.data.Get<VtVec2fArray>();
+        }
+    }
+
+    total_buffer_size += texcoords.size() * 2 * sizeof(float);
+
+    nvrhi::BufferDesc desc =
+        nvrhi::BufferDesc{}
+            .setCanHaveRawViews(true)
+            .setByteSize(total_buffer_size)
+            .setIsVertexBuffer(true)
+            .setInitialState(nvrhi::ResourceStates::ShaderResource)
+            .setCpuAccess(nvrhi::CpuAccessMode::None)
+            .setIsAccelStructBuildInput(true)
+            .setKeepInitialState(true)
+            .setDebugName("vertexBuffer");
+
+    vertexBuffer = device->createBuffer(desc);
+
+    copy_commandlist->open();
+
+    copy_commandlist->writeBuffer(
+        vertexBuffer, points.data(), points.size() * 3 * sizeof(float), 0);
+
+    copy_commandlist->writeBuffer(
+        vertexBuffer,
+        triangulatedIndices.data(),
+        triangulatedIndices.size() * 3 * sizeof(uint),
+        index_buffer_offset);
+
+    if (!normals.empty()) {
+        copy_commandlist->writeBuffer(
+            vertexBuffer,
+            normals.data(),
+            normals.size() * 3 * sizeof(float),
+            normal_buffer_offset);
+    }
+
+    if (!texcoords.empty()) {
+        copy_commandlist->writeBuffer(
+            vertexBuffer,
+            texcoords.data(),
+            texcoords.size() * 2 * sizeof(float),
+            texcoord_buffer_offset);
+    }
+
+    copy_commandlist->close();
+
     {
         std::lock_guard lock(execution_launch_mutex);
+        device->executeCommandList(copy_commandlist);
+
         nvrhi::rt::AccelStructDesc blas_desc;
         nvrhi::rt::GeometryDesc geometry_desc;
         geometry_desc.geometryType = nvrhi::rt::GeometryType::Triangles;
         nvrhi::rt::GeometryTriangles triangles;
-        triangles.setVertexBuffer(vertexBuffer->get_device_buffer())
-            .setVertexOffset(vertexBuffer->offset)
-            .setIndexBuffer(indexBuffer->get_device_buffer())
-            .setIndexOffset(indexBuffer->offset)
+        triangles.setVertexBuffer(vertexBuffer)
+            .setVertexOffset(0)
+            .setIndexBuffer(vertexBuffer)
+            .setIndexOffset(index_buffer_offset)
             .setIndexCount(triangulatedIndices.size() * 3)
             .setVertexCount(points.size())
             .setVertexStride(3 * sizeof(float))
@@ -203,17 +264,15 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
         device->runGarbageCollection();
     }
 
-    MeshDesc mesh_desc;
-    mesh_desc.vbOffset = vertexBuffer->index();
-    mesh_desc.ibOffset = indexBuffer->index();
-    mesh_desc.normalOffset = normalBuffer->index();
-    mesh_desc.vbBufferIndex = 0;
+    descriptor_handle = descriptor_table->CreateDescriptorHandle(
+        nvrhi::BindingSetItem::RawBuffer_SRV(0, vertexBuffer));
 
-    if (texcoordBuffer)
-        mesh_desc.texCrdOffset = texcoordBuffer->index();
-    else {
-        mesh_desc.texCrdOffset = 0;
-    }
+    MeshDesc mesh_desc;
+    mesh_desc.vbOffset = 0;
+    mesh_desc.ibOffset = index_buffer_offset;
+    mesh_desc.normalOffset = normal_buffer_offset;
+    mesh_desc.texCrdOffset = texcoord_buffer_offset;
+    mesh_desc.bindlessIndex = descriptor_handle.Get();
 
     mesh_desc_buffer = render_param->InstanceCollection->mesh_pool.allocate(1);
     mesh_desc_buffer->write_data(&mesh_desc);
@@ -284,11 +343,10 @@ void Hd_USTC_CG_Mesh::updateTLAS(
 
     draw_indirect =
         render_param->InstanceCollection->draw_indirect_pool.allocate(1);
-    nvrhi::DrawIndexedIndirectArguments args;
-    args.indexCount = triangulatedIndices.size() * 3;
+    nvrhi::DrawIndirectArguments args;
+    args.vertexCount = triangulatedIndices.size() * 3;
     args.instanceCount = instances.size();
-    args.startIndexLocation = indexBuffer->index();
-    args.baseVertexLocation = 0;
+    args.startVertexLocation = 0;
     args.startInstanceLocation = instanceBuffer->index();
 
     draw_indirect->write_data(&args);
@@ -307,19 +365,6 @@ void Hd_USTC_CG_Mesh::_SetMaterialId(
     SdfPath const& newMaterialId = delegate->GetMaterialId(rprim->GetId());
     if (rprim->GetMaterialId() != newMaterialId) {
         rprim->SetMaterialId(newMaterialId);
-    }
-}
-
-void Hd_USTC_CG_Mesh::_CreateTexcoordsBuffer(Hd_USTC_CG_RenderParam* param)
-{
-    for (auto& pv : _primvarSourceMap) {
-        if (pv.first == pxr::TfToken("UVMap") ||
-            pv.first == pxr::TfToken("st")) {
-            texcoordBuffer = param->InstanceCollection->vertex_pool.allocate(
-                points.size() * 2);
-            texcoordBuffer->write_data(
-                pv.second.data.Get<VtVec2fArray>().data());
-        }
     }
 }
 
@@ -444,9 +489,6 @@ void Hd_USTC_CG_Mesh::Sync(
                 }
             }
 
-            _CreateTexcoordsBuffer(
-                static_cast<Hd_USTC_CG_RenderParam*>(renderParam));
-
             _normalsValid = false;
             _adjacencyValid = false;
         }
@@ -460,12 +502,14 @@ void Hd_USTC_CG_Mesh::Sync(
         if (!_normalsValid) {
             VtValue normal_primvar;
 
-            if (_primvarSourceMap.find(HdTokens->normals) ==
+            if (_primvarSourceMap.find(HdTokens->normals) !=
                 _primvarSourceMap.end()) {
                 normal_primvar = _primvarSourceMap[HdTokens->normals].data;
             }
-            else
+            else {
                 normal_primvar = GetNormals(sceneDelegate);
+                log::info(GetId().GetAsString().c_str());
+            }
 
             if (normal_primvar.IsEmpty()) {
                 // If there are no normals authored, we need to compute
@@ -487,6 +531,8 @@ void Hd_USTC_CG_Mesh::Sync(
             }
             else {
                 // If normals are authored, we use them.
+                std::cout << normal_primvar.GetTypeName() << std::endl;
+
                 normals = normal_primvar.Get<VtVec3fArray>();
             }
 
@@ -516,9 +562,7 @@ void Hd_USTC_CG_Mesh::Sync(
 void Hd_USTC_CG_Mesh::Finalize(HdRenderParam* renderParam)
 {
     vertexBuffer = nullptr;
-    indexBuffer = nullptr;
-    texcoordBuffer = nullptr;
-    normalBuffer = nullptr;
+
     BLAS = nullptr;
     instanceBuffer = nullptr;
     rt_instanceBuffer = nullptr;

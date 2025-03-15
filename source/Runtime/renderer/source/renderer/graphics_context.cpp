@@ -113,6 +113,24 @@ void GraphicsContext::draw_indirect(
     nvrhi::IBuffer* indirect_buffer,
     uint32_t draw_count)
 {
+    nvrhi::GraphicsState graphics_state;
+    graphics_state.vertexBuffers = state.vertexBuffers;
+    graphics_state.indexBuffer = state.indexBuffer;
+    graphics_state.bindings = program_vars.get_binding_sets();
+    graphics_state.framebuffer = framebuffer_;
+    graphics_state.pipeline = graphics_pipeline;
+    graphics_state.viewport = viewport;
+    graphics_state.indirectParams = indirect_buffer;
+    commandList_->setGraphicsState(graphics_state);
+    commandList_->drawIndirect(0, draw_count);
+}
+
+void GraphicsContext::draw_indexed_indirect(
+    const GraphicsRenderState& state,
+    const ProgramVars& program_vars,
+    nvrhi::IBuffer* indirect_buffer,
+    uint32_t draw_count)
+{
     if (draw_count == 0) {
         return;
     }
