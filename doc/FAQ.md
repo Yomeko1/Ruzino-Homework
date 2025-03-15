@@ -42,7 +42,7 @@
     Add the installation prefix of "pxr" to CMAKE_PREFIX_PATH or set "pxr_DIR" to a directory containing one of the above files. If "pxr" provides a separate development package or SDK, be sure it has been installed.
     ```
 
-    请检查`DGP_2025/SDK/OpenUSD/Debug/`目录下是否有`pxrConfig.cmake`文件，若没有，请重新配置SDK。
+    请检查`./SDK/OpenUSD/Debug/`目录下是否有`pxrConfig.cmake`文件，若没有，请重新配置SDK。
 
     如果有，请检查`CMAKE_BUILD_TYPE`是否正确，如构建类型为`Debug`时，CMake输出中应包含
 

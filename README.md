@@ -1,13 +1,11 @@
-# USTC_CG_2024
-The assignments for the computer graphics course for 2024，Spring.
+# USTC_CG_2025
+The 3D assignments for the computer graphics course for 2025，Spring.
 
 # 常见问题 [点击跳转->](./doc/FAQ.md)
 
 # Build
-首先执行git系列操作
+首先确保submodules都已就位
 ```
-git clone https://github.com/T7imal/DGP_2025.git
-cd DGP_2025
 git submodule update --init --recursive
 ```
 然后安装下方依赖。
@@ -54,11 +52,11 @@ pip install PyOpenGL PySide6 numpy
    # 确保输出为Vulkan SDK的路径
    ```
  
-   确保Python和CMake的版本正确后，将以下命令中的`path/to/DGP_2025`替换为你的实验框架目录，然后执行：
+   确保Python和CMake的版本正确后，将以下命令中的`path/to/framework3d`替换为你的实验框架目录，然后执行：
 
    ```shell
    # 移动到实验框架目录
-   cd path/to/DGP_2025
+   cd path/to/framework3d
    # 构建Debug模式依赖，你也可以将以下命令修改为python configure.py --all --build_variant Debug Release RelWithDebInfo，以构建全部模式依赖
    python configure.py --all --build_variant Debug
    ```
@@ -68,7 +66,7 @@ pip install PyOpenGL PySide6 numpy
 2. 如果你在使用Windows，可以直接下载提供的依赖库：https://rec.ustc.edu.cn/share/964f44c0-f347-11ef-a987-91f9b7ea5492 ，将其解压到当前文件夹，形如
 
    ```
-   DGP_2025
+   Framework3D
    ├── SDK
    │   ├── OpenUSD
    │   └── slang
@@ -155,10 +153,10 @@ cmake --version
 # 确保输出为CMake version>=3.31.5
 ```
 
-将以下命令中的`path/to/DGP_2025`替换为你的实验框架目录，然后执行：
+将以下命令中的`path/to/framework3d`替换为你的实验框架目录，然后执行：
 ```Terminal
 # 移动到实验框架目录
-cd path/to/DGP_2025
+cd path/to/framework3d
 # 构建Debug模式依赖，你也可以将以下命令修改为python configure.py --all --build_variant Debug Release RelWithDebInfo，以构建全部模式依赖
 python configure.py --all --build_variant Debug
 ```
@@ -173,10 +171,19 @@ python configure.py --all --build_variant Debug
 
 ![image-2](images/image_2.png)
 
-右击下图箭头位置“/”处，选择“Create/Mesh”即可创建一个名为`mesh_0`的目录。如图所示：
+[//]: # (右击下图箭头位置“/”处，选择“Create/Mesh”即可创建一个名为`mesh_0`的目录。如图所示：)
 
-![image-3](images/image_3.png)
+[//]: # ()
+[//]: # (![image-3]&#40;images/image_3.png&#41;)
 
-右击`mesh_0`，选择“Edit”即可打开节点编辑窗口。右击节点编辑窗口，选择并添加节点，例如通过`create_grid`和`write_polyscope`即可创建一个yz平面上的网格，并显示在`Polyscope Renderer`窗口中，转动视角即可看到网格，如图所示：
+[//]: # (右击`mesh_0`，选择“Edit”即可打开节点编辑窗口。右击节点编辑窗口，选择并添加节点，例如通过`create_grid`和`write_polyscope`即可创建一个yz平面上的网格，并显示在`Polyscope Renderer`窗口中，转动视角即可看到网格，如图所示：)
 
-![image-4](images/image_4.png)
+[//]: # ()
+[//]: # (![image-4]&#40;images/image_4.png&#41;)
+
+# NEXT……
+阅读kickstart文档，明白写作业的workflow
+
+[Step by step Ver.](./F3Dkickstart.pdf)
+
+[Simple Ver.](./submissions/assignments/README.md)
