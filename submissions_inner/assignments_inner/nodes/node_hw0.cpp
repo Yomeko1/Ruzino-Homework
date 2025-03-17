@@ -14,6 +14,8 @@
 #include "nodes/core/def/node_def.hpp"
 #include "Eigen/Dense"
 
+#include "geom_node_base.h"
+
 typedef OpenMesh::TriMesh_ArrayKernelT<> MyMesh;
 
 // Return true if the shortest path exists, and fill in the shortest path

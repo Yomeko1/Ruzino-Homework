@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.31)
+﻿cmake_minimum_required(VERSION 3.29.6)
 
 #
 # Project details
@@ -139,6 +139,7 @@ add_subdirectory(tests)
 
 
 # submission directory
+set(editor_dir ${CMAKE_CURRENT_SOURCE_DIR}/source/Editor)
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/submissions_inner)
   message(STATUS [./SUBMISSION FOUND])
   add_subdirectory(submissions_inner)

@@ -13,4 +13,5 @@ add_nodes_with_prefix(
 	CUS_PREFIX ${student_name}
 	DEP_LIBS ${deps}
 	COMPILE_DEFS NOMINMAX CGHW_STUDENT_NAME=${student_name}
+		EXTRA_INCLUDE_DIRS ${editor_dir} ${editor_dir}/geometry_nodes
 )
