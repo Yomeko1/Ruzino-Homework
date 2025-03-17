@@ -42,18 +42,19 @@ void BitangentNodeSlang::emitFunctionCall(
                     if (!normal->isEmitted()) {
                         normal->setEmitted();
                         shadergen.emitLine(
-                            prefix + normal->getVariable() + " = normalize((" +
+                            prefix + normal->getVariable() +
+                                " = normalize(mul(" +
                                 HW::T_WORLD_INVERSE_TRANSPOSE_MATRIX +
-                                " * vec4(" + HW::T_IN_NORMAL + ", 0.0)).xyz)",
+                                ", float4(" + HW::T_IN_NORMAL + ", 0.0)).xyz)",
                             stage);
                     }
                     ShaderPort* tangent = vertexData[HW::T_TANGENT_WORLD];
                     if (!tangent->isEmitted()) {
                         tangent->setEmitted();
                         shadergen.emitLine(
-                            prefix + tangent->getVariable() + " = normalize((" +
-                                HW::T_WORLD_MATRIX + " * vec4(" +
-                                HW::T_IN_TANGENT + ", 0.0)).xyz)",
+                            prefix + tangent->getVariable() +
+                                " = normalize(mul(" + HW::T_WORLD_MATRIX +
+                                ", float4(" + HW::T_IN_TANGENT + ", 0.0)).xyz)",
                             stage);
                     }
                     shadergen.emitLine(
@@ -65,7 +66,7 @@ void BitangentNodeSlang::emitFunctionCall(
                 else {
                     shadergen.emitLine(
                         prefix + bitangent->getVariable() + " = normalize((" +
-                            HW::T_WORLD_MATRIX + " * vec4(" +
+                            HW::T_WORLD_MATRIX + " * float4(" +
                             HW::T_IN_BITANGENT + ", 0.0)).xyz)",
                         stage);
                 }

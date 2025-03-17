@@ -251,17 +251,17 @@
   <implementation name="IM_divide_matrix44_genslang" nodedef="ND_divide_matrix44" target="genslang" sourcecode="{{in1}} / {{in2}}" />
 
   <!-- <modulo> -->
-  <implementation name="IM_modulo_float_genslang" nodedef="ND_modulo_float" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_color3_genslang" nodedef="ND_modulo_color3" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_color3FA_genslang" nodedef="ND_modulo_color3FA" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_color4_genslang" nodedef="ND_modulo_color4" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_color4FA_genslang" nodedef="ND_modulo_color4FA" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_vector2_genslang" nodedef="ND_modulo_vector2" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_vector2FA_genslang" nodedef="ND_modulo_vector2FA" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_vector3_genslang" nodedef="ND_modulo_vector3" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_vector3FA_genslang" nodedef="ND_modulo_vector3FA" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_vector4_genslang" nodedef="ND_modulo_vector4" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
-  <implementation name="IM_modulo_vector4FA_genslang" nodedef="ND_modulo_vector4FA" target="genslang" sourcecode="mod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_float_genslang" nodedef="ND_modulo_float" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_color3_genslang" nodedef="ND_modulo_color3" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_color3FA_genslang" nodedef="ND_modulo_color3FA" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_color4_genslang" nodedef="ND_modulo_color4" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_color4FA_genslang" nodedef="ND_modulo_color4FA" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_vector2_genslang" nodedef="ND_modulo_vector2" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_vector2FA_genslang" nodedef="ND_modulo_vector2FA" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_vector3_genslang" nodedef="ND_modulo_vector3" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_vector3FA_genslang" nodedef="ND_modulo_vector3FA" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_vector4_genslang" nodedef="ND_modulo_vector4" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
+  <implementation name="IM_modulo_vector4FA_genslang" nodedef="ND_modulo_vector4FA" target="genslang" sourcecode="fmod({{in1}}, {{in2}})" />
 
   <!-- <invert> -->
   <implementation name="IM_invert_float_genslang" nodedef="ND_invert_float" target="genslang" sourcecode="{{amount}} - {{in}}" />

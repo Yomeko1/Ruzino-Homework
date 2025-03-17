@@ -399,8 +399,7 @@ SlangSyntax::SlangSyntax()
             "BSDF(float3(0.0),float3(1.0), 0.0, 0.0)",
             EMPTY_STRING,
             EMPTY_STRING,
-            "struct BSDF { float3 response; float3 throughput; float "
-            "thickness; float ior; };"));
+            "import stdlib.genslang.mx_bsdf;"));
 
     registerTypeSyntax(
         Type::EDF,
@@ -419,7 +418,7 @@ SlangSyntax::SlangSyntax()
             "surfaceshader(float3(0.0),float3(0.0))",
             EMPTY_STRING,
             EMPTY_STRING,
-            "struct surfaceshader { float3 color; float3 transparency; };"));
+            "import stdlib.genslang.mx_surfaceshader;"));
 
     registerTypeSyntax(
         Type::VOLUMESHADER,
@@ -428,7 +427,7 @@ SlangSyntax::SlangSyntax()
             "volumeshader(float3(0.0),float3(0.0))",
             EMPTY_STRING,
             EMPTY_STRING,
-            "struct volumeshader { float3 color; float3 transparency; };"));
+            "import stdlib.genslang.mx_volumeshader;"));
 
     registerTypeSyntax(
         Type::DISPLACEMENTSHADER,
@@ -437,7 +436,7 @@ SlangSyntax::SlangSyntax()
             "displacementshader(float3(0.0),1.0)",
             EMPTY_STRING,
             EMPTY_STRING,
-            "struct displacementshader { float3 offset; float scale; };"));
+            "import stdlib.genslang.mx_displacementshader;"));
 
     registerTypeSyntax(
         Type::LIGHTSHADER,

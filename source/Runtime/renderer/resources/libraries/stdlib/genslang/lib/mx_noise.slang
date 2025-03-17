@@ -64,95 +64,156 @@ float mx_floorfrac(float x, out int i)
 float mx_bilerp(float v0, float v1, float v2, float v3, float s, float t)
 {
     float s1 = 1.0 - s;
-    return (1.0 - t) * (v0*s1 + v1*s) + t * (v2*s1 + v3*s);
+    return (1.0 - t) * (v0 * s1 + v1 * s) + t * (v2 * s1 + v3 * s);
 }
 float3 mx_bilerp(float3 v0, float3 v1, float3 v2, float3 v3, float s, float t)
 {
     float s1 = 1.0 - s;
-    return (1.0 - t) * (v0*s1 + v1*s) + t * (v2*s1 + v3*s);
+    return (1.0 - t) * (v0 * s1 + v1 * s) + t * (v2 * s1 + v3 * s);
 }
-float mx_trilerp(float v0, float v1, float v2, float v3, float v4, float v5, float v6, float v7, float s, float t, float r)
+float mx_trilerp(
+    float v0,
+    float v1,
+    float v2,
+    float v3,
+    float v4,
+    float v5,
+    float v6,
+    float v7,
+    float s,
+    float t,
+    float r)
 {
     float s1 = 1.0 - s;
     float t1 = 1.0 - t;
     float r1 = 1.0 - r;
-    return (r1*(t1*(v0*s1 + v1*s) + t*(v2*s1 + v3*s)) +
-            r*(t1*(v4*s1 + v5*s) + t*(v6*s1 + v7*s)));
+    return (
+        r1 * (t1 * (v0 * s1 + v1 * s) + t * (v2 * s1 + v3 * s)) +
+        r * (t1 * (v4 * s1 + v5 * s) + t * (v6 * s1 + v7 * s)));
 }
-float3 mx_trilerp(float3 v0, float3 v1, float3 v2, float3 v3, float3 v4, float3 v5, float3 v6, float3 v7, float s, float t, float r)
+float3 mx_trilerp(
+    float3 v0,
+    float3 v1,
+    float3 v2,
+    float3 v3,
+    float3 v4,
+    float3 v5,
+    float3 v6,
+    float3 v7,
+    float s,
+    float t,
+    float r)
 {
     float s1 = 1.0 - s;
     float t1 = 1.0 - t;
     float r1 = 1.0 - r;
-    return (r1*(t1*(v0*s1 + v1*s) + t*(v2*s1 + v3*s)) +
-            r*(t1*(v4*s1 + v5*s) + t*(v6*s1 + v7*s)));
+    return (
+        r1 * (t1 * (v0 * s1 + v1 * s) + t * (v2 * s1 + v3 * s)) +
+        r * (t1 * (v4 * s1 + v5 * s) + t * (v6 * s1 + v7 * s)));
 }
 
 // 2 and 3 dimensional gradient functions - perform a dot product against a
-// randomly chosen floattor. Note that the gradient floattor is not normalized, but
-// this only affects the overal "scale" of the result, so we simply account for
-// the scale by multiplying in the corresponding "perlin" function.
+// randomly chosen floattor. Note that the gradient floattor is not normalized,
+// but this only affects the overal "scale" of the result, so we simply account
+// for the scale by multiplying in the corresponding "perlin" function.
 float mx_gradient_float(uint hash, float x, float y)
 {
     // 8 possible directions (+-1,+-2) and (+-2,+-1)
     uint h = hash & 7u;
-    float u = mx_select(h<4u, x, y);
-    float v = 2.0 * mx_select(h<4u, y, x);
+    float u = mx_select(h < 4u, x, y);
+    float v = 2.0 * mx_select(h < 4u, y, x);
     // compute the dot product with (x,y).
-    return mx_negate_if(u, bool(h&1u)) + mx_negate_if(v, bool(h&2u));
+    return mx_negate_if(u, bool(h & 1u)) + mx_negate_if(v, bool(h & 2u));
 }
 float mx_gradient_float(uint hash, float x, float y, float z)
 {
     // use floattors pointing to the edges of the cube
     uint h = hash & 15u;
-    float u = mx_select(h<8u, x, y);
-    float v = mx_select(h<4u, y, mx_select((h==12u)||(h==14u), x, z));
-    return mx_negate_if(u, bool(h&1u)) + mx_negate_if(v, bool(h&2u));
+    float u = mx_select(h < 8u, x, y);
+    float v = mx_select(h < 4u, y, mx_select((h == 12u) || (h == 14u), x, z));
+    return mx_negate_if(u, bool(h & 1u)) + mx_negate_if(v, bool(h & 2u));
 }
-float3 mx_gradient_vec3(uvec3 hash, float x, float y)
+float3 mx_gradient_vec3(uint3 hash, float x, float y)
 {
-    return float3(mx_gradient_float(hash.x, x, y), mx_gradient_float(hash.y, x, y), mx_gradient_float(hash.z, x, y));
+    return float3(
+        mx_gradient_float(hash.x, x, y),
+        mx_gradient_float(hash.y, x, y),
+        mx_gradient_float(hash.z, x, y));
 }
-float3 mx_gradient_vec3(uvec3 hash, float x, float y, float z)
+float3 mx_gradient_vec3(uint3 hash, float x, float y, float z)
 {
-    return float3(mx_gradient_float(hash.x, x, y, z), mx_gradient_float(hash.y, x, y, z), mx_gradient_float(hash.z, x, y, z));
+    return float3(
+        mx_gradient_float(hash.x, x, y, z),
+        mx_gradient_float(hash.y, x, y, z),
+        mx_gradient_float(hash.z, x, y, z));
 }
 // Scaling factors to normalize the result of gradients above.
 // These factors were experimentally calculated to be:
 //    2D:   0.6616
 //    3D:   0.9820
-float mx_gradient_scale2d(float v) { return 0.6616 * v; }
-float mx_gradient_scale3d(float v) { return 0.9820 * v; }
-float3 mx_gradient_scale2d(float3 v) { return 0.6616 * v; }
-float3 mx_gradient_scale3d(float3 v) { return 0.9820 * v; }
+float mx_gradient_scale2d(float v)
+{
+    return 0.6616 * v;
+}
+float mx_gradient_scale3d(float v)
+{
+    return 0.9820 * v;
+}
+float3 mx_gradient_scale2d(float3 v)
+{
+    return 0.6616 * v;
+}
+float3 mx_gradient_scale3d(float3 v)
+{
+    return 0.9820 * v;
+}
 
 /// Bitwise circular rotation left by k bits (for 32 bit unsigned integers)
 uint mx_rotl32(uint x, int k)
 {
-    return (x<<k) | (x>>(32-k));
+    return (x << k) | (x >> (32 - k));
 }
 
 void mx_bjmix(inout uint a, inout uint b, inout uint c)
 {
-    a -= c; a ^= mx_rotl32(c, 4); c += b;
-    b -= a; b ^= mx_rotl32(a, 6); a += c;
-    c -= b; c ^= mx_rotl32(b, 8); b += a;
-    a -= c; a ^= mx_rotl32(c,16); c += b;
-    b -= a; b ^= mx_rotl32(a,19); a += c;
-    c -= b; c ^= mx_rotl32(b, 4); b += a;
+    a -= c;
+    a ^= mx_rotl32(c, 4);
+    c += b;
+    b -= a;
+    b ^= mx_rotl32(a, 6);
+    a += c;
+    c -= b;
+    c ^= mx_rotl32(b, 8);
+    b += a;
+    a -= c;
+    a ^= mx_rotl32(c, 16);
+    c += b;
+    b -= a;
+    b ^= mx_rotl32(a, 19);
+    a += c;
+    c -= b;
+    c ^= mx_rotl32(b, 4);
+    b += a;
 }
 
 // Mix up and combine the bits of a, b, and c (doesn't change them, but
 // returns a hash of those three original values).
 uint mx_bjfinal(uint a, uint b, uint c)
 {
-    c ^= b; c -= mx_rotl32(b,14);
-    a ^= c; a -= mx_rotl32(c,11);
-    b ^= a; b -= mx_rotl32(a,25);
-    c ^= b; c -= mx_rotl32(b,16);
-    a ^= c; a -= mx_rotl32(c,4);
-    b ^= a; b -= mx_rotl32(a,14);
-    c ^= b; c -= mx_rotl32(b,24);
+    c ^= b;
+    c -= mx_rotl32(b, 14);
+    a ^= c;
+    a -= mx_rotl32(c, 11);
+    b ^= a;
+    b -= mx_rotl32(a, 25);
+    c ^= b;
+    c -= mx_rotl32(b, 16);
+    a ^= c;
+    a -= mx_rotl32(c, 4);
+    b ^= a;
+    b -= mx_rotl32(a, 14);
+    c ^= b;
+    c -= mx_rotl32(b, 24);
     return c;
 }
 
@@ -164,14 +225,14 @@ float mx_bits_to_01(uint bits)
 
 float mx_fade(float t)
 {
-   return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 }
 
 uint mx_hash_int(int x)
 {
     uint len = 1u;
     uint seed = uint(0xdeadbeef) + (len << 2u) + 13u;
-    return mx_bjfinal(seed+uint(x), seed, seed);
+    return mx_bjfinal(seed + uint(x), seed, seed);
 }
 
 uint mx_hash_int(int x, int y)
@@ -222,26 +283,26 @@ uint mx_hash_int(int x, int y, int z, int xx, int yy)
     return mx_bjfinal(a, b, c);
 }
 
-uvec3 mx_hash_vec3(int x, int y)
+uint3 mx_hash_vec3(int x, int y)
 {
     uint h = mx_hash_int(x, y);
     // we only need the low-order bits to be random, so split out
     // the 32 bit result into 3 parts for each channel
-    uvec3 result;
-    result.x = (h      ) & 0xFFu;
-    result.y = (h >> 8 ) & 0xFFu;
+    uint3 result;
+    result.x = (h) & 0xFFu;
+    result.y = (h >> 8) & 0xFFu;
     result.z = (h >> 16) & 0xFFu;
     return result;
 }
 
-uvec3 mx_hash_vec3(int x, int y, int z)
+uint3 mx_hash_vec3(int x, int y, int z)
 {
     uint h = mx_hash_int(x, y, z);
     // we only need the low-order bits to be random, so split out
     // the 32 bit result into 3 parts for each channel
-    uvec3 result;
-    result.x = (h      ) & 0xFFu;
-    result.y = (h >> 8 ) & 0xFFu;
+    uint3 result;
+    result.x = (h) & 0xFFu;
+    result.y = (h >> 8) & 0xFFu;
     result.z = (h >> 16) & 0xFFu;
     return result;
 }
@@ -254,11 +315,12 @@ float mx_perlin_noise_float(float2 p)
     float u = mx_fade(fx);
     float v = mx_fade(fy);
     float result = mx_bilerp(
-        mx_gradient_float(mx_hash_int(X  , Y  ), fx    , fy     ),
-        mx_gradient_float(mx_hash_int(X+1, Y  ), fx-1.0, fy     ),
-        mx_gradient_float(mx_hash_int(X  , Y+1), fx    , fy-1.0),
-        mx_gradient_float(mx_hash_int(X+1, Y+1), fx-1.0, fy-1.0),
-        u, v);
+        mx_gradient_float(mx_hash_int(X, Y), fx, fy),
+        mx_gradient_float(mx_hash_int(X + 1, Y), fx - 1.0, fy),
+        mx_gradient_float(mx_hash_int(X, Y + 1), fx, fy - 1.0),
+        mx_gradient_float(mx_hash_int(X + 1, Y + 1), fx - 1.0, fy - 1.0),
+        u,
+        v);
     return mx_gradient_scale2d(result);
 }
 
@@ -272,15 +334,18 @@ float mx_perlin_noise_float(float3 p)
     float v = mx_fade(fy);
     float w = mx_fade(fz);
     float result = mx_trilerp(
-        mx_gradient_float(mx_hash_int(X  , Y  , Z  ), fx    , fy    , fz     ),
-        mx_gradient_float(mx_hash_int(X+1, Y  , Z  ), fx-1.0, fy    , fz     ),
-        mx_gradient_float(mx_hash_int(X  , Y+1, Z  ), fx    , fy-1.0, fz     ),
-        mx_gradient_float(mx_hash_int(X+1, Y+1, Z  ), fx-1.0, fy-1.0, fz     ),
-        mx_gradient_float(mx_hash_int(X  , Y  , Z+1), fx    , fy    , fz-1.0),
-        mx_gradient_float(mx_hash_int(X+1, Y  , Z+1), fx-1.0, fy    , fz-1.0),
-        mx_gradient_float(mx_hash_int(X  , Y+1, Z+1), fx    , fy-1.0, fz-1.0),
-        mx_gradient_float(mx_hash_int(X+1, Y+1, Z+1), fx-1.0, fy-1.0, fz-1.0),
-        u, v, w);
+        mx_gradient_float(mx_hash_int(X, Y, Z), fx, fy, fz),
+        mx_gradient_float(mx_hash_int(X + 1, Y, Z), fx - 1.0, fy, fz),
+        mx_gradient_float(mx_hash_int(X, Y + 1, Z), fx, fy - 1.0, fz),
+        mx_gradient_float(mx_hash_int(X + 1, Y + 1, Z), fx - 1.0, fy - 1.0, fz),
+        mx_gradient_float(mx_hash_int(X, Y, Z + 1), fx, fy, fz - 1.0),
+        mx_gradient_float(mx_hash_int(X + 1, Y, Z + 1), fx - 1.0, fy, fz - 1.0),
+        mx_gradient_float(mx_hash_int(X, Y + 1, Z + 1), fx, fy - 1.0, fz - 1.0),
+        mx_gradient_float(
+            mx_hash_int(X + 1, Y + 1, Z + 1), fx - 1.0, fy - 1.0, fz - 1.0),
+        u,
+        v,
+        w);
     return mx_gradient_scale3d(result);
 }
 
@@ -292,11 +357,12 @@ float3 mx_perlin_noise_vec3(float2 p)
     float u = mx_fade(fx);
     float v = mx_fade(fy);
     float3 result = mx_bilerp(
-        mx_gradient_vec3(mx_hash_vec3(X  , Y  ), fx    , fy     ),
-        mx_gradient_vec3(mx_hash_vec3(X+1, Y  ), fx-1.0, fy     ),
-        mx_gradient_vec3(mx_hash_vec3(X  , Y+1), fx    , fy-1.0),
-        mx_gradient_vec3(mx_hash_vec3(X+1, Y+1), fx-1.0, fy-1.0),
-        u, v);
+        mx_gradient_vec3(mx_hash_vec3(X, Y), fx, fy),
+        mx_gradient_vec3(mx_hash_vec3(X + 1, Y), fx - 1.0, fy),
+        mx_gradient_vec3(mx_hash_vec3(X, Y + 1), fx, fy - 1.0),
+        mx_gradient_vec3(mx_hash_vec3(X + 1, Y + 1), fx - 1.0, fy - 1.0),
+        u,
+        v);
     return mx_gradient_scale2d(result);
 }
 
@@ -310,15 +376,18 @@ float3 mx_perlin_noise_vec3(float3 p)
     float v = mx_fade(fy);
     float w = mx_fade(fz);
     float3 result = mx_trilerp(
-        mx_gradient_vec3(mx_hash_vec3(X  , Y  , Z  ), fx    , fy    , fz     ),
-        mx_gradient_vec3(mx_hash_vec3(X+1, Y  , Z  ), fx-1.0, fy    , fz     ),
-        mx_gradient_vec3(mx_hash_vec3(X  , Y+1, Z  ), fx    , fy-1.0, fz     ),
-        mx_gradient_vec3(mx_hash_vec3(X+1, Y+1, Z  ), fx-1.0, fy-1.0, fz     ),
-        mx_gradient_vec3(mx_hash_vec3(X  , Y  , Z+1), fx    , fy    , fz-1.0),
-        mx_gradient_vec3(mx_hash_vec3(X+1, Y  , Z+1), fx-1.0, fy    , fz-1.0),
-        mx_gradient_vec3(mx_hash_vec3(X  , Y+1, Z+1), fx    , fy-1.0, fz-1.0),
-        mx_gradient_vec3(mx_hash_vec3(X+1, Y+1, Z+1), fx-1.0, fy-1.0, fz-1.0),
-        u, v, w);
+        mx_gradient_vec3(mx_hash_vec3(X, Y, Z), fx, fy, fz),
+        mx_gradient_vec3(mx_hash_vec3(X + 1, Y, Z), fx - 1.0, fy, fz),
+        mx_gradient_vec3(mx_hash_vec3(X, Y + 1, Z), fx, fy - 1.0, fz),
+        mx_gradient_vec3(mx_hash_vec3(X + 1, Y + 1, Z), fx - 1.0, fy - 1.0, fz),
+        mx_gradient_vec3(mx_hash_vec3(X, Y, Z + 1), fx, fy, fz - 1.0),
+        mx_gradient_vec3(mx_hash_vec3(X + 1, Y, Z + 1), fx - 1.0, fy, fz - 1.0),
+        mx_gradient_vec3(mx_hash_vec3(X, Y + 1, Z + 1), fx, fy - 1.0, fz - 1.0),
+        mx_gradient_vec3(
+            mx_hash_vec3(X + 1, Y + 1, Z + 1), fx - 1.0, fy - 1.0, fz - 1.0),
+        u,
+        v,
+        w);
     return mx_gradient_scale3d(result);
 }
 
@@ -356,10 +425,9 @@ float3 mx_cell_noise_vec3(float p)
 {
     int ix = mx_floor(p);
     return float3(
-            mx_bits_to_01(mx_hash_int(ix, 0)),
-            mx_bits_to_01(mx_hash_int(ix, 1)),
-            mx_bits_to_01(mx_hash_int(ix, 2))
-    );
+        mx_bits_to_01(mx_hash_int(ix, 0)),
+        mx_bits_to_01(mx_hash_int(ix, 1)),
+        mx_bits_to_01(mx_hash_int(ix, 2)));
 }
 
 float3 mx_cell_noise_vec3(float2 p)
@@ -367,10 +435,9 @@ float3 mx_cell_noise_vec3(float2 p)
     int ix = mx_floor(p.x);
     int iy = mx_floor(p.y);
     return float3(
-            mx_bits_to_01(mx_hash_int(ix, iy, 0)),
-            mx_bits_to_01(mx_hash_int(ix, iy, 1)),
-            mx_bits_to_01(mx_hash_int(ix, iy, 2))
-    );
+        mx_bits_to_01(mx_hash_int(ix, iy, 0)),
+        mx_bits_to_01(mx_hash_int(ix, iy, 1)),
+        mx_bits_to_01(mx_hash_int(ix, iy, 2)));
 }
 
 float3 mx_cell_noise_vec3(float3 p)
@@ -379,10 +446,9 @@ float3 mx_cell_noise_vec3(float3 p)
     int iy = mx_floor(p.y);
     int iz = mx_floor(p.z);
     return float3(
-            mx_bits_to_01(mx_hash_int(ix, iy, iz, 0)),
-            mx_bits_to_01(mx_hash_int(ix, iy, iz, 1)),
-            mx_bits_to_01(mx_hash_int(ix, iy, iz, 2))
-    );
+        mx_bits_to_01(mx_hash_int(ix, iy, iz, 0)),
+        mx_bits_to_01(mx_hash_int(ix, iy, iz, 1)),
+        mx_bits_to_01(mx_hash_int(ix, iy, iz, 2)));
 }
 
 float3 mx_cell_noise_vec3(float4 p)
@@ -392,18 +458,20 @@ float3 mx_cell_noise_vec3(float4 p)
     int iz = mx_floor(p.z);
     int iw = mx_floor(p.w);
     return float3(
-            mx_bits_to_01(mx_hash_int(ix, iy, iz, iw, 0)),
-            mx_bits_to_01(mx_hash_int(ix, iy, iz, iw, 1)),
-            mx_bits_to_01(mx_hash_int(ix, iy, iz, iw, 2))
-    );
+        mx_bits_to_01(mx_hash_int(ix, iy, iz, iw, 0)),
+        mx_bits_to_01(mx_hash_int(ix, iy, iz, iw, 1)),
+        mx_bits_to_01(mx_hash_int(ix, iy, iz, iw, 2)));
 }
 
-float mx_fractal_noise_float(float3 p, int octaves, float lacunarity, float diminish)
+float mx_fractal_noise_float(
+    float3 p,
+    int octaves,
+    float lacunarity,
+    float diminish)
 {
     float result = 0.0;
     float amplitude = 1.0;
-    for (int i = 0;  i < octaves; ++i)
-    {
+    for (int i = 0; i < octaves; ++i) {
         result += amplitude * mx_perlin_noise_float(p);
         amplitude *= diminish;
         p *= lacunarity;
@@ -411,12 +479,12 @@ float mx_fractal_noise_float(float3 p, int octaves, float lacunarity, float dimi
     return result;
 }
 
-float3 mx_fractal_noise_vec3(float3 p, int octaves, float lacunarity, float diminish)
+float3
+mx_fractal_noise_vec3(float3 p, int octaves, float lacunarity, float diminish)
 {
     float3 result = float3(0.0);
     float amplitude = 1.0;
-    for (int i = 0;  i < octaves; ++i)
-    {
+    for (int i = 0; i < octaves; ++i) {
         result += amplitude * mx_perlin_noise_vec3(p);
         amplitude *= diminish;
         p *= lacunarity;
@@ -424,23 +492,35 @@ float3 mx_fractal_noise_vec3(float3 p, int octaves, float lacunarity, float dimi
     return result;
 }
 
-float2 mx_fractal_noise_vec2(float3 p, int octaves, float lacunarity, float diminish)
+float2
+mx_fractal_noise_vec2(float3 p, int octaves, float lacunarity, float diminish)
 {
-    return float2(mx_fractal_noise_float(p, octaves, lacunarity, diminish),
-                mx_fractal_noise_float(p+float3(19, 193, 17), octaves, lacunarity, diminish));
+    return float2(
+        mx_fractal_noise_float(p, octaves, lacunarity, diminish),
+        mx_fractal_noise_float(
+            p + float3(19, 193, 17), octaves, lacunarity, diminish));
 }
 
-float4 mx_fractal_noise_vec4(float3 p, int octaves, float lacunarity, float diminish)
+float4
+mx_fractal_noise_vec4(float3 p, int octaves, float lacunarity, float diminish)
 {
-    float3  c = mx_fractal_noise_vec3(p, octaves, lacunarity, diminish);
-    float f = mx_fractal_noise_float(p+float3(19, 193, 17), octaves, lacunarity, diminish);
+    float3 c = mx_fractal_noise_vec3(p, octaves, lacunarity, diminish);
+    float f = mx_fractal_noise_float(
+        p + float3(19, 193, 17), octaves, lacunarity, diminish);
     return float4(c, f);
 }
 
-float mx_worley_distance(float2 p, int x, int y, int xoff, int yoff, float jitter, int metric)
+float mx_worley_distance(
+    float2 p,
+    int x,
+    int y,
+    int xoff,
+    int yoff,
+    float jitter,
+    int metric)
 {
-    float3  tmp = mx_cell_noise_vec3(float2(x+xoff, y+yoff));
-    float2  off = float2(tmp.x, tmp.y);
+    float3 tmp = mx_cell_noise_vec3(float2(x + xoff, y + yoff));
+    float2 off = float2(tmp.x, tmp.y);
 
     off -= 0.5f;
     off *= jitter;
@@ -449,16 +529,25 @@ float mx_worley_distance(float2 p, int x, int y, int xoff, int yoff, float jitte
     float2 cellpos = float2(float(x), float(y)) + off;
     float2 diff = cellpos - p;
     if (metric == 2)
-        return abs(diff.x) + abs(diff.y);       // Manhattan distance
+        return abs(diff.x) + abs(diff.y);  // Manhattan distance
     if (metric == 3)
-        return max(abs(diff.x), abs(diff.y));   // Chebyshev distance
+        return max(abs(diff.x), abs(diff.y));  // Chebyshev distance
     // Either Euclidian or Distance^2
     return dot(diff, diff);
 }
 
-float mx_worley_distance(float3 p, int x, int y, int z, int xoff, int yoff, int zoff, float jitter, int metric)
+float mx_worley_distance(
+    float3 p,
+    int x,
+    int y,
+    int z,
+    int xoff,
+    int yoff,
+    int zoff,
+    float jitter,
+    int metric)
 {
-    float3  off = mx_cell_noise_vec3(float3(x+xoff, y+yoff, z+zoff));
+    float3 off = mx_cell_noise_vec3(float3(x + xoff, y + yoff, z + zoff));
 
     off -= 0.5f;
     off *= jitter;
@@ -467,9 +556,10 @@ float mx_worley_distance(float3 p, int x, int y, int z, int xoff, int yoff, int 
     float3 cellpos = float3(float(x), float(y), float(z)) + off;
     float3 diff = cellpos - p;
     if (metric == 2)
-        return abs(diff.x) + abs(diff.y) + abs(diff.z); // Manhattan distance
+        return abs(diff.x) + abs(diff.y) + abs(diff.z);  // Manhattan distance
     if (metric == 3)
-        return max(max(abs(diff.x), abs(diff.y)), abs(diff.z)); // Chebyshev distance
+        return max(
+            max(abs(diff.x), abs(diff.y)), abs(diff.z));  // Chebyshev distance
     // Either Euclidian or Distance^2
     return dot(diff, diff);
 }
@@ -478,12 +568,12 @@ float mx_worley_noise_float(float2 p, float jitter, int metric)
 {
     int X, Y;
     float2 localpos = float2(mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y));
-    float sqdist = 1e6f;        // Some big number for jitter > 1 (not all GPUs may be IEEE)
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            float dist = mx_worley_distance(localpos, x, y, X, Y, jitter, metric);
+    float sqdist =
+        1e6f;  // Some big number for jitter > 1 (not all GPUs may be IEEE)
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float dist =
+                mx_worley_distance(localpos, x, y, X, Y, jitter, metric);
             sqdist = min(sqdist, dist);
         }
     }
@@ -497,18 +587,15 @@ float2 mx_worley_noise_vec2(float2 p, float jitter, int metric)
     int X, Y;
     float2 localpos = float2(mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y));
     float2 sqdist = float2(1e6f, 1e6f);
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            float dist = mx_worley_distance(localpos, x, y, X, Y, jitter, metric);
-            if (dist < sqdist.x)
-            {
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float dist =
+                mx_worley_distance(localpos, x, y, X, Y, jitter, metric);
+            if (dist < sqdist.x) {
                 sqdist.y = sqdist.x;
                 sqdist.x = dist;
             }
-            else if (dist < sqdist.y)
-            {
+            else if (dist < sqdist.y) {
                 sqdist.y = dist;
             }
         }
@@ -523,24 +610,20 @@ float3 mx_worley_noise_vec3(float2 p, float jitter, int metric)
     int X, Y;
     float2 localpos = float2(mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y));
     float3 sqdist = float3(1e6f, 1e6f, 1e6f);
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            float dist = mx_worley_distance(localpos, x, y, X, Y, jitter, metric);
-            if (dist < sqdist.x)
-            {
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float dist =
+                mx_worley_distance(localpos, x, y, X, Y, jitter, metric);
+            if (dist < sqdist.x) {
                 sqdist.z = sqdist.y;
                 sqdist.y = sqdist.x;
                 sqdist.x = dist;
             }
-            else if (dist < sqdist.y)
-            {
+            else if (dist < sqdist.y) {
                 sqdist.z = sqdist.y;
                 sqdist.y = dist;
             }
-            else if (dist < sqdist.z)
-            {
+            else if (dist < sqdist.z) {
                 sqdist.z = dist;
             }
         }
@@ -553,15 +636,14 @@ float3 mx_worley_noise_vec3(float2 p, float jitter, int metric)
 float mx_worley_noise_float(float3 p, float jitter, int metric)
 {
     int X, Y, Z;
-    float3 localpos = float3(mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y), mx_floorfrac(p.z, Z));
+    float3 localpos = float3(
+        mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y), mx_floorfrac(p.z, Z));
     float sqdist = 1e6f;
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            for (int z = -1; z <= 1; ++z)
-            {
-                float dist = mx_worley_distance(localpos, x, y, z, X, Y, Z, jitter, metric);
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int z = -1; z <= 1; ++z) {
+                float dist = mx_worley_distance(
+                    localpos, x, y, z, X, Y, Z, jitter, metric);
                 sqdist = min(sqdist, dist);
             }
         }
@@ -574,22 +656,19 @@ float mx_worley_noise_float(float3 p, float jitter, int metric)
 float2 mx_worley_noise_vec2(float3 p, float jitter, int metric)
 {
     int X, Y, Z;
-    float3 localpos = float3(mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y), mx_floorfrac(p.z, Z));
+    float3 localpos = float3(
+        mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y), mx_floorfrac(p.z, Z));
     float2 sqdist = float2(1e6f, 1e6f);
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            for (int z = -1; z <= 1; ++z)
-            {
-                float dist = mx_worley_distance(localpos, x, y, z, X, Y, Z, jitter, metric);
-                if (dist < sqdist.x)
-                {
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int z = -1; z <= 1; ++z) {
+                float dist = mx_worley_distance(
+                    localpos, x, y, z, X, Y, Z, jitter, metric);
+                if (dist < sqdist.x) {
                     sqdist.y = sqdist.x;
                     sqdist.x = dist;
                 }
-                else if (dist < sqdist.y)
-                {
+                else if (dist < sqdist.y) {
                     sqdist.y = dist;
                 }
             }
@@ -603,28 +682,24 @@ float2 mx_worley_noise_vec2(float3 p, float jitter, int metric)
 float3 mx_worley_noise_vec3(float3 p, float jitter, int metric)
 {
     int X, Y, Z;
-    float3 localpos = float3(mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y), mx_floorfrac(p.z, Z));
+    float3 localpos = float3(
+        mx_floorfrac(p.x, X), mx_floorfrac(p.y, Y), mx_floorfrac(p.z, Z));
     float3 sqdist = float3(1e6f, 1e6f, 1e6f);
-    for (int x = -1; x <= 1; ++x)
-    {
-        for (int y = -1; y <= 1; ++y)
-        {
-            for (int z = -1; z <= 1; ++z)
-            {
-                float dist = mx_worley_distance(localpos, x, y, z, X, Y, Z, jitter, metric);
-                if (dist < sqdist.x)
-                {
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int z = -1; z <= 1; ++z) {
+                float dist = mx_worley_distance(
+                    localpos, x, y, z, X, Y, Z, jitter, metric);
+                if (dist < sqdist.x) {
                     sqdist.z = sqdist.y;
                     sqdist.y = sqdist.x;
                     sqdist.x = dist;
                 }
-                else if (dist < sqdist.y)
-                {
+                else if (dist < sqdist.y) {
                     sqdist.z = sqdist.y;
                     sqdist.y = dist;
                 }
-                else if (dist < sqdist.z)
-                {
+                else if (dist < sqdist.z) {
                     sqdist.z = dist;
                 }
             }

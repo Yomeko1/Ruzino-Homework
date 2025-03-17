@@ -1,4 +1,5 @@
 import pbrlib.genslang.lib.mx_microfacet_diffuse;
+import pbrlib.genslang.lib.mx_environment_prefilter;
 
 void mx_burley_diffuse_bsdf_reflection(
     float3 L,

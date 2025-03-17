@@ -1,4 +1,6 @@
 import pbrlib.genslang.lib.mx_microfacet_specular;
+import pbrlib.genslang.lib.mx_environment_prefilter;
+import pbrlib.genslang.lib.mx_transmission_refract;
 
 void mx_generalized_schlick_bsdf_reflection(
     float3 L,

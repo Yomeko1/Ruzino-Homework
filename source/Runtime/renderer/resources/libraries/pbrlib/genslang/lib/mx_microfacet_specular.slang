@@ -5,14 +5,14 @@ __exported import stdlib.genslang.lib.mx_math;
 __exported import pbrlib.genslang.lib.mx_microfacet;
 
 // Fresnel model options.
-const int FRESNEL_MODEL_DIELECTRIC = 0;
-const int FRESNEL_MODEL_CONDUCTOR = 1;
-const int FRESNEL_MODEL_SCHLICK = 2;
-const int FRESNEL_MODEL_AIRY = 3;
-const int FRESNEL_MODEL_SCHLICK_AIRY = 4;
+#define FRESNEL_MODEL_DIELECTRIC   0
+#define FRESNEL_MODEL_CONDUCTOR    1
+#define FRESNEL_MODEL_SCHLICK      2
+#define FRESNEL_MODEL_AIRY         3
+#define FRESNEL_MODEL_SCHLICK_AIRY 4
 
 // XYZ to CIE 1931 RGB color space (using neutral E illuminant)
-const float3x3 XYZ_TO_RGB = float3x3(
+static constexpr float3x3 XYZ_TO_RGB = float3x3(
     2.3706743,
     -0.5138850,
     0.0052982,

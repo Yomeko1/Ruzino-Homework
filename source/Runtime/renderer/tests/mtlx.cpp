@@ -1,3 +1,4 @@
+#include <Logger/Logger.h>
 #include <MaterialXCore/Document.h>
 #include <MaterialXFormat/File.h>
 #include <MaterialXFormat/Util.h>
@@ -189,6 +190,9 @@ TEST(GenShader, Bind_Light_Shaders)
 
 static void generateSlangCode()
 {
+    USTC_CG::log::SetMinSeverity(USTC_CG::Severity::Info);
+    USTC_CG::log::EnableOutputToConsole(true);
+
     mx::FileSearchPath searchPath = mx::getDefaultDataSearchPath();
 
     mx::FilePathVec testRootPaths;
@@ -218,7 +222,7 @@ static void generateSlangCode()
     tester.validate_shader_compile(genOptions, optionsFilePath);
 }
 
-//TEST(GenShader, SLANG_ShaderGeneration)
+// TEST(GenShader, SLANG_ShaderGeneration)
 int main()
 {
     // Generate with standard SLANG i.e version 400

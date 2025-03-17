@@ -29,6 +29,8 @@
 #include "Logger/Logger.h"
 #include "Nodes/BitangentNodeSlang.h"
 #include "Nodes/BlurNodeSlang.h"
+#include "Nodes/ClosureCompoundNodeSlang.h"
+#include "Nodes/ClosureMixNodeSlang.h"
 #include "Nodes/ClosureSourceCodeNodeSlang.h"
 #include "Nodes/CompoundNodeSlang.h"
 #include "Nodes/GeomColorNodeSlang.h"
@@ -306,9 +308,11 @@ SlangShaderGenerator::SlangShaderGenerator()
         ClosureLayerNode::create);
     // <!-- <lerp> -->
     registerImplementation(
-        "IM_mix_bsdf_" + SlangShaderGenerator::TARGET, ClosureMixNode::create);
+        "IM_mix_bsdf_" + SlangShaderGenerator::TARGET,
+        ClosureMixNodeSlang::create);
     registerImplementation(
-        "IM_mix_edf_" + SlangShaderGenerator::TARGET, ClosureMixNode::create);
+        "IM_mix_edf_" + SlangShaderGenerator::TARGET,
+        ClosureMixNodeSlang::create);
     // <!-- <add> -->
     registerImplementation(
         "IM_add_bsdf_" + SlangShaderGenerator::TARGET, ClosureAddNode::create);
@@ -401,8 +405,11 @@ void SlangShaderGenerator::emitVertexStage(
     // Add main function
     setFunctionName("main", stage);
     emitLine(
-        "void main(out float4 sv_pos : SV_POSITION, out " +
-            vertexData.getName() + " " + vertexData.getInstance() + ")",
+        "void main(out float4 sv_pos : SV_POSITION" +
+            (vertexData.empty() ? ""
+                                : ", out " + vertexData.getName() + " " +
+                                      vertexData.getInstance()) +
+            ")",
         stage,
         false);
     emitFunctionBodyBegin(graph, context, stage);
@@ -585,6 +592,7 @@ void SlangShaderGenerator::emitInputs(GenContext& context, ShaderStage& stage)
                 stage,
                 false);
             emitScopeEnd(stage, false, false);
+
             emitString(Syntax::SEMICOLON, stage);
             emitLineBreak(stage);
             emitLineBreak(stage);
@@ -732,23 +740,23 @@ void SlangShaderGenerator::emitPixelStage(
     //         "pbrlib/genslang/lib/mx_shadow.slang", context, stage);
     // }
 
-    // Emit directional albedo table code.
-    if (context.getOptions().hwWriteAlbedoTable) {
-        emitLibraryInclude(
-            "pbrlib/genslang/lib/mx_generate_albedo_table.slang",
-            context,
-            stage);
-        emitLineBreak(stage);
-    }
+    //// Emit directional albedo table code.
+    // if (context.getOptions().hwWriteAlbedoTable) {
+    //     emitLibraryInclude(
+    //         "pbrlib/genslang/lib/mx_generate_albedo_table.slang",
+    //         context,
+    //         stage);
+    //     emitLineBreak(stage);
+    // }
 
-    // Emit environment prefiltering code
-    if (context.getOptions().hwWriteEnvPrefilter) {
-        emitLibraryInclude(
-            "pbrlib/genslang/lib/mx_generate_prefilter_env.slang",
-            context,
-            stage);
-        emitLineBreak(stage);
-    }
+    //// Emit environment prefiltering code
+    // if (context.getOptions().hwWriteEnvPrefilter) {
+    //     emitLibraryInclude(
+    //         "pbrlib/genslang/lib/mx_generate_prefilter_env.slang",
+    //         context,
+    //         stage);
+    //     emitLineBreak(stage);
+    // }
 
     // Set the include file to use for uv transformations,
     // depending on the vertical flip flag.
@@ -759,8 +767,8 @@ void SlangShaderGenerator::emitPixelStage(
     else {
         _tokenSubstitutions[ShaderGenerator::T_FILE_TRANSFORM_UV] =
             "mx_transform_uv";
-    } 
-      
+    }
+
     // Emit uv transform code globally if needed.
     if (context.getOptions().hwAmbientOcclusion) {
         emitLibraryInclude(
@@ -777,12 +785,12 @@ void SlangShaderGenerator::emitPixelStage(
     const ShaderGraphOutputSocket* outputSocket = graph.getOutputSocket();
 
     // Add main function
-    setFunctionName("main", stage); 
+    setFunctionName("main", stage);
 
     const VariableBlock& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
 
     emitLine("void main(", stage, false);
-     
+
     const VariableBlock& outputs = stage.getOutputBlock(HW::PIXEL_OUTPUTS);
     emitVariableDeclarations(
         outputs,
@@ -790,11 +798,17 @@ void SlangShaderGenerator::emitPixelStage(
         Syntax::COMMA,
         context,
         stage,
-        false); 
-    emitLine(
-        "in " + vertexData.getName() + " " + vertexData.getInstance() + ")",
-        stage,
-        false); 
+        false);
+
+    if (!vertexData.empty()) {
+        emitLine(
+            "in " + vertexData.getName() + " " + vertexData.getInstance() + ")",
+            stage,
+            false);
+    }
+    else {
+        emitLine(")", stage, false);
+    }
      
     emitFunctionBodyBegin(graph, context, stage);
 
@@ -803,7 +817,7 @@ void SlangShaderGenerator::emitPixelStage(
         // Handle the case where the graph is a direct closure.
         // We don't support rendering closures without attaching
         // to a surface shader, so just output black.
-        emitLine( 
+        emitLine(
             outputSocket->getVariable() + " = float4(0.0, 0.0, 0.0, 1.0)",
             stage);
     }
@@ -1066,7 +1080,7 @@ ShaderNodeImplPtr SlangShaderGenerator::getImplementation(
             impl = LightCompoundNodeSlang::create();
         }
         else if (outputType->isClosure()) {
-            impl = ClosureCompoundNode::create();
+            impl = ClosureCompoundNodeSlang::create();
         }
         else {
             impl = CompoundNodeSlang::create();

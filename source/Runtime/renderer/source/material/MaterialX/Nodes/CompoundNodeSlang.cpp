@@ -109,8 +109,15 @@ void CompoundNodeSlang::emitFunctionDefinition(
         // Begin function signature.
         shadergen.emitLineBegin(stage);
         shadergen.emitString("void " + _functionName + +"(", stage);
-
         string delim = "";
+
+        auto& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
+        if (!vertexData.empty()) {
+            shadergen.emitString(
+                delim + vertexData.getName() + " " + vertexData.getInstance(),
+                stage);
+            delim = ", ";
+        }
 
         // Add all inputs
         for (ShaderGraphInputSocket* inputSocket :
@@ -177,6 +184,12 @@ void CompoundNodeSlang::emitFunctionCall(
         shadergen.emitString(_functionName + "(", stage);
 
         string delim = "";
+
+        auto& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
+        if (!vertexData.empty()) {
+            shadergen.emitString(delim + vertexData.getInstance(), stage);
+            delim = ", ";
+        }
 
         // Emit inputs.
         for (ShaderInput* input : node.getInputs()) {

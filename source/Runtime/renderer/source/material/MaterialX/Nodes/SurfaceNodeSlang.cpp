@@ -8,6 +8,8 @@
 #include <MaterialXGenShader/GenContext.h>
 #include <MaterialXGenShader/Shader.h>
 
+#include <cassert>
+
 #include "../SlangShaderGenerator.h"
 
 MATERIALX_NAMESPACE_BEGIN
@@ -95,48 +97,59 @@ void SurfaceNodeSlang::emitFunctionDefinition(
     GenContext& context,
     ShaderStage& stage) const
 {
-    const SlangShaderGenerator& shadergen =
-        static_cast<const SlangShaderGenerator&>(context.getShaderGenerator());
+    // const SlangShaderGenerator& shadergen =
+    //     static_cast<const
+    //     SlangShaderGenerator&>(context.getShaderGenerator());
 
-    DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
-    {
-        // struct BSDF { float3 response; float3 throughput; float thickness;
-        // float ior; };
-        std::string _functionName = "mx_surface_eval";
-        shadergen.emitLine(
-            "void " + _functionName +
-                "(float3 L, float3 V, float3 N, float3 P,",
-            stage);
+    // DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
+    //{
+    //     // struct BSDF { float3 response; float3 throughput; float thickness;
+    //     // float ior; };
 
-        shadergen.emitLine(" out BSDF result", stage);
-        shadergen.emitScopeBegin(stage);
+    //    context.pushClosureContext(&_callReflection);
 
-        auto bsdfInput = node.getInput("bsdf");
-        auto bsdf = bsdfInput->getConnectedSibling();
+    //    std::string _functionName = "mx_surface_eval";
+    //    shadergen.emitLine(
+    //        "void " + _functionName +
+    //            "(float3 L, float3 V, float3 N, float3 P,",
+    //        stage,
+    //        false);
 
-        shadergen.emitLine("float3 N = normalize(N)", stage);
-        shadergen.emitLine("float3 V = normalize(V)", stage);
-        shadergen.emitLine("float3 L = normalize(L)", stage);
-        shadergen.emitLine("float3 P = P", stage);
+    //    auto parent = node.getParent();
 
-        context.pushClosureContext(&_callReflection);
-        shadergen.emitFunctionCall(*bsdf, context, stage);
-        context.popClosureContext();
+    //    for (auto* input : parent->getInputs()) {
+    //        shadergen.emitInput(input, context, stage);
+    //        shadergen.emitString(", ", stage);
+    //    }
 
-        shadergen.emitLine(
-            "result.response += " + bsdf->getOutput()->getVariable() +
-                ".response",
-            stage);
+    //    shadergen.emitLine(" out BSDF result)", stage, false);
+    //    shadergen.emitScopeBegin(stage);
 
-        shadergen.emitLine(
-            "result.throughput *= " + bsdf->getOutput()->getVariable() +
-                ".throughput",
-            stage);
+    //    auto bsdfInput = node.getInput("bsdf");
+    //    auto bsdf = bsdfInput->getConnectedSibling();
 
-        shadergen.emitLine("return result", stage);
+    //    shadergen.emitLine("float3 N = normalize(N)", stage);
+    //    shadergen.emitLine("float3 V = normalize(V)", stage);
+    //    shadergen.emitLine("float3 L = normalize(L)", stage);
+    //    shadergen.emitLine("float3 P = P", stage);
 
-        shadergen.emitScopeEnd(stage);
-    }
+    //    shadergen.emitFunctionCall(*bsdf, context, stage);
+    //    context.popClosureContext();
+
+    //    shadergen.emitLine(
+    //        "result.response += " + bsdf->getOutput()->getVariable() +
+    //            ".response",
+    //        stage);
+
+    //    shadergen.emitLine(
+    //        "result.throughput *= " + bsdf->getOutput()->getVariable() +
+    //            ".throughput",
+    //        stage);
+
+    //    shadergen.emitLine("return result", stage);
+
+    //    shadergen.emitScopeEnd(stage);
+    //}
 }
 
 void SurfaceNodeSlang::emitFunctionCall(
@@ -162,9 +175,9 @@ void SurfaceNodeSlang::emitFunctionCall(
         if (!normal->isEmitted()) {
             normal->setEmitted();
             shadergen.emitLine(
-                prefix + normal->getVariable() + " = normalize((" +
-                    HW::T_WORLD_INVERSE_TRANSPOSE_MATRIX + " * float4(" +
-                    HW::T_IN_NORMAL + ", 0)).xyz)",
+                prefix + normal->getVariable() + " = normalize((mul(" +
+                    HW::T_WORLD_INVERSE_TRANSPOSE_MATRIX + ", float4(" +
+                    HW::T_IN_NORMAL + ", 0))).xyz)",
                 stage);
         }
         if (context.getOptions().hwAmbientOcclusion) {
@@ -179,7 +192,7 @@ void SurfaceNodeSlang::emitFunctionCall(
         }
     }
 
-    DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
+    DEFINE_SHADER_STAGE(stage, Stage::PIXEL) 
     {
         VariableBlock& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
         const string prefix = shadergen.getVertexDataPrefix(vertexData);
@@ -228,8 +241,8 @@ void SurfaceNodeSlang::emitFunctionCall(
                 shadergen.emitLine(
                     "shadowCoord = shadowCoord * 0.5 + 0.5", stage);
                 shadergen.emitLine(
-                    "float2 shadowMoments = texture(" + HW::T_SHADOW_MAP +
-                        ", shadowCoord.xy).xy",
+                    "float2 shadowMoments = " + HW::T_SHADOW_MAP + ".Sample(" +
+                        HW::T_SHADOW_MAP + "Sampler, shadowCoord.xy).xy",
                     stage);
                 shadergen.emitLine(
                     "float occlusion = "
@@ -361,7 +374,7 @@ void SurfaceNodeSlang::emitLightLoop(
         const ShaderNode* bsdf = bsdfInput->getConnectedSibling();
 
         shadergen.emitComment("Light loop", stage);
-        shadergen.emitLine("int numLights = numActiveLightSources()", stage);
+        shadergen.emitLine("int numLights = 0", stage);
         shadergen.emitLine("lightshader lightShader", stage);
         shadergen.emitLine(
             "for (int activeLightIndex = 0; activeLightIndex < numLights; "
@@ -371,29 +384,30 @@ void SurfaceNodeSlang::emitLightLoop(
 
         shadergen.emitScopeBegin(stage);
 
-        shadergen.emitLine(
-            "sampleLightSource(" + HW::T_LIGHT_DATA_INSTANCE +
-                "[activeLightIndex], " + prefix + HW::T_POSITION_WORLD +
-                ", lightShader)",
-            stage);
+        // shadergen.emitLine(
+        //     "sampleLightSource(" + HW::T_LIGHT_DATA_INSTANCE +
+        //         "[activeLightIndex], " + prefix + HW::T_POSITION_WORLD +
+        //         ", lightShader)",
+        //     stage);
         shadergen.emitLine("float3 L = lightShader.direction", stage);
         shadergen.emitLineBreak(stage);
 
         shadergen.emitComment(
             "Calculate the BSDF response for this light source", stage);
 
-        shadergen.emitLine("BSDF bsdfResult", stage);
-        shadergen.emitLine("mx_surface_eval(L, V, N, P, bsdfResult)", stage);
+        // shadergen.emitLine("BSDF bsdfResult", stage);
+        // shadergen.emitLine("mx_surface_eval(L, V, N, P, bsdfResult)", stage);
 
-        // context.pushClosureContext(&_callReflection);
-        // shadergen.emitFunctionCall(*bsdf, context, stage);
-        // context.popClosureContext();
+        context.pushClosureContext(&_callReflection);
+        shadergen.emitFunctionCall(*bsdf, context, stage);
+        context.popClosureContext();
 
         shadergen.emitLineBreak(stage);
 
         shadergen.emitComment("Accumulate the light's contribution", stage);
         shadergen.emitLine(
-            outColor + " += lightShader.intensity * bsdfResult.response",
+            outColor + " += lightShader.intensity * " +
+                bsdf->getOutput()->getVariable() + ".response",
             stage);
 
         shadergen.emitScopeEnd(stage);

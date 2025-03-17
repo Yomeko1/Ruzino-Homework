@@ -242,15 +242,13 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         slang::ParameterCategory category = parameter->getCategory();
         std::string name = parameter->getName();
 
-        auto categoryCount = parameter->getCategoryCount();
-
         auto index = parameter->getBindingIndex();
         auto space = parameter->getBindingSpace() +
                      parameter->getOffset(
                          SLANG_PARAMETER_CATEGORY_SUB_ELEMENT_REGISTER_SPACE);
 
         auto bindingRangeCount = typeLayout->getBindingRangeCount();
-        assert(bindingRangeCount == 1);
+        assert(bindingRangeCount == 1); 
         slang::BindingType type = typeLayout->getBindingRangeType(0);
 
         nvrhi::BindingLayoutItem item;
@@ -263,8 +261,6 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         }
 
         binding_locations[name] = std::make_tuple(space, indices[space]++);
-
-        assert(categoryCount == 1);
 
         layout_vector[space].addItem(item);
         layout_vector[space].visibility = shader_type;

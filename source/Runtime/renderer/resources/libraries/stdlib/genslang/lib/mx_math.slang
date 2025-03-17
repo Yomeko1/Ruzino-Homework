@@ -14,3 +14,4 @@ float3 mx_square(float3 x)
 {
     return x*x;
 }
+
