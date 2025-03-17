@@ -1,10 +1,10 @@
-﻿cmake_minimum_required(VERSION 3.19)
+﻿cmake_minimum_required(VERSION 3.31)
 
 #
 # Project details
 #
 project(
-  "USTC_CG_2024"
+  "USTC_CG_Framework3D"
   VERSION 1.0
   LANGUAGES C CXX
 )
