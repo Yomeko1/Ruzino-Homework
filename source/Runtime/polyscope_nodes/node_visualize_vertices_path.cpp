@@ -1,10 +1,12 @@
 #include <exception>
+#include <string>
 
 #include "nodes/core/def/node_def.hpp"
 #include "polyscope/curve_network.h"
 #include "polyscope/pick.h"
 #include "polyscope/polyscope.h"
 #include "polyscope/surface_mesh.h"
+#include "polyscope/utilities.h"
 
 NODE_DEF_OPEN_SCOPE
 
@@ -17,6 +19,7 @@ NODE_DECLARATION_FUNCTION(visualize_vertices_path)
 NODE_EXECUTION_FUNCTION(visualize_vertices_path)
 {
     auto structure_name = params.get_input<std::string>("Mesh Name");
+    structure_name = std::string(structure_name.c_str());
     auto vertex_indices = params.get_input<std::list<size_t>>("Vertex Indices");
 
     if (!polyscope::hasStructure("Surface Mesh", structure_name)) {

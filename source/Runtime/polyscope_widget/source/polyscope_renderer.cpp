@@ -413,7 +413,7 @@ void RegisterTextureQuantities(
 
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
-            int pix_ind = (j * width + i) * channels;
+            int pix_ind = (j * width + i) * 4;
             unsigned char p_r = data[pix_ind + 0];
             unsigned char p_g = data[pix_ind + 1];
             unsigned char p_b = data[pix_ind + 2];
