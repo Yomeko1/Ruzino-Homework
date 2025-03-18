@@ -1,7 +1,9 @@
+
+import stdlib.genslang.lib.mx_math;
+
 void mx_roughness_dual(float2 roughness, out float2 result)
 {
-    if (roughness.y < 0.0)
-    {
+    if (roughness.y < 0.0) {
         roughness.y = roughness.x;
     }
     result.x = clamp(roughness.x * roughness.x, M_FLOAT_EPS, 1.0);
