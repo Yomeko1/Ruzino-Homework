@@ -29,6 +29,7 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
     _completedSamples.store(0);
 
     render_param->presented_texture = nullptr;
+    render_param->texture_loading_tasks.clear();
     auto node_system = render_param->node_system;
 
     {

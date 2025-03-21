@@ -481,19 +481,10 @@ void _FixNodeValues(HdMaterialNetwork2Interface* netInterface)
     const TfTokenVector nodeNames = netInterface->GetNodeNames();
 
     for (TfToken const& nodeName : nodeNames) {
-        std::cout << "Node name: " << nodeName.GetString() << std::endl;
-
         auto params = netInterface->GetAuthoredNodeParameterNames(nodeName);
-        for (auto const& param : params) {
-            std::cout << "Param name: " << param.GetString() << std::endl;
-        }
 
         auto input_connections =
             netInterface->GetNodeInputConnectionNames(nodeName);
-        for (auto const& input_connection : input_connections) {
-            std::cout << "Input connection name: "
-                      << input_connection.GetString() << std::endl;
-        }
 
         TfToken nodeType = netInterface->GetNodeType(nodeName);
         if (nodeType == _tokens->ND_UsdUVTexture_23) {
@@ -533,12 +524,7 @@ void _FixNodeValues(HdMaterialNetwork2Interface* netInterface)
                 auto input = metallicInput[0];
                 auto connected_param = netInterface->GetNodeParameterData(
                     input.upstreamNodeName, input.upstreamOutputName);
-                std::cout << "input.upstreamNodeName: "
-                          << input.upstreamNodeName.GetString()
-                          << " input.upstreamOutputName: "
-                          << input.upstreamOutputName.GetString() << std::endl;
-                std::cout << "connected_param.value: "
-                          << connected_param.value.GetTypeName() << std::endl;
+
                 if (connected_param.value.IsHolding<GfVec3f>()) {
                     GfVec3f value = connected_param.value.Get<GfVec3f>();
                     netInterface->SetNodeParameterValue(
