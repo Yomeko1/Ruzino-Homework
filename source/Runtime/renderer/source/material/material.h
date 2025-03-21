@@ -38,11 +38,18 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
 
     void ensure_material_data_handle(Hd_USTC_CG_RenderParam* render_param);
 
+    void ensure_shader_compiled(const ShaderFactory& factory);
+
     unsigned GetMaterialLocation() const;
 
     std::shared_ptr<ProgramVars> GetShader(
         const ShaderFactory& factory,
         ResourceAllocator& allocator);
+
+    bool shader_compiled() const
+    {
+        return program != nullptr;
+    }
 
    private:
     HdMaterialNetwork2 surfaceNetwork;

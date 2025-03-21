@@ -45,18 +45,18 @@ void Stage::tick(float ellapsed_time)
     current += ellapsed_time;
     current_time_code = pxr::UsdTimeCode(current);
 
-    // for each prim, if it is animatable, update it
-    for (auto&& prim : stage->Traverse()) {
-        if (animation::WithDynamicLogicPrim::is_animatable(prim)) {
-            if (animatable_prims.find(prim.GetPath()) ==
-                animatable_prims.end()) {
-                animatable_prims[prim.GetPath()] =
-                    std::move(animation::WithDynamicLogicPrim(prim));
-            }
+    //// for each prim, if it is animatable, update it
+    //for (auto&& prim : stage->Traverse()) {
+    //    if (animation::WithDynamicLogicPrim::is_animatable(prim)) {
+    //        if (animatable_prims.find(prim.GetPath()) ==
+    //            animatable_prims.end()) {
+    //            animatable_prims[prim.GetPath()] =
+    //                std::move(animation::WithDynamicLogicPrim(prim));
+    //        }
 
-            animatable_prims[prim.GetPath()].update(ellapsed_time);
-        }
-    }
+    //        animatable_prims[prim.GetPath()].update(ellapsed_time);
+    //    }
+    //}
 }
 
 void Stage::finish_tick()

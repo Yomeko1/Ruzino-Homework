@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #include "camera.h"
+#include "material/material.h"
 #include "node_exec_eager_render.hpp"
 #include "nodes/system/node_system.hpp"
 #include "pxr/imaging/hd/renderBuffer.h"
@@ -29,6 +30,12 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
     _completedSamples.store(0);
 
     render_param->presented_texture = nullptr;
+
+    for (auto& material_thread : render_param->material_loading_threads) {
+        material_thread.join();
+    }
+    render_param->material_loading_threads.clear();
+
     for (auto& texture_thread : render_param->texture_loading_threads) {
         texture_thread.join();
     }
@@ -38,6 +45,22 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
     {
         auto& global_payload = node_system->get_node_tree_executor()
                                    ->get_global_payload<RenderGlobalPayload&>();
+
+        std::vector<std::thread> compile_threads;
+        for (auto& material : *render_param->material_map) {
+            if (material.second->shader_compiled()) {
+                continue;
+            }
+
+            compile_threads.emplace_back([&material, &global_payload]() {
+                material.second->ensure_shader_compiled(
+                    global_payload.shader_factory);
+            });
+        }
+
+        for (auto& thread : compile_threads) {
+            thread.join();
+        }
 
         global_payload.resource_allocator.gc();
 

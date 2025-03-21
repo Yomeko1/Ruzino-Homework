@@ -530,6 +530,7 @@ void Hd_USTC_CG_Material::Sync(
     MtlxGenerateShader(mtlx_document, netInterface, hdMtlxData);
 
     BuildGPUTextures(param);
+
     *dirtyBits = HdChangeTracker::Clean;
 }
 
@@ -593,9 +594,7 @@ void getColor(inout CallableData data)
 
 )";
 
-std::shared_ptr<ProgramVars> Hd_USTC_CG_Material::GetShader(
-    const ShaderFactory& factory,
-    ResourceAllocator& allocator)
+void Hd_USTC_CG_Material::ensure_shader_compiled(const ShaderFactory& factory)
 {
     if (!program) {
         if (!shader_source.empty()) {
@@ -608,7 +607,13 @@ std::shared_ptr<ProgramVars> Hd_USTC_CG_Material::GetShader(
 
         program = factory.createProgram(desc);
     }
+}
 
+std::shared_ptr<ProgramVars> Hd_USTC_CG_Material::GetShader(
+    const ShaderFactory& factory,
+    ResourceAllocator& allocator)
+{
+    ensure_shader_compiled(factory);
     return std::make_shared<ProgramVars>(allocator, program);
 }
 

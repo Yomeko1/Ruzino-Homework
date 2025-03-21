@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <queue>
 #include <string>
 
 #include "RHI/ResourceManager/resource_allocator.hpp"
@@ -113,18 +114,101 @@ std::string ProgramDesc::get_profile() const
     // Default return value for cases not handled explicitly
     return "lib_6_6";
 }
+class GlobalSessionPool {
+   private:
+    std::mutex sessionsMutex;
+    std::condition_variable sessionAvailable;
+    size_t maxSessions;
+    std::unordered_map<std::thread::id, Slang::ComPtr<slang::IGlobalSession>>
+        activeThreadSessions;
+    std::queue<Slang::ComPtr<slang::IGlobalSession>> cachedSessions;
+    size_t totalSessionCount = 0;  // Tracks both active and cached sessions
 
-Slang::ComPtr<slang::IGlobalSession> globalSession;
+    Slang::ComPtr<slang::IGlobalSession> createNewSession()
+    {
+        Slang::ComPtr<slang::IGlobalSession> session;
+        slang::createGlobalSession(session.writeRef());
+        SlangShaderCompiler::addHLSLPrelude(session);
+        SlangShaderCompiler::addCPPPrelude(session);
+        return session;
+    }
 
-Slang::ComPtr<slang::IGlobalSession> createGlobal()
+   public:
+    GlobalSessionPool() : maxSessions(4)
+    {
+    }
+
+    Slang::ComPtr<slang::IGlobalSession> getSession()
+    {
+        std::thread::id threadId = std::this_thread::get_id();
+        std::unique_lock<std::mutex> lock(sessionsMutex);
+
+        // Check if this thread already has a session
+        auto it = activeThreadSessions.find(threadId);
+        if (it != activeThreadSessions.end()) {
+            return it->second;
+        }
+
+        // Wait until we can create or reuse a session
+        while (totalSessionCount >= maxSessions && cachedSessions.empty()) {
+            sessionAvailable.wait(lock);
+        }
+
+        Slang::ComPtr<slang::IGlobalSession> session;
+
+        // Reuse a cached session if available
+        if (!cachedSessions.empty()) {
+            session = cachedSessions.front();
+            cachedSessions.pop();
+        }
+        else {
+            // Create a new session
+            session = createNewSession();
+            totalSessionCount++;
+        }
+
+        // Associate session with this thread
+        activeThreadSessions[threadId] = session;
+
+        return session;
+    }
+
+    void releaseSession(std::thread::id threadId)
+    {
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+
+        auto it = activeThreadSessions.find(threadId);
+        if (it != activeThreadSessions.end()) {
+            // Move session to cache
+            cachedSessions.push(it->second);
+            activeThreadSessions.erase(it);
+
+            // Notify waiting threads
+            sessionAvailable.notify_one();
+        }
+    }
+
+    ~GlobalSessionPool()
+    {
+        // Clean up all sessions
+        std::lock_guard<std::mutex> lock(sessionsMutex);
+        activeThreadSessions.clear();
+        while (!cachedSessions.empty()) {
+            cachedSessions.pop();
+        }
+    }
+};
+
+GlobalSessionPool globalSessionPool;
+
+Slang::ComPtr<slang::IGlobalSession> getGlobalSession()
 {
-    Slang::ComPtr<slang::IGlobalSession> globalSession;
-    slang::createGlobalSession(globalSession.writeRef());
+    return globalSessionPool.getSession();
+}
 
-    SlangShaderCompiler::addHLSLPrelude(globalSession);
-    SlangShaderCompiler::addCPPPrelude(globalSession);
-
-    return globalSession;
+void releaseGlobalSession()
+{
+    globalSessionPool.releaseSession(std::this_thread::get_id());
 }
 
 static nvrhi::ResourceType convertBindingTypeToResourceType(
@@ -455,17 +539,13 @@ void ShaderFactory::SlangCompile(
 {
     auto stage = ConvertShaderTypeToSlangStage(shaderType);
 
-    if (!globalSession) {
-        globalSession = createGlobal();
-    }
+    auto profile_id = getGlobalSession()->findProfile(profile);
 
     std::vector<slang::CompilerOptionEntry> vk_compiler_options;
 
     if (target == SLANG_SPIRV) {
         populate_vk_options(vk_compiler_options);
     }
-
-    auto profile_id = globalSession->findProfile(profile);
 
     slang::TargetDesc desc;
     desc.format = target;
@@ -508,7 +588,9 @@ void ShaderFactory::SlangCompile(
     compile_session_desc.compilerOptionEntryCount =
         static_cast<SlangInt>(vk_compiler_options.size());
 
-    auto result = globalSession->createSession(
+    SlangResult result;
+
+    result = getGlobalSession()->createSession(
         compile_session_desc, p_compile_session.writeRef());
 
     Slang::ComPtr<slang::IModule> module;
@@ -589,6 +671,8 @@ void ShaderFactory::SlangCompile(
         CHECK_REPORTED_ERROR();
         assert(result == SLANG_OK);
     }
+
+    releaseGlobalSession();
 }
 
 ProgramHandle ShaderFactory::createProgram(const ProgramDesc& desc) const
