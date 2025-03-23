@@ -2,10 +2,7 @@ import pbrlib.genslang.lib.mx_environment_prefilter;
 
 import pbrlib.genslang.lib.mx_microfacet_specular;
 
-cbuffer Constants
-{
-    bool u_refractionTwoSided = false;
-}
+ConstantBuffer<bool> u_refractionTwoSided;
 
 float3 mx_surface_transmission(
     float3 N,

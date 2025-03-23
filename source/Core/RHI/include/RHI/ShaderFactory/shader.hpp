@@ -61,7 +61,7 @@ class RHI_API ShaderFactory {
 
     void SlangCompile(
         const std::filesystem::path& path,
-        const std::string& sourceCode,
+        const std::vector<std::string>& sourceCodes,
         const char* entryPoint,
         nvrhi::ShaderType shaderType,
         const char* profile,
@@ -71,9 +71,9 @@ class RHI_API ShaderFactory {
         Slang::ComPtr<ISlangSharedLibrary>& ppSharedLirary,
         std::string& error_string,
         SlangCompileTarget target,
-        Slang::ComPtr<slang::IComponentType>* linkedProgram = nullptr
+        Slang::ComPtr<slang::IComponentType>* linkedProgram1 = nullptr
 
-    ) const;
+        ) const;
 
     static void populate_vk_options(
         std::vector<slang::CompilerOptionEntry>& vk_compiler_options);

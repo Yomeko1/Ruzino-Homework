@@ -678,11 +678,12 @@ float3 mx_latlong_map_lookup(
     float3 dir,
     float4x4 transform,
     float lod,
-    Sampler2D envSampler)
+    Texture2D envSampler,
+    SamplerState u_envRadiance_sampler)
 {
     float3 envDir = normalize(mul(transform, float4(dir, 0.0)).xyz);
     float2 uv = mx_latlong_projection(envDir);
-    return envSampler.SampleLevel(uv, lod).rgb;
+    return envSampler.SampleLevel(u_envRadiance_sampler, uv, lod).rgb;
 }
 
 // Return the mip level with the appropriate coverage for a filtered importance

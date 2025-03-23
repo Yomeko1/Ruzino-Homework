@@ -402,6 +402,11 @@ void SlangShaderGenerator::emitVertexStage(
     emitFunctionDefinitions(graph, context, stage);
     const VariableBlock& vertexData = stage.getOutputBlock(HW::VERTEX_DATA);
 
+    auto binding_context = getResourceBindingContext(context);
+    if (binding_context) {
+        binding_context->emitResourceBindings(context, vertexData, stage);
+    }
+
     // Add main function
     setFunctionName("main", stage);
     emitLine(
@@ -627,15 +632,15 @@ void SlangShaderGenerator::emitOutputs(GenContext& context, ShaderStage& stage)
     DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
     {
         // emitComment("Pixel shader outputs", stage);
-        const VariableBlock& outputs = stage.getOutputBlock(HW::PIXEL_OUTPUTS);
-        emitVariableDeclarations(
-            outputs,
-            _syntax->getOutputQualifier(),
-            Syntax::SEMICOLON,
-            context,
-            stage,
-            false);
-        emitLineBreak(stage);
+        // const VariableBlock& outputs =
+        // stage.getOutputBlock(HW::PIXEL_OUTPUTS); emitVariableDeclarations(
+        //    outputs,
+        //    _syntax->getOutputQualifier(),
+        //    Syntax::SEMICOLON,
+        //    context,
+        //    stage,
+        //    false);
+        // emitLineBreak(stage);
     }
 }
 
@@ -944,6 +949,8 @@ void SlangShaderGenerator::emitPixelStage(
             }
         }
     }
+
+    emitLine("out1 = float4(1,0,0,1)", stage);
 
     // End main function
     emitFunctionBodyEnd(graph, context, stage);

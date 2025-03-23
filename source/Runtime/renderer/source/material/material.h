@@ -38,27 +38,28 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
 
     void ensure_material_data_handle(Hd_USTC_CG_RenderParam* render_param);
 
-    void ensure_shader_compiled(const ShaderFactory& factory);
+    void ensure_shader_ready();
 
     unsigned GetMaterialLocation() const;
 
-    std::shared_ptr<ProgramVars> GetShader(
-        const ShaderFactory& factory,
-        ResourceAllocator& allocator);
+    std::string GetShader(const ShaderFactory& factory);
 
-    bool shader_compiled() const
+    std::string GetMaterialName() const
     {
-        return program != nullptr;
+        return material_name;
     }
 
    private:
     HdMaterialNetwork2 surfaceNetwork;
 
-    std::string shader_source;
-    ProgramHandle program = nullptr;
+    std::string eval_shader_source;
+    std::string get_data_code;
+    std::string material_name;
+    std::string final_shader_source;
+
+    bool shader_ready = false;
 
     std::unordered_map<std::string, std::string> texturePaths;
-    std::string get_data_code;
 
     struct TextureResource {
         std::string filePath;

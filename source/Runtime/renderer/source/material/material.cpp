@@ -68,7 +68,7 @@ class BindlessContext : public HwResourceBindingContext {
     // Emit uniforms with binding information
     void emitResourceBindings(
         GenContext& context,
-        const VariableBlock& uniforms,
+        const VariableBlock& resources,
         ShaderStage& stage) override;
 
     // Emit structured uniforms with binding information and align members where
@@ -101,7 +101,7 @@ BindlessContext::BindlessContext(
 
 void BindlessContext::emitResourceBindings(
     GenContext& context,
-    const VariableBlock& uniforms,
+    const VariableBlock& resources,
     ShaderStage& stage)
 {
     const ShaderGenerator& generator = context.getShaderGenerator();
@@ -109,14 +109,14 @@ void BindlessContext::emitResourceBindings(
 
     // First, emit all value uniforms in a block with single layout binding
     bool hasValueUniforms = false;
-    for (auto uniform : uniforms.getVariableOrder()) {
+    for (auto uniform : resources.getVariableOrder()) {
         if (uniform->getType() != Type::FILENAME) {
             hasValueUniforms = true;
             break;
         }
     }
-    if (hasValueUniforms && uniforms.getName() == HW::PUBLIC_UNIFORMS) {
-        for (auto uniform : uniforms.getVariableOrder()) {
+    if (hasValueUniforms && resources.getName() == HW::PUBLIC_UNIFORMS) {
+        for (auto uniform : resources.getVariableOrder()) {
             auto type = uniform->getType();
 
             auto& syntax = generator.getSyntax();
@@ -215,7 +215,7 @@ void BindlessContext::emitResourceBindings(
 
         // Second, emit all sampler uniforms as separate uniforms with separate
         // layout bindings
-        for (auto uniform : uniforms.getVariableOrder()) {
+        for (auto uniform : resources.getVariableOrder()) {
             if (*uniform->getType() == *Type::FILENAME) {
                 // generator.emitString(
                 //     "layout (binding=" +
@@ -237,6 +237,14 @@ void BindlessContext::emitResourceBindings(
             }
         }
     }
+
+    if (resources.getName() == HW::VERTEX_DATA) {
+        for (auto vertexdata_member : resources.getVariableOrder()) {
+            std::cout << "VertexData " << vertexdata_member->getName()
+                      << " = vd." << vertexdata_member->getName() << ";\n";
+        }
+    }
+
     generator.emitLineBreak(stage);
 }
 
@@ -418,15 +426,15 @@ void Hd_USTC_CG_Material::MtlxGenerateShader(
     auto element = renderable[0];
 
     std::string elementName(element->getNamePath());
-    elementName = mx::createValidName(elementName);
+    material_name = mx::createValidName(elementName);
 
     ShaderGenerator& shader_generator_ =
         shader_gen_context_->getShaderGenerator();
     {
         std::lock_guard lock(shadergen_mutex);
         auto shader = shader_generator_.generate(
-            elementName, element, *shader_gen_context_);
-        shader_source = shader->getSourceCode(mx::Stage::PIXEL);
+            material_name, element, *shader_gen_context_);
+        eval_shader_source = shader->getSourceCode(mx::Stage::PIXEL);
 
         BindlessContextPtr context =
             shader_gen_context_->getUserData<BindlessContext>(
@@ -621,8 +629,6 @@ unsigned Hd_USTC_CG_Material::GetMaterialLocation() const
 static std::string slang_source_code = R"(
 import Scene.VertexInfo;
 
-ConstantBuffer<float> cb;
-
 struct CallableData
 {
     float4 color;
@@ -633,11 +639,9 @@ struct CallableData
 };
 
 [shader("callable")]
-void getColor(inout CallableData data)
+void $getColor(inout CallableData data)
 {
     eval(data.color, data.L, data.V, data.materialID, data.vertexInfo);
-    data.color = float4(0, 1, 0, 1);
-return;
 }
 
 )";
@@ -653,49 +657,8 @@ struct VertexData
     float3 positionWorld;
 };
 
-
-void IMP_UsdPrimvarReader_vector2(VertexData vd, int varname, float2 fallback, out float2 out1)
-{
-    float2 primvar_out = vd.i_geomprop_st;
-    out1 = primvar_out;
-}
-
-import stdlib.genslang.lib.mx_transform_uv;
-
-void mx_image_color4(
-    Sampler2D tex_sampler,
-    int layer,
-    float4 defaultval,
-    float2 texcoord,
-    int uaddressmode,
-    int vaddressmode,
-    int filtertype,
-    int framerange,
-    int frameoffset,
-    int frameendaction,
-    float2 uv_scale,
-    float2 uv_offset,
-    out float4 result)
-{
-    float2 uv = mx_transform_uv(texcoord, uv_scale, uv_offset);
-    result = tex_sampler.SampleLevel(uv, 0.0);
-}
-
-void IMP_UsdUVTexture_23(VertexData vd, Sampler2D file, float2 st, int wrapS, int wrapT, float4 fallback, float4 scale, float4 bias, out float r, out float g, out float b, out float a, out float3 rgb)
-{
-    float4 image_reader_out = float4(0.0);
-    mx_image_color4(file, 0, fallback, st, wrapS, wrapT, 1, 0, 0, 0, float2(1.000000, 1.000000), float2(0.000000, 0.000000), image_reader_out);
-    float4 image_scale_out = image_reader_out * scale;
-    float4 image_bias_out = image_scale_out + bias;
-    r = image_bias_out.x;
-    g = image_bias_out.y;
-    b = image_bias_out.z;
-    a = image_bias_out.w;
-    rgb = float3(image_bias_out.x, image_bias_out.y, image_bias_out.z);
-}
-
 import Scene.VertexInfo;
-ConstantBuffer<float> cb;
+// ConstantBuffer<float> cb;
 
 struct CallableData
 {
@@ -707,63 +670,72 @@ struct CallableData
 };
 
 [shader("callable")]
-void getColor(inout CallableData data)
+void $getColor(inout CallableData data)
 {
     data.color = float4(1, 0, 0, 1);
 }
 
 )";
-
-void Hd_USTC_CG_Material::ensure_shader_compiled(const ShaderFactory& factory)
+void Hd_USTC_CG_Material::ensure_shader_ready()
 {
-    if (!program) {
-        if (!shader_source.empty()) {
-            // if (false) {
-            // replace the $BindlessDataLoading in shader_source with the
-            // get_data_code
-            std::string to_replace = "$BindlessDataLoading";
-            size_t pos = shader_source.find(to_replace);
-            if (pos != std::string::npos) {
-                shader_source.replace(pos, to_replace.length(), get_data_code);
-            }
-#ifndef _NDEBUG
-            std::ofstream out(
-                "generated_shaders/" +
-                std::to_string(this->GetMaterialLocation()) + ".slang");
-            out << shader_source;
-            out.close();
-#endif
-            ProgramDesc mtlx_desc;
-            mtlx_desc.set_source_code(shader_source + slang_source_code);
-            mtlx_desc.set_entry_name("getColor");
-            program = factory.createProgram(mtlx_desc);
+    if (shader_ready) {
+        return;
+    }
 
-            if (!program->get_error_string().empty()) {
-                std::ofstream out("generated_shaders/errorlog.txt");
-                out << program->get_error_string();
-                out.close();
-
-                assert(false);
-            }
-
-            assert(program->getBufferPointer());
+    if (!eval_shader_source.empty()) {
+        // Replace the data loading placeholder with actual data code
+        constexpr char DATA_PLACEHOLDER[] = "$BindlessDataLoading";
+        size_t pos = eval_shader_source.find(DATA_PLACEHOLDER);
+        if (pos != std::string::npos) {
+            eval_shader_source.replace(
+                pos, strlen(DATA_PLACEHOLDER), get_data_code);
         }
-        else {
-            ProgramDesc mtlx_desc;
-            mtlx_desc.set_source_code(slang_source_code_fallback);
-            mtlx_desc.set_entry_name("getColor");
-            program = factory.createProgram(mtlx_desc);
-            assert(program->getBufferPointer());
+
+#ifndef NDEBUG
+        try {
+            std::filesystem::create_directories("generated_shaders");
+            std::ofstream out("generated_shaders/" + material_name + ".slang");
+            if (out.is_open()) {
+                out << eval_shader_source;
+                out.close();
+            }
+        }
+        catch (const std::exception& e) {
+            TF_WARN("Failed to save generated shader: %s", e.what());
+        }
+#endif
+    }
+    else {
+        // Use fallback shader if no source is available
+        eval_shader_source = slang_source_code_fallback;
+        if (material_name.empty()) {
+            material_name = "fallback";
         }
     }
+
+    // Create the complete shader with callable entry point
+    auto local_slang_source_code = slang_source_code;
+
+    // Replace the callable function name with the material name in all code
+    constexpr char FUNC_PLACEHOLDER[] = "$getColor";
+
+    // Replace in local_slang_source_code
+    auto pos = local_slang_source_code.find(FUNC_PLACEHOLDER);
+    if (pos != std::string::npos) {
+        local_slang_source_code.replace(
+            pos, strlen(FUNC_PLACEHOLDER), material_name);
+    }
+
+    // Combine shader parts into final source
+    final_shader_source = eval_shader_source + local_slang_source_code;
+
+    shader_ready = true;
 }
 
-std::shared_ptr<ProgramVars> Hd_USTC_CG_Material::GetShader(
-    const ShaderFactory& factory,
-    ResourceAllocator& allocator)
+std::string Hd_USTC_CG_Material::GetShader(const ShaderFactory& factory)
 {
-    ensure_shader_compiled(factory);
-    return std::make_shared<ProgramVars>(allocator, program);
+    ensure_shader_ready();
+    return final_shader_source;
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

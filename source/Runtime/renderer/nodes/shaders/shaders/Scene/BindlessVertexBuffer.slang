@@ -2,7 +2,7 @@
 import Scene.SceneTypes;
 import Scene.Scene;
 
-[[vk::binding(0, 1)]]
+// [[vk::binding(0, 1)]]
 ByteAddressBuffer t_BindlessBuffers[] : register(t0, space1);
 
 StructuredBuffer<GeometryInstanceData> instanceDescBuffer;

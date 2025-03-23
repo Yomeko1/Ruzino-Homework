@@ -36,9 +36,31 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
         "FALCOR_MATERIAL_INSTANCE_SIZE",
         std::to_string(c_FalcorMaterialInstanceSize));
 
+    auto &materials = global_payload.get_materials();
+
+    std::unordered_map<unsigned, std::string> callable_shaders;
+
+    for (auto material : materials) {
+        program_desc.add_source_code(
+            material.second->GetShader(shader_factory));
+
+        auto location = material.second->GetMaterialLocation();
+        if (location == -1) {
+            continue;
+        }
+
+        auto callable = material.second->GetShader(shader_factory);
+        callable_shaders[location] = material.second->GetMaterialName();
+
+        // combined_desc.add_component(callable->get_linked_program());
+    }
+
     auto raytrace_compiled = resource_allocator.create(program_desc);
     MARK_DESTROY_NVRHI_RESOURCE(raytrace_compiled);
     CHECK_PROGRAM_ERROR(raytrace_compiled);
+
+    ProgramDesc combined_desc;
+    combined_desc.shaderType = ShaderType::AllRayTracing;
 
     auto m_CommandList = resource_allocator.create(CommandListDesc{});
     MARK_DESTROY_NVRHI_RESOURCE(m_CommandList);
@@ -95,11 +117,15 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     program_vars["Weight"] = weight_buffer;
     program_vars["Pdf"] = pdf_buffer;
     program_vars["random_seeds"] = random_seeds;
+    //    program_vars["cb"] = create_constant_buffer(params, 1);
 
     program_vars["instanceDescBuffer"] =
         instance_collection->instance_pool.get_device_buffer();
     program_vars["meshDescBuffer"] =
         instance_collection->mesh_pool.get_device_buffer();
+
+    program_vars["materialBuffer"] =
+        instance_collection->material_pool.get_device_buffer();
 
     program_vars.set_descriptor_table(
         "t_BindlessBuffers",
@@ -117,19 +143,8 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     context.announce_miss("Miss");
     context.announce_miss("ShadowMiss", 1);
 
-    auto &materials = global_payload.get_materials();
-
-    for (auto material : materials) {
-        auto location = material.second->GetMaterialLocation();
-
-        if (location == -1) {
-            continue;
-        }
-
-        context.announce_callable(
-            "getColor",
-            material.second->GetMaterialLocation(),
-            material.second->GetShader(shader_factory, resource_allocator));
+    for (auto &callable : callable_shaders) {
+        context.announce_callable(callable.second, callable.first);
     }
 
     context.finish_announcing_shader_names();

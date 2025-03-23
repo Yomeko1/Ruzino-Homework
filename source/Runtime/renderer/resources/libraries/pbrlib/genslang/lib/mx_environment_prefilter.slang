@@ -5,9 +5,11 @@ struct EnvironmentPrefilterData {
     float3 u_envLightIntensity;
     int u_envRadianceMips;
     int u_envIrradianceMips;
-    Sampler2D u_envRadiance;
-    Sampler2D u_envIrradiance;
 };
+Texture2D u_envRadiance;
+SamplerState u_envRadiance_sampler;
+Texture2D u_envIrradiance;
+SamplerState u_envIrradiance_sampler;
 
 ConstantBuffer<EnvironmentPrefilterData> u_envPrefilterData;
 
@@ -42,7 +44,8 @@ float3 mx_environment_radiance(
         L,
         u_envPrefilterData.u_envMatrix,
         mx_latlong_alpha_to_lod(avgAlpha),
-        u_envPrefilterData.u_envRadiance);
+        u_envRadiance,
+        u_envRadiance_sampler);
     return Li * FG * u_envPrefilterData.u_envLightIntensity;
 }
 
@@ -52,6 +55,7 @@ float3 mx_environment_irradiance(float3 N)
         N,
         u_envPrefilterData.u_envMatrix,
         0.0,
-        u_envPrefilterData.u_envIrradiance);
+        u_envIrradiance,
+        u_envIrradiance_sampler);
     return Li * u_envPrefilterData.u_envLightIntensity;
 }

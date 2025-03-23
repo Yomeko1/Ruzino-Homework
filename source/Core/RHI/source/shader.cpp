@@ -398,7 +398,9 @@ nvrhi::ShaderHandle ShaderFactory::compile_shader(
         program_desc.define(macro_define.name, macro_define.definition);
     }
     program_desc.shaderType = shader_type;
-    program_desc.source_code = source_code;
+    if (!source_code.empty()) {
+        program_desc.source_code = { source_code };
+    }
 
     ProgramHandle shader_compiled;
 
@@ -463,7 +465,7 @@ ProgramHandle ShaderFactory::compile_cpu_executable(
         desc.define(macro_define.name, macro_define.definition);
     }
     desc.shaderType = shader_type;
-    desc.source_code = source_code;
+    desc.source_code = { source_code };
 
     ProgramHandle program_handle;
     program_handle = ProgramHandle::Create(new Program());
@@ -530,7 +532,7 @@ void ShaderFactory::populate_vk_options(
 
 void ShaderFactory::SlangCompile(
     const std::filesystem::path& path,
-    const std::string& sourceCode,
+    const std::vector<std::string>& sourceCodes,
     const char* entryPoint,
     nvrhi::ShaderType shaderType,
     const char* profile,
@@ -600,7 +602,6 @@ void ShaderFactory::SlangCompile(
     result = global_session->createSession(
         compile_session_desc, p_compile_session.writeRef());
 
-    Slang::ComPtr<slang::IModule> module;
     Slang::ComPtr<slang::IBlob> diagnostics;
 
     if (target == SLANG_HOST_EXECUTABLE) {
@@ -610,30 +611,53 @@ void ShaderFactory::SlangCompile(
 
     static std::atomic<unsigned> shader_id = 0;
 
-    auto load_module = [&](slang::ISession* session) {
-        slang::IModule* ret;
-        if (!sourceCode.empty())
-
-        {
-            auto id = shader_id++;
-            ret = session->loadModuleFromSourceString(
-                (std::to_string(id) + path.filename().generic_string()).c_str(),
-                (std::to_string(id) + path.generic_string()).c_str(),
-                sourceCode.c_str(),
-                diagnostics.writeRef());
-        }
-
-        else {
-            ret = session->loadModule(
-                path.generic_string().c_str(), diagnostics.writeRef());
-        }
-
-        return ret;
+    auto load_module_from_source =
+        [&](const std::string& sourceCode,
+            slang::ISession* session) -> slang::IModule* {
+        auto id = shader_id++;
+        return session->loadModuleFromSourceString(
+            (std::to_string(id) + path.filename().generic_string()).c_str(),
+            (std::to_string(id) + path.generic_string()).c_str(),
+            sourceCode.c_str(),
+            diagnostics.writeRef());
     };
 
-    module = load_module(p_compile_session.get());
+    auto load_module_from_path =
+        [&](const std::filesystem::path& modulePath,
+            slang::ISession* session) -> slang::IModule* {
+        return session->loadModule(
+            modulePath.generic_string().c_str(), diagnostics.writeRef());
+    };
 
-    if (!module.get()) {
+    std::vector<Slang::ComPtr<slang::IModule>> modules;
+    bool loaded_successfully = false;
+
+    // Try to load from source code if provided
+    if (!sourceCodes.empty()) {
+        for (const auto& sourceCode : sourceCodes) {
+            if (sourceCode.empty())
+                continue;
+
+            auto m =
+                load_module_from_source(sourceCode, p_compile_session.get());
+            if (m) {
+                modules.emplace_back(m);
+                loaded_successfully = true;
+            }
+        }
+    }
+
+    // Additionally try loading from path if provided (not exclusively)
+    if (!path.empty()) {
+        auto m = load_module_from_path(path, p_compile_session.get());
+        if (m) {
+            modules.emplace_back(m);
+            loaded_successfully = true;
+        }
+    }
+
+    // Report error only if nothing could be loaded
+    if (!loaded_successfully) {
         if (diagnostics) {
             error_string = (const char*)diagnostics->getBufferPointer();
         }
@@ -642,14 +666,16 @@ void ShaderFactory::SlangCompile(
 
     std::vector<slang::IComponentType*> components;
 
-    components.push_back(module.get());
+    for (auto& module : modules) {
+        components.push_back(module.get());
+    }
 
     Slang::ComPtr<slang::IEntryPoint> entry;
 
     if (!std::string(entryPoint).empty()) {
         CHECK_REPORTED_ERROR();
 
-        result = module->findAndCheckEntryPoint(
+        result = modules[0]->findAndCheckEntryPoint(
             entryPoint, stage, entry.writeRef(), diagnostics.writeRef());
         CHECK_REPORTED_ERROR();
         components.push_back(entry.get());

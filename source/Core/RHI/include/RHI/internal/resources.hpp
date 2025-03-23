@@ -84,10 +84,15 @@ struct RHI_API ProgramDesc {
     ProgramDesc& set_shader_type(nvrhi::ShaderType shaderType);
     ProgramDesc& set_entry_name(const std::string& entry_name);
 
-    ProgramDesc& set_source_code(const std::string& source_code)
+    ProgramDesc& add_source_code(const std::string& source_code)
     {
-        this->source_code = source_code;
+        this->source_code.push_back(source_code);
         return *this;
+    }
+
+    const std::string& get_entry_name()
+    {
+        return entry_name;
     }
 
     nvrhi::ShaderType shaderType;
@@ -98,7 +103,7 @@ struct RHI_API ProgramDesc {
     std::vector<ShaderMacro> macros;
     std::string get_profile() const;
     std::filesystem::path path;
-    std::string source_code;
+    std::vector<std::string> source_code;
     std::filesystem::file_time_type lastWriteTime;
     std::string entry_name;
 
