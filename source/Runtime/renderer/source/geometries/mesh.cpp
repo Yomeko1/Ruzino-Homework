@@ -356,10 +356,11 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     draw_indirect =
         render_param->InstanceCollection->draw_indirect_pool.allocate(1);
     nvrhi::DrawIndirectArguments args;
+    args.startInstanceLocation = instanceBuffer->index();
+
     args.vertexCount = triangulatedIndices.size() * 3;
     args.instanceCount = instances.size();
     args.startVertexLocation = 0;
-    args.startInstanceLocation = instanceBuffer->index();
 
     draw_indirect->write_data(&args);
 }

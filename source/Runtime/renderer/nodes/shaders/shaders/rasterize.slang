@@ -33,7 +33,7 @@ void vs_main(
     // Get the vertex position from the bindless buffer
 
     // Transform the vertex position to world space
-    float4 worldPos = mul(float4(vertex.position, 1.0), modelMatrix);
+    float4 worldPos = mul(float4(vertex.position+i_instanceID, 1.0), modelMatrix);
     // Transform the vertex position to clip space
     o_output.position = mul(worldPos, viewConstant.matWorldToClip);
     // o_output.position = float4(vertex.position, 1.0);
