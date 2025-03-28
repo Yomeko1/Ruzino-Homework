@@ -499,8 +499,8 @@ VertexInfo computeVertexData(
     v.faceNormalW = getFaceNormalInObjectSpace(vertices, isFrontFaceCW);
 
     v.posW = mul(worldMat, float4(v.posW, 1.f)).xyz;
-    v.normalW = mul(worldInvTransposeMat, v.normalW);
-    v.faceNormalW = mul(worldInvTransposeMat, v.faceNormalW);
+    v.normalW = mul((float3x3)worldInvTransposeMat, v.normalW);
+    v.faceNormalW = mul((float3x3)worldInvTransposeMat, v.faceNormalW);
     v.tangentW.xyz = mul((float3x3)worldMat, v.tangentW.xyz);
     v.curveRadius =
         length(mul((float3x3)worldMat, float3(v.curveRadius, 0.f, 0.f)));

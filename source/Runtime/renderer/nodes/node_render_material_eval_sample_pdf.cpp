@@ -106,6 +106,9 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     // Set the program variables
 
     SamplerDesc sampler_desc;
+    sampler_desc.addressU = nvrhi::SamplerAddressMode::Wrap;
+    sampler_desc.addressV = nvrhi::SamplerAddressMode::Wrap;
+
     auto sampler = resource_allocator.create(sampler_desc);
     MARK_DESTROY_NVRHI_RESOURCE(sampler);
 

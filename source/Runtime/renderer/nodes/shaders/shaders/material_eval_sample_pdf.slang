@@ -97,7 +97,7 @@ void ClosestHit(
         get_interpolated_vertex(instance_id, prim_id, attrib.barycentric);
 
     if (dot(WorldRayDirection(), vertex.normalW) >= 0.0) {
-        vertex.normalW = -vertex.normalW;
+        vertex.normalW = (-vertex.normalW);
     }
 
     var seed = payload.seed;
@@ -113,9 +113,11 @@ void ClosestHit(
 
     bool valid;
     ShadingFrame sf =
-        ShadingFrame.createSafe(vertex.normalW, vertex.tangentW, valid);
+        ShadingFrame.createSafe(vertex.normalW, float4(0,0,0,1), valid);
 
     var world_ray_dir = sf.fromLocal(ray_dir);
+
+    world_ray_dir = -float3(0, 0.2, -1);
     // world_ray_dir = normalize(light_pos - vertex.posW);
 
     RayDesc shadow_ray_desc;
@@ -143,7 +145,12 @@ void ClosestHit(
     callData.color = float4(0, 0, 0, 1);
     callData.materialID = material_id;
     CallShader(material_id, callData);
-    result *= callData.color.rgb*10;
+    result *= callData.color.rgb * 3.14;
+
+    if (isnan(result.x))
+        result = float3(1, 0, 1);
+
+    // result = float3(vertex.normalW);
 
     Eval[id] = float4(result, 1);
     // Eval[id] = float4(0.5 + 0.5 * vertex.tangentW.xyz, 1);

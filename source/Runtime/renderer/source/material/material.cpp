@@ -163,9 +163,11 @@ void BindlessContext::emitResourceBindings(
                         sizeof(Vector2));
 
                     dataFetch = "float2(asfloat(data.data[" +
-                                std::to_string(data_location++) +
+                                std::to_string(data_location) +
                                 "]), asfloat(data.data[" +
-                                std::to_string(data_location++) + "]))";
+                                std::to_string(data_location + 1) + "]))";
+
+                    data_location += 2;
                     numComponents = 2;
                 }
                 else if (type == Type::VECTOR3 || type == Type::COLOR3) {
@@ -185,11 +187,12 @@ void BindlessContext::emitResourceBindings(
                     }
 
                     dataFetch = "float3(asfloat(data.data[" +
-                                std::to_string(data_location++) +
+                                std::to_string(data_location) +
                                 "]), asfloat(data.data[" +
-                                std::to_string(data_location++) +
+                                std::to_string(data_location + 1) +
                                 "]), asfloat(data.data[" +
-                                std::to_string(data_location++) + "]))";
+                                std::to_string(data_location + 2) + "]))";
+                    data_location += 3;
                     numComponents = 3;
                 }
                 else if (type == Type::COLOR4) {
@@ -214,13 +217,14 @@ void BindlessContext::emitResourceBindings(
                         assert(false);
                     }
                     dataFetch = "float4(asfloat(data.data[" +
-                                std::to_string(data_location++) +
+                                std::to_string(data_location) +
                                 "]), asfloat(data.data[" +
-                                std::to_string(data_location++) +
+                                std::to_string(data_location + 1) +
                                 "]), asfloat(data.data[" +
-                                std::to_string(data_location++) +
+                                std::to_string(data_location + 2) +
                                 "]), asfloat(data.data[" +
-                                std::to_string(data_location++) + "]))";
+                                std::to_string(data_location + 3) + "]))";
+                    data_location += 4;
                     numComponents = 4;
                 }
                 else if (type == Type::MATRIX44) {
@@ -243,17 +247,18 @@ void BindlessContext::emitResourceBindings(
                     auto val = uniform->getValue();
                     // Load vector3 and float for displacement shader
                     std::string vectorPart = "float3(asfloat(data.data[" +
-                                             std::to_string(data_location++) +
+                                             std::to_string(data_location) +
                                              "]), asfloat(data.data[" +
-                                             std::to_string(data_location++) +
+                                             std::to_string(data_location + 1) +
                                              "]), asfloat(data.data[" +
-                                             std::to_string(data_location++) +
+                                             std::to_string(data_location + 2) +
                                              "]))";
                     std::string floatPart = "asfloat(data.data[" +
-                                            std::to_string(data_location++) +
+                                            std::to_string(data_location + 3) +
                                             "])";
                     dataFetch = "displacementshader(" + vectorPart + ", " +
                                 floatPart + ")";
+                    data_location += 4;
                     numComponents = 4;
                 }
                 else {
@@ -447,7 +452,7 @@ Hd_USTC_CG_Material::Hd_USTC_CG_Material(SdfPath const& id) : HdMaterial(id)
     });
 }
 
-TF_DEFINE_PRIVATE_TOKENS(_tokens, (file));
+TF_DEFINE_PRIVATE_TOKENS(_tokens, (file)(sourceColorSpace)(raw)(srgb));
 void Hd_USTC_CG_Material::CollectTextures(
     HdMaterialNetwork2Interface netInterface,
     HdMtlxTexturePrimvarData hdMtlxData)
@@ -468,6 +473,17 @@ void Hd_USTC_CG_Material::CollectTextures(
         else if (vFile.IsHolding<std::string>()) {
             path = vFile.Get<std::string>();
         }
+
+        VtValue sourceColorSpace = netInterface.GetNodeParameterValue(
+            textureNodeName, _tokens->sourceColorSpace);
+
+        if (sourceColorSpace.IsHolding<std::string>()) {
+            std::string colorSpace = sourceColorSpace.Get<std::string>();
+            if (colorSpace == "srgb_texture") {
+                texturePaths[textureNodeName.GetString()] = path;
+            }
+        }
+
         texturePaths[textureNodeName.GetString()] = path;
 
         // Load the texture immediately
@@ -593,7 +609,7 @@ void Hd_USTC_CG_Material::BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param)
                 storageSpec.width = image->GetWidth();
                 storageSpec.height = image->GetHeight();
                 storageSpec.format = image->GetFormat();
-                storageSpec.flipped = false;
+                storageSpec.flipped = true;
                 storageSpec.data = data.data();
 
                 // Read the image data asynchronously

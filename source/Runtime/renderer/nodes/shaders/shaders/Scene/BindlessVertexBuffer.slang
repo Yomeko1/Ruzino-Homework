@@ -32,6 +32,9 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
             asfloat(vertex_buffer.Load3(3 * vertex_id * 4 + normal_offset));
     }
 
+    if (normal_offset == 0)
+        normal = float3(0, 1, 0);
+
     float2 texCrd;
 
     if (mesh_data.texCrdInterpolation == InterpolationType::FaceVarying) {

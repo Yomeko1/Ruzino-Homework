@@ -173,6 +173,7 @@ struct MeshDesc {
                         ///< no texture coordinates.
 
     uint normalOffset;  ///< Offset into normal buffer, or zero if no normals.
+    uint tangentOffset;  ///< Offset into tangent buffer, or zero if no tangents.
     uint skinningVbOffset;  ///< Offset into skinning data buffer, or zero if no
                             ///< skinning data.
     uint prevVbOffset;  ///< Offset into previous vertex data buffer, or zero if

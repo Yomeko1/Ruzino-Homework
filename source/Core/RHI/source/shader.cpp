@@ -50,9 +50,9 @@ const ShaderReflectionInfo& Program::get_reflection_info() const
 ProgramDesc& ProgramDesc::set_path(const std::filesystem::path& path)
 {
     this->path = path;
-#ifdef _DEBUG
+//#ifdef _DEBUG
     update_last_write_time(path);
-#endif
+//#endif
     return *this;
 }
 
@@ -65,9 +65,9 @@ ProgramDesc& ProgramDesc::set_shader_type(nvrhi::ShaderType shaderType)
 ProgramDesc& ProgramDesc::set_entry_name(const std::string& entry_name)
 {
     this->entry_name = entry_name;
-#ifdef _DEBUG
+//#ifdef _DEBUG
     update_last_write_time(path);
-#endif
+//#endif
 
     return *this;
 }
