@@ -59,12 +59,13 @@ int main()
         pxr::SdfPath json_path;
         if (stage->consume_editor_creation(json_path)) {
             auto system = create_dynamic_loading_system();
-
+            /* Load the node system */
             auto loaded = system->load_configuration("geometry_nodes.json");
             loaded = system->load_configuration("basic_nodes.json");
+            loaded = system->load_configuration("render_nodes.json");
             system->init();
             system->set_node_tree_executor(create_node_tree_executor({}));
-
+            /* Done! */
             UsdBasedNodeWidgetSettings desc;
 
             desc.json_path = json_path;

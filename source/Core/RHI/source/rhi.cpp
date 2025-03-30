@@ -30,10 +30,13 @@ int init(bool with_window, bool use_dx12)
 
     DeviceCreationParameters params;
 
-    params.enableRayTracingExtensions = true;
-    params.enableComputeQueue = true;
-    params.enableCopyQueue = true;
-    //params.adapterIndex = 0;
+//    params.enableRayTracingExtensions = true;
+    params.enableRayTracingExtensions = false;
+//    params.enableComputeQueue = true;
+    params.enableComputeQueue = false;
+    params.enableCopyQueue = false;
+//    params.enableCopyQueue = true;
+    params.adapterIndex = 0;
 
     params.optionalVulkanInstanceExtensions = {
         VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME
