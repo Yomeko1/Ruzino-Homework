@@ -46,17 +46,7 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
 
     auto shadow_maps = params.get_input<TextureHandle>("Shadow Maps");
 
-    auto cameras = params.get_input<CameraArray>("Camera");
-
-    Hd_USTC_CG_Camera* free_camera;
-
-    for (auto camera : cameras) {
-        if (camera->GetId() != SdfPath::EmptyPath()) {
-            free_camera = camera;
-            break;
-        }
-    }
-
+    Hd_USTC_CG_Camera* free_camera = get_free_camera(params);
     // Creating output textures.
     auto size = position_texture->desc.size;
     TextureDesc color_output_desc;
@@ -132,10 +122,13 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
             auto position4 = light_params.GetPosition();
             pxr::GfVec3f position3(position4[0], position4[1], position4[2]);
 
-            auto radius = lights[i]->Get(HdLightTokens->radius).Get<float>();
+            if (lights[i]->Get(HdLightTokens->radius).IsHolding<float>()) {
+                auto radius =
+                    lights[i]->Get(HdLightTokens->radius).Get<float>();
 
-            light_vector.emplace_back(
-                GfMatrix4f(), GfMatrix4f(), position3, 0.f, diffuse3, i);
+                light_vector.emplace_back(
+                    GfMatrix4f(), GfMatrix4f(), position3, 0.f, diffuse3, i);
+            }
 
             // You can add directional light here, and also the corresponding
             // shadow map calculation part.

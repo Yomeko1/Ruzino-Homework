@@ -66,6 +66,8 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
             GfMatrix4f light_view_mat;
             GfMatrix4f light_projection_mat;
 
+            bool has_light = false;
+
             if (lights[light_id]->GetLightType() ==
                 HdPrimTypeTokens->sphereLight) {
                 GfFrustum frustum;
@@ -78,10 +80,13 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
                 frustum.SetPerspective(120.f, 1.0, 1, 25.f);
                 light_projection_mat =
                     GfMatrix4f(frustum.ComputeProjectionMatrix());
+
+                has_light = true;
             }
-            // else (lights[light_id]->GetLightType() ==
-            // HdPrimTypeTokens->distantLight). See light.cpp under
-            // hd_ustc_cg_gl/
+
+            if (!has_light) {
+                continue;
+            }
 
             shader_handle->shader.setMat4("light_view", light_view_mat);
             shader_handle->shader.setMat4(
