@@ -190,7 +190,7 @@ bool ImGui_NVRHI::init(
         {},
         binding_layout,
         error_string,
-        { { "SPIRV", "1" } },
+        { { "SPIRV", "0" } },
         std::string(vertex_shader_source));
 
     pixelShader = shaderFactory->compile_shader(
@@ -199,7 +199,7 @@ bool ImGui_NVRHI::init(
         {},
         binding_layout,
         error_string,
-        { { "SPIRV", "1" } },
+        { { "SPIRV", "0" } },
         std::string(pixel_shader_source));
 
     if (!vertexShader || !pixelShader) {

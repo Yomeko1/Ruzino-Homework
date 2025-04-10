@@ -114,6 +114,8 @@ endif()
 set(SLANG_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/SDK/slang)
 find_package(Slang REQUIRED COMPONENTS slang slang-rt gfx)
 
+set(AgilitySDK_ROOT_DIR SDK/d3d12)
+find_package(AgilitySDK REQUIRED)
 add_subdirectory(external)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/Core)

@@ -24,7 +24,7 @@ add_subdirectory(nvrhi)
 set_target_properties(nvrhi PROPERTIES ${OUTPUT_DIR})
 
 if(WIN32)
-    target_link_libraries(nvrhi PUBLIC NVAPI::NVAPI)
+    target_link_libraries(nvrhi PUBLIC NVAPI::NVAPI agility_sdk)
 endif()
 
 # imgui

@@ -16,7 +16,7 @@ class DeviceManager;
 
 namespace RHI {
 
-RHI_API int init(bool with_window = false, bool use_dx12 = false);
+RHI_API int init(bool with_window = false, bool use_dx12 = true);
 RHI_API int shutdown();
 
 RHI_API nvrhi::IDevice* get_device();

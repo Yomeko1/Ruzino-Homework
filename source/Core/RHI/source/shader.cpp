@@ -50,9 +50,9 @@ const ShaderReflectionInfo& Program::get_reflection_info() const
 ProgramDesc& ProgramDesc::set_path(const std::filesystem::path& path)
 {
     this->path = path;
-//#ifdef _DEBUG
+    // #ifdef _DEBUG
     update_last_write_time(path);
-//#endif
+    // #endif
     return *this;
 }
 
@@ -65,9 +65,9 @@ ProgramDesc& ProgramDesc::set_shader_type(nvrhi::ShaderType shaderType)
 ProgramDesc& ProgramDesc::set_entry_name(const std::string& entry_name)
 {
     this->entry_name = entry_name;
-//#ifdef _DEBUG
+    // #ifdef _DEBUG
     update_last_write_time(path);
-//#endif
+    // #endif
 
     return *this;
 }
@@ -560,9 +560,13 @@ void ShaderFactory::SlangCompile(
     slang::TargetDesc desc;
     desc.format = target;
     desc.profile = profile_id;
-    desc.flags = SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM |
-                 SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
-
+    if (target == SLANG_SPIRV)
+        desc.flags = SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM |
+                     SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
+    else if (target == SLANG_DXIL) {
+        // Use appropriate flags for DXIL
+        desc.flags = SLANG_TARGET_FLAG_GENERATE_WHOLE_PROGRAM;
+    }
     std::vector<slang::PreprocessorMacroDesc> macros;
 
     for (const auto& define : defines) {
@@ -593,11 +597,12 @@ void ShaderFactory::SlangCompile(
     compile_session_desc.searchPaths = slangSearchPaths.data();
     compile_session_desc.searchPathCount = (SlangInt)slangSearchPaths.size();
 
-    compile_session_desc.compilerOptionEntries = vk_compiler_options.data();
+    if (target == SLANG_SPIRV) {
+        compile_session_desc.compilerOptionEntries = vk_compiler_options.data();
 
-    compile_session_desc.compilerOptionEntryCount =
-        static_cast<SlangInt>(vk_compiler_options.size());
-
+        compile_session_desc.compilerOptionEntryCount =
+            static_cast<SlangInt>(vk_compiler_options.size());
+    }
     SlangResult result;
 
     result = global_session->createSession(

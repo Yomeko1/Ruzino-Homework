@@ -290,7 +290,6 @@ def find_and_replace(file_path, replacements):
     except (UnicodeDecodeError, IOError) as e:
         return
 
-
 def main():
     parser = argparse.ArgumentParser(description="Download and configure libraries.")
     parser.add_argument(
@@ -298,7 +297,7 @@ def main():
     )
     parser.add_argument(
         "--library",
-        choices=["slang", "openusd"],
+        choices=["slang", "openusd", "d3d12"],
         help="Specify the library to configure.",
     )
     parser.add_argument("--all", action="store_true", help="Configure all libraries.")
@@ -336,7 +335,7 @@ def main():
         return
 
     if args.all:
-        args.library = ["openusd", "slang"]
+        args.library = ["openusd", "slang", "d3d12"]
     elif not args.library:
         print(
             "No library specified and --all not set. No libraries will be configured."
@@ -350,7 +349,8 @@ def main():
 
     if os.name == "nt":
         urls = {
-            "slang": "https://github.com/shader-slang/slang/releases/download/v2024.15.2/slang-2024.15.2-windows-x86_64.zip",
+            "slang": "https://github.com/shader-slang/slang/releases/download/v2025.6.3/slang-2025.6.3-windows-x86_64.zip",
+            "d3d12": "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.613.0"
         }
     elif os.name == "posix":
         urls = {
@@ -360,7 +360,7 @@ def main():
         urls = {
             "slang": "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-linux-x86_64.zip",
         }
-    folders = {"slang": "slang/bin"}
+    folders = {"slang": "slang/bin", "d3d12": "d3d12/bin"}
 
     if copy_only and not dry_run:
         # Path that need to be replaced
@@ -405,6 +405,50 @@ def main():
     for lib in args.library:
         if lib == "openusd":
             process_usd(targets, dry_run, keep_original_files, copy_only)
+        elif lib == "d3d12" and os.name == "nt":
+            if not copy_only:
+                # Download the nupkg file
+                nupkg_path = os.path.dirname(__file__) + "/SDK/cache/d3d12.nupkg"
+                download_with_progress(urls[lib], nupkg_path, dry_run)
+                
+                # Rename to zip and extract
+                zip_path = nupkg_path.replace(".nupkg", ".zip")
+                
+                if dry_run:
+                    print(f"[DRY RUN] Would rename {nupkg_path} to {zip_path}")
+                else:
+                    if os.path.exists(nupkg_path):
+                        shutil.copy2(nupkg_path, zip_path)
+                        print(f"Renamed {nupkg_path} to {zip_path}")
+                
+                # Extract the zip file
+                extract_path = os.path.dirname(__file__) + "/SDK/d3d12"
+                if dry_run:
+                    print(f"[DRY RUN] Would extract {zip_path} to {extract_path}")
+                else:
+                    try:
+                        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                            zip_ref.extractall(extract_path)
+                        print(f"Downloaded and extracted successfully.")
+                        
+                        # Create bin directory and move necessary files
+                        bin_dir = os.path.join(extract_path, "bin")
+                        os.makedirs(bin_dir, exist_ok=True)
+                        
+                        # Move relevant DLLs from extracted structure to bin folder
+                        agility_path = os.path.join(extract_path, "build", "native", "bin", "x64")
+                        if os.path.exists(agility_path):
+                            for file in os.listdir(agility_path):
+                                if file.endswith(".dll") or file.endswith(".pdb"):
+                                    shutil.copy2(os.path.join(agility_path, file), bin_dir)
+                            
+                        print(f"D3D12 Agility SDK files prepared in {bin_dir}")
+                    except Exception as e:
+                        print(f"Error extracting {zip_path}: {e}")
+            
+            # Copy the D3D12 files to the binaries folder
+            for target in targets:
+                copytree_common_to_binaries(folders[lib], target=target, dry_run=dry_run)
         else:
             if not copy_only:
                 download_and_extract(
