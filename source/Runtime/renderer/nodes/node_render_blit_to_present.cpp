@@ -1,4 +1,4 @@
-﻿#include "RHI/internal/resources.hpp"
+#include "RHI/internal/resources.hpp"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
 #include "render_node_base.h"
@@ -158,7 +158,7 @@ NODE_EXECUTION_FUNCTION(blit_to_present)
                     .debugName = "BlitParameters",
                     .isConstantBuffer = true,
                     .initialState = nvrhi::ResourceStates::ConstantBuffer,
-                    .cpuAccess = nvrhi::CpuAccessMode::Write });
+                    .keepInitialState = true });
     MARK_DESTROY_NVRHI_RESOURCE(constant_buffer);
 
     auto pso = resource_allocator.create(psoDesc, targetFramebuffer);

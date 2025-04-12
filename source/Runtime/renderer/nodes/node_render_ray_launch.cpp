@@ -208,8 +208,17 @@ NODE_EXECUTION_FUNCTION(scene_ray_launch)
         nvrhi::rt::DispatchRaysArguments args;
         args.width = length;
         m_CommandList->dispatchRays(args);
-        nvrhi::utils::BufferUavBarrier(m_CommandList, hit_counter_buffer);
-        nvrhi::utils::BufferUavBarrier(m_CommandList, miss_counter_buffer);
+
+        // Transition buffers from UAV to CopySource state before copying
+        m_CommandList->beginTrackingBufferState(
+            hit_counter_buffer, nvrhi::ResourceStates::UnorderedAccess);
+        m_CommandList->beginTrackingBufferState(
+            miss_counter_buffer, nvrhi::ResourceStates::UnorderedAccess);
+
+        m_CommandList->setBufferState(
+            hit_counter_buffer, nvrhi::ResourceStates::CopySource);
+        m_CommandList->setBufferState(
+            miss_counter_buffer, nvrhi::ResourceStates::CopySource);
 
         // Copy counters to readable buffers
         m_CommandList->copyBuffer(

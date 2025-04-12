@@ -483,9 +483,9 @@ bool ImGui_NVRHI::render(nvrhi::IFramebuffer* framebuffer)
 
                 drawState.viewport.scissorRects[0] = nvrhi::Rect(
                     int(pCmd->ClipRect.x),
-                    int(pCmd->ClipRect.z),
+                    std::max(int(pCmd->ClipRect.z), int(pCmd->ClipRect.x) + 1),
                     int(pCmd->ClipRect.y),
-                    int(pCmd->ClipRect.w));
+                    std::max(int(pCmd->ClipRect.w), int(pCmd->ClipRect.y) + 1));
 
                 nvrhi::DrawArguments drawArguments;
                 drawArguments.vertexCount = pCmd->ElemCount;

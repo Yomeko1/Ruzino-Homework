@@ -73,7 +73,6 @@ struct ShadowPayload {
     float3 shadow_mask;
 };
 
-
 // Closest hit shader
 [shader("closesthit")]
 void ClosestHit(
@@ -167,7 +166,9 @@ void Miss(inout Payload payload: SV_RayPayload)
 }
 
 [shader("closesthit")]
-void ShadowHit(inout ShadowPayload payload: SV_RayPayload)
+void ShadowHit(
+    inout ShadowPayload payload: SV_RayPayload,
+    Attributes attrib: SV_IntersectionAttributes)
 {
     payload.shadow_mask = float3(0, 0, 0);
 }
