@@ -25,7 +25,7 @@ struct GraphicsRenderState {
     }
 };
 
-class HD_USTC_CG_API GraphicsContext : public GPUContext {
+class GPUCONTEXT_API GraphicsContext : public GPUContext {
    public:
     explicit GraphicsContext(ResourceAllocator& r, ProgramVars& vars);
     ~GraphicsContext() override;

@@ -4,9 +4,9 @@
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
-struct HD_USTC_CG_API RaytracingState{};
+struct GPUCONTEXT_API RaytracingState{};
 
-class HD_USTC_CG_API RaytracingContext : public GPUContext {
+class GPUCONTEXT_API RaytracingContext : public GPUContext {
    public:
     explicit RaytracingContext(ResourceAllocator& r, ProgramVars& vars);
     ~RaytracingContext() override;

@@ -4,7 +4,7 @@
 #include "nvrhi/nvrhi.h"
 #include "nvrhi/utils.h"
 #include "render_node_base.h"
-#include "renderer/raytracing_context.hpp"
+#include "GPUContext/raytracing_context.hpp"
 #include "shaders/shaders/utils/HitObject.h"
 #include "utils/math.h"
 // A traditional path tracing node

@@ -1,13 +1,13 @@
 #pragma once
-#include "api.h"
 #include "RHI/ResourceManager/resource_allocator.hpp"
+#include "api.h"
 #include "nvrhi/nvrhi.h"
 #include "program_vars.hpp"
 #include "pxr/base/gf/vec2f.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
-class HD_USTC_CG_API GPUContext {
+class GPUCONTEXT_API GPUContext {
    public:
     virtual ~GPUContext();
 
@@ -15,6 +15,12 @@ class HD_USTC_CG_API GPUContext {
 
     virtual void begin();
     virtual void finish();
+
+    void write_buffer(
+        nvrhi::IBuffer* buffer,
+        const void* data,
+        size_t dataSize,
+        uint64_t destOffsetBytes = 0) const;
 
     void clear_buffer(
         nvrhi::IBuffer* buffer,

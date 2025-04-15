@@ -1,12 +1,12 @@
 
+#include "GPUContext/graphics_context.hpp"
+#include "GPUContext/program_vars.hpp"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
 #include "pxr/imaging/hd/tokens.h"
 #include "pxr/imaging/hgiGL/computeCmds.h"
 #include "renderTLAS.h"
 #include "render_node_base.h"
-#include "renderer/graphics_context.hpp"
-#include "renderer/program_vars.hpp"
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(rasterize)

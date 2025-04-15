@@ -1,4 +1,4 @@
-#include "raytracing_context.hpp"
+#include "GPUContext/raytracing_context.hpp"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 RaytracingContext::RaytracingContext(ResourceAllocator& r, ProgramVars& vars)

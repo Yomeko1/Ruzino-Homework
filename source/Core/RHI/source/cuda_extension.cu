@@ -69,9 +69,11 @@ CUDALinearBufferHandle create_cuda_linear_buffer(
 {
     auto buffer = new CUDALinearBuffer(d);
 
-    buffer->assign_host_data(thrust::host_vector<uint8_t>(
-        static_cast<uint8_t*>(init_data),
-        static_cast<uint8_t*>(init_data) + d.element_size * d.element_count));
+    if (init_data)
+        buffer->assign_host_data(thrust::host_vector<uint8_t>(
+            static_cast<uint8_t*>(init_data),
+            static_cast<uint8_t*>(init_data) +
+                d.element_size * d.element_count));
 
     return CUDALinearBufferHandle::Create(buffer);
 }

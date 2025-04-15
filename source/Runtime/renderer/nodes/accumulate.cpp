@@ -1,7 +1,7 @@
 
 #include "nodes/core/def/node_def.hpp"
 #include "render_node_base.h"
-#include "renderer/compute_context.hpp"
+#include "GPUContext/compute_context.hpp"
 
 NODE_DEF_OPEN_SCOPE
 struct Storage {

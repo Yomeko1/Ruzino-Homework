@@ -1,7 +1,6 @@
 #include "GCore/util_openmesh_bind.h"
 
 #include "GCore/Components/MeshOperand.h"
-
 USTC_CG_NAMESPACE_OPEN_SCOPE
 std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
 {
@@ -11,7 +10,9 @@ std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
     // Request vertex normals
     openmesh->request_vertex_normals();
 
-    for (const auto& vv : topology->get_vertices()) {
+    // Get mesh data
+    const auto& vertices = topology->get_vertices();
+    for (const auto& vv : vertices) {
         OpenMesh::Vec3f v;
         v[0] = vv[0];
         v[1] = vv[1];
@@ -21,9 +22,10 @@ std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
 
     auto faceVertexIndices = topology->get_face_vertex_indices();
     auto faceVertexCounts = topology->get_face_vertex_counts();
-
     auto normals = topology->get_normals();
+
     bool hasNormals = !normals.empty();
+    bool perVertexNormals = hasNormals && (normals.size() == vertices.size());
 
     int vertexIndex = 0;
     for (int i = 0; i < faceVertexCounts.size(); i++) {
@@ -38,11 +40,22 @@ std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
 
             // Set normal if available
             if (hasNormals) {
-                OpenMesh::Vec3f n(
-                    normals[vertexIndex][0],
-                    normals[vertexIndex][1],
-                    normals[vertexIndex][2]);
-                openmesh->set_normal(vh, n);
+                if (perVertexNormals) {
+                    // Use per-vertex normals
+                    OpenMesh::Vec3f n(
+                        normals[index][0],
+                        normals[index][1],
+                        normals[index][2]);
+                    openmesh->set_normal(vh, n);
+                }
+                else {
+                    // Use per-face-vertex normals
+                    OpenMesh::Vec3f n(
+                        normals[vertexIndex][0],
+                        normals[vertexIndex][1],
+                        normals[vertexIndex][2]);
+                    openmesh->set_normal(vh, n);
+                }
             }
 
             vertexIndex++;

@@ -1,4 +1,4 @@
-#include "compute_context.hpp"
+#include "GPUContext/compute_context.hpp"
 
 #include "nvrhi/utils.h"
 

@@ -1,4 +1,4 @@
-#include "graphics_context.hpp"
+#include "GPUContext/graphics_context.hpp"
 
 #include "nvrhi/utils.h"
 #include "pxr/base/gf/vec2f.h"

@@ -50,7 +50,7 @@ namespace USTC_CG
 /**
  * Base class for all Falcor exceptions.
  */
-class HD_USTC_CG_API Exception : public std::exception
+class Exception : public std::exception
 {
 public:
     Exception() noexcept {}
@@ -71,7 +71,7 @@ protected:
 /**
  * Exception to be thrown when an error happens at runtime.
  */
-class HD_USTC_CG_API RuntimeError : public Exception
+class RuntimeError : public Exception
 {
 public:
     RuntimeError() noexcept {}
@@ -83,7 +83,7 @@ public:
 /**
  * Exception to be thrown on FALCOR_ASSERT.
  */
-class HD_USTC_CG_API AssertionError : public Exception
+class AssertionError : public Exception
 {
 public:
     AssertionError() noexcept {}
@@ -99,7 +99,7 @@ public:
 /// Throw a RuntimeError exception.
 /// If ErrorDiagnosticFlags::AppendStackTrace is set, a stack trace will be appended to the exception message.
 /// If ErrorDiagnosticFlags::BreakOnThrow is set, the debugger will be broken into (if attached).
-[[noreturn]] HD_USTC_CG_API void throwException(const std::source_location& loc, std::string_view msg);
+[[noreturn]] void throwException(const std::source_location& loc, std::string_view msg);
 
 namespace detail
 {
@@ -150,7 +150,7 @@ namespace USTC_CG
 /// Report an assertion.
 /// If ErrorDiagnosticFlags::AppendStackTrace is set, a stack trace will be appended to the exception message.
 /// If ErrorDiagnosticFlags::BreakOnAssert is set, the debugger will be broken into (if attached).
-[[noreturn]] HD_USTC_CG_API void reportAssertion(const std::source_location& loc, std::string_view cond, std::string_view msg = {});
+[[noreturn]] void reportAssertion(const std::source_location& loc, std::string_view cond, std::string_view msg = {});
 
 namespace detail
 {
@@ -246,17 +246,17 @@ enum class ErrorDiagnosticFlags
 FALCOR_ENUM_CLASS_OPERATORS(ErrorDiagnosticFlags);
 
 /// Set the global error diagnostic flags.
-HD_USTC_CG_API void setErrorDiagnosticFlags(ErrorDiagnosticFlags flags);
+void setErrorDiagnosticFlags(ErrorDiagnosticFlags flags);
 
 /// Get the global error diagnostic flags.
-HD_USTC_CG_API ErrorDiagnosticFlags getErrorDiagnosticFlags();
+ErrorDiagnosticFlags getErrorDiagnosticFlags();
 
 /**
  * Report an error by logging it and optionally showing a message box.
  * The message box is only shown if ErrorDiagnosticFlags::ShowMessageBoxOnError is set.
  * @param msg Error message.
  */
-HD_USTC_CG_API void reportErrorAndContinue(std::string_view msg);
+void reportErrorAndContinue(std::string_view msg);
 
 /**
  * Report an error by logging it and optionally showing a message box with the option to abort or retry.
@@ -265,7 +265,7 @@ HD_USTC_CG_API void reportErrorAndContinue(std::string_view msg);
  * @param msg Error message.
  * @return Returns true if the user chose to retry.
  */
-HD_USTC_CG_API bool reportErrorAndAllowRetry(std::string_view msg);
+bool reportErrorAndAllowRetry(std::string_view msg);
 
 /**
  * Report a fatal error.
@@ -280,7 +280,7 @@ HD_USTC_CG_API bool reportErrorAndAllowRetry(std::string_view msg);
  * - The application is immediately terminated (std::quick_exit(1)).
  * @param msg Error message.
  */
-[[noreturn]] HD_USTC_CG_API void reportFatalErrorAndTerminate(std::string_view msg);
+[[noreturn]] void reportFatalErrorAndTerminate(std::string_view msg);
 
 /// Helper to run a callback and catch/report all exceptions.
 /// This is typically used in main() to guard the entire application.

@@ -8,7 +8,7 @@
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
 #include "render_node_base.h"
-#include "renderer/compute_context.hpp"
+#include "GPUContext/compute_context.hpp"
 #include "shaders/shaders/utils/cpp_shader_macro.h"
 #include "utils/math.h"
 

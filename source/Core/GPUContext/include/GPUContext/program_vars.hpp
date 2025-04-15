@@ -3,7 +3,7 @@
 #include "api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
-class HD_USTC_CG_API ProgramVars {
+class GPUCONTEXT_API ProgramVars {
    public:
     ProgramVars(ResourceAllocator& r);
 

@@ -38,7 +38,7 @@ namespace USTC_CG
  * Container class for logging messages.
  * Messages are only printed to the selected outputs if they match the verbosity level.
  */
-class HD_USTC_CG_API Logger
+class Logger
 {
 public:
     /// Log message severity.

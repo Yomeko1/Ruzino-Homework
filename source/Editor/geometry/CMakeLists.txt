@@ -1,7 +1,11 @@
 USTC_CG_ADD_LIB(
 	geometry 
 	SHARED
-	PUBLIC_LIBS usd usdVol OpenMeshCore usdGeom usdSkel stage hioOpenVDB Logger usdShade
+	PUBLIC_LIBS usd usdVol OpenMeshCore usdGeom usdSkel stage hioOpenVDB Logger usdShade RHI shaders_interface GPUContext nodes_core
 	COMPILE_DEFS
 		NOMINMAX 
+		USTC_CG_BACKEND_NVRHI
 )
+
+
+target_compile_definitions(geometry PRIVATE GEOM_COMPUTE_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/algorithms/CS/")

@@ -1,6 +1,8 @@
 
 
-#include "context.hpp"
+#include "GPUContext/context.hpp"
+
+#include "RHI/internal/nvrhi_patch.hpp"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 GPUContext::~GPUContext()
@@ -12,7 +14,7 @@ GPUContext::GPUContext(ResourceAllocator& resource_allocator, ProgramVars& vars)
     : resource_allocator_(resource_allocator),
       vars_(vars)
 {
-    commandList_ = resource_allocator_.create(CommandListDesc{});
+    commandList_ = resource_allocator_.create(nvrhi::CommandListDesc{});
 }
 
 void GPUContext::begin()
@@ -24,6 +26,15 @@ void GPUContext::finish()
 {
     commandList_->close();
     resource_allocator_.device->executeCommandList(commandList_);
+}
+
+void GPUContext::write_buffer(
+    nvrhi::IBuffer* buffer,
+    const void* data,
+    size_t dataSize,
+    uint64_t destOffsetBytes) const
+{
+    return commandList_->writeBuffer(buffer, data, dataSize, destOffsetBytes);
 }
 
 void GPUContext::clear_buffer(

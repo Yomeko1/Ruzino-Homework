@@ -37,8 +37,8 @@ namespace USTC_CG
 namespace math
 {
 
-HD_USTC_CG_API uint16_t float32ToFloat16(float value);
-HD_USTC_CG_API float float16ToFloat32(uint16_t value);
+uint16_t float32ToFloat16(float value);
+float float16ToFloat32(uint16_t value);
 
 struct float16_t
 {

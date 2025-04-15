@@ -1,4 +1,4 @@
-#include "program_vars.hpp"
+#include "GPUContext/program_vars.hpp"
 
 #include <nvrhi/nvrhi.h>
 

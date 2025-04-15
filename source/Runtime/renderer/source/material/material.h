@@ -11,7 +11,7 @@
 #include "pxr/imaging/hdMtlx/hdMtlx.h"
 #include "pxr/imaging/hio/image.h"
 #include "renderParam.h"
-#include "renderer/program_vars.hpp"
+#include "GPUContext/program_vars.hpp"
 
 namespace pxr {
 class Hio_OpenEXRImage;

@@ -1,11 +1,11 @@
 add_library(shaders_interface INTERFACE)
-target_include_directories(shaders_interface INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders)
+target_include_directories(shaders_interface INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/shaders)
 target_compile_definitions(shaders_interface INTERFACE RENDERER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/")
 
 USTC_CG_ADD_LIB(
 	hd_USTC_CG
 	SHARED
-	PUBLIC_LIBS Logger
+	PUBLIC_LIBS Logger GPUContext
 	PRIVATE_LIBS usd RHI hdx nodes_system usdMtlx shaders_interface usdImaging
 	COMPILE_DEFS
 		NOMINMAX USTC_CG_DIRECT_VK_DISPLAY
