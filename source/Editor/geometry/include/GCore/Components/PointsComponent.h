@@ -80,6 +80,25 @@ struct GEOMETRY_API PointsComponent : public GeometryComponent {
 #endif
     }
 
+    void set_normals(const pxr::VtArray<pxr::GfVec3f>& normals)
+    {
+#if USE_USD_SCRATCH_BUFFER
+        points.CreateNormalsAttr().Set(normals);
+#else
+        this->normals = normals;
+#endif
+    }
+
+    [[nodiscard]] pxr::VtArray<pxr::GfVec3f> get_normals() const
+    {
+#if USE_USD_SCRATCH_BUFFER
+        pxr::VtArray<pxr::GfVec3f> normals;
+        if (points.GetNormalsAttr())
+            points.GetNormalsAttr().Get(&normals);
+#endif
+        return normals;
+    }
+
 #if USE_USD_SCRATCH_BUFFER
     pxr::UsdGeomPoints get_usd_points() const
     {
@@ -92,6 +111,7 @@ struct GEOMETRY_API PointsComponent : public GeometryComponent {
     pxr::UsdGeomPoints points;
 #else
     pxr::VtArray<pxr::GfVec3f> vertices;
+    pxr::VtArray<pxr::GfVec3f> normals;
     pxr::VtArray<pxr::GfVec3f> displayColor;
     pxr::VtArray<float> width;
 #endif

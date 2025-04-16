@@ -76,6 +76,7 @@ struct NODES_CORE_API NodeSocket {
 
     // For materialX tree adaption, storing extra information.
     mutable entt::meta_any storage;
+    bool optional = false;
 };
 
 template<typename T>

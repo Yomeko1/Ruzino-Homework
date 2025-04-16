@@ -29,6 +29,7 @@ void NodeSocket::Serialize(nlohmann::json& value)
     socket["identifier"] = identifier;
     socket["ui_name"] = ui_name;
     socket["in_out"] = in_out;
+    socket["optional"] = optional;
 
     if (dataField.value) {
         switch (type_info.id()) {
@@ -62,7 +63,9 @@ void NodeSocket::DeserializeInfo(nlohmann::json& socket_json)
     in_out = socket_json["in_out"].get<PinKind>();
     strcpy(ui_name, socket_json["ui_name"].get<std::string>().c_str());
     strcpy(identifier, socket_json["identifier"].get<std::string>().c_str());
-
+    if (socket_json.find("optional") != socket_json.end()) {
+        optional = socket_json["optional"].get<bool>();
+    }
     if (socket_json.find("socket_group_identifier") != socket_json.end()) {
         socket_group_identifier =
             socket_json["socket_group_identifier"].get<std::string>();

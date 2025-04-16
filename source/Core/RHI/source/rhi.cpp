@@ -62,6 +62,7 @@ int init(bool with_window, bool use_dx12)
     params.enableNvrhiValidationLayer = true;
     params.enableDebugRuntime = true;
 #endif
+    params.enableDebugRuntime = true;
 
     if (with_window) {
         auto ret =

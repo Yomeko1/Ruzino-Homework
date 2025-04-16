@@ -12,6 +12,7 @@ RaytracingAccelerationStructure SceneBVH;
 struct RayPayload {
     float3 position;
     float3 normal;
+    float3 tangent;
     float2 texCoord;
     bool valid;
 };
@@ -141,9 +142,11 @@ void ClosestHit(
                          v[1].texCrd * barycentrics.y +
                          v[2].texCrd * barycentrics.z;
 
-    // Fill payload
-    payload.position = hitPosition;
-    payload.normal = hitNormal;
+    var objectToWorld = ObjectToWorld4x3();
+
+    // Transform position and normal to world space
+    payload.position = mul(float4(hitPosition, 1.0), objectToWorld).xyz;
+    payload.normal = normalize(mul(float4(hitNormal, 0.0), objectToWorld).xyz);
     payload.texCoord = hitTexCoord;
     payload.valid = true;
 }

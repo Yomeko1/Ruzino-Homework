@@ -305,6 +305,7 @@ class Decl : public SocketDeclaration {
             this->identifier.c_str(),
             this->name.c_str(),
             this->in_out);
+        socket->optional = optional;
         update_default_value(socket);
 
         return socket;
@@ -335,6 +336,8 @@ class Decl : public SocketDeclaration {
     std::conditional_t<HasMax, T, std::monostate> soft_max;
     // Only add the default field if the type has_default
     std::conditional_t<HasDefault, T, std::monostate> default_value;
+
+    bool optional = false;
 };
 
 template<typename SocketDecl>
@@ -368,6 +371,12 @@ class SocketDeclarationBuilder : public BaseSocketDeclarationBuilder {
         requires ValueTrait<typename T::value_type>::has_default
     {
         decl_->default_value = default_val;
+        return *this;
+    }
+
+    SocketDeclarationBuilder& optional(bool cond)
+    {
+        decl_->optional = cond;
         return *this;
     }
 };

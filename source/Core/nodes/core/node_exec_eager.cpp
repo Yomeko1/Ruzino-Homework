@@ -33,6 +33,9 @@ ExeParams EagerNodeTreeExecutor::prepare_params(NodeTree* tree, Node* node)
             input_states[index_cache[input]].value = value;
             input_ptr = &input_states[index_cache[input]].value;
         }
+        else if (input->optional) {
+            input_ptr = nullptr;
+        }
         else {
             // Node not filled. Cannot run this node.
             input_ptr = &input_states[index_cache[input]].value;

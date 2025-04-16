@@ -3,6 +3,7 @@
 #include <GPUContext/raytracing_context.hpp>
 
 #include "GCore/Components/MeshOperand.h"
+#include "GCore/Components/XformComponent.h"
 #include "GPUContext/program_vars.hpp"
 #include "RHI/ResourceManager/resource_allocator.hpp"
 #include "RHI/internal/resources.hpp"
@@ -21,14 +22,17 @@ ResourceAllocator& get_resource_allocator()
 
 void init_gpu_geometry_algorithms()
 {
-    resource_allocator_.set_device(RHI::get_device());
-    shader_factory = std::make_shared<ShaderFactory>();
-    shader_factory->add_search_path(RENDERER_SHADER_DIR "shaders");
+    if (!shader_factory) {
+        resource_allocator_.set_device(RHI::get_device());
+        shader_factory = std::make_shared<ShaderFactory>();
+        shader_factory->add_search_path(RENDERER_SHADER_DIR "shaders");
+    }
 }
 
 void deinit_gpu_geometry_algorithms()
 {
     resource_allocator_.terminate();
+    shader_factory.reset();
 }
 
 nvrhi::rt::AccelStructHandle get_geomtry_tlas(
@@ -37,6 +41,7 @@ nvrhi::rt::AccelStructHandle get_geomtry_tlas(
     MeshDesc* out_mesh_desc = nullptr,
     nvrhi::BufferHandle* out_vertex_buffer = nullptr)
 {
+    init_gpu_geometry_algorithms();
     auto mesh_component = geometry.get_component<MeshComponent>();
     if (!mesh_component) {
         return nullptr;
@@ -202,6 +207,7 @@ pxr::VtArray<PointSample> Intersect(
     const pxr::VtArray<pxr::GfRay>& rays,
     const Geometry& BaseMesh)
 {
+    init_gpu_geometry_algorithms();
     auto mesh_component = BaseMesh.get_component<MeshComponent>();
 
     if (!mesh_component) {
@@ -223,10 +229,16 @@ pxr::VtArray<PointSample> Intersect(
     auto& resource_allocator = get_resource_allocator();
     auto device = RHI::get_device();
 
+    auto transform = pxr::GfMatrix4d(1.0);
+    auto xform_component = BaseMesh.get_component<XformComponent>();
+    if (xform_component) {
+        transform = xform_component->get_transform();
+    }
+
     nvrhi::BufferHandle vertex_buffer;
     auto accel = get_geomtry_tlas(
         BaseMesh,
-        pxr::GfMatrix4d(1.0),
+        transform,
         &mesh_desc,
         std::addressof(vertex_buffer));
 
@@ -339,6 +351,37 @@ pxr::VtArray<PointSample> Intersect(
     resource_allocator.destroy(copy_commandlist);
 
     return result;
+}
+
+pxr::VtArray<PointSample> Intersect(
+    const pxr::VtArray<pxr::GfVec3f>& start_point,
+    const pxr::VtArray<pxr::GfVec3f>& next_point,
+    const Geometry& BaseMesh)
+{
+    pxr::VtArray<pxr::GfRay> rays;
+    rays.reserve(start_point.size());
+    for (size_t i = 0; i < start_point.size(); ++i) {
+        rays.push_back(
+            pxr::GfRay(start_point[i], next_point[i] - start_point[i]));
+    }
+
+    return Intersect(rays, BaseMesh);
+}
+
+pxr::VtArray<PointSample> IntersectInterweaved(
+    const pxr::VtArray<pxr::GfVec3f>& start_point,
+    const pxr::VtArray<pxr::GfVec3f>& next_point,
+    const Geometry& BaseMesh)
+{
+    pxr::VtArray<pxr::GfRay> rays;
+    rays.reserve(start_point.size() * next_point.size());
+    for (size_t i = 0; i < start_point.size(); ++i) {
+        for (size_t j = 0; j < next_point.size(); ++j) {
+            rays.push_back(
+                pxr::GfRay(start_point[i], next_point[j] - start_point[i]));
+        }
+    }
+    return Intersect(rays, BaseMesh);
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
