@@ -186,8 +186,7 @@ float3 sample_standard_surface(
         
         pdf = specular_weight * D * NdotH / (4.0 * VdotH);
           
-    } 
-    else if (r < metal_weight + specular_weight + transmission_weight) {
+    }    else if (r < metal_weight + specular_weight + transmission_weight) {
         // Sample transmission with roughness
         float eta;
         if (eta_flipped == 1) {
@@ -243,11 +242,12 @@ float3 sample_standard_surface(
             float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
             float D = alpha2 / (M_PI * denom * denom);
             
-            // Jacobian for transmission
-            float jacobian = abs(LdotH) / pow(eta * VdotH + LdotH, 2.0);
+            // Jacobian for transmission - must match the BSDF implementation
+            float denom_jacobian = VdotH + LdotH / eta;
+            float jacobian = abs(LdotH) / (denom_jacobian * denom_jacobian);
             pdf = transmission_weight * D * NdotH * jacobian;
         }
-        } else {
+    }else {
         // Sample diffuse (cosine-weighted hemisphere)
         L = sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
         L = sf.fromLocal(L);
@@ -339,6 +339,8 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
     const string& type = syntax.getTypeName(Type::VECTOR3);
     shadergen.emitString(delim + type + " " + HW::DIR_L, stage);
     shadergen.emitString(", " + type + " " + HW::DIR_V, stage);
+    // eta
+    shadergen.emitString(delim + "uint eta_flipped", stage);
 
     // Add all inputs
     for (ShaderGraphInputSocket* inputSocket : _rootGraph->getInputSockets()) {
@@ -484,7 +486,7 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
         shadergen.emitString(delim + "sampler", stage);
 
         shadergen.emitString(delim + HW::DIR_L + ", " + HW::DIR_V, stage);
-
+        shadergen.emitString(delim + "eta_flipped", stage);
         // Emit all inputs.
         for (ShaderInput* input : node.getInputs()) {
             shadergen.emitString(delim, stage);
@@ -591,6 +593,8 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
 
             shadergen.emitString(
                 delim + "sampled_direction" + ", " + HW::DIR_V, stage);
+
+            shadergen.emitString(delim + "eta_flipped", stage);
 
             // Emit all inputs.
             for (ShaderInput* input : node.getInputs()) {

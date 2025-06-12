@@ -328,6 +328,9 @@ void SurfaceNodeSlang::emitFunctionCall(
                 "Calculate the BSDF transmission for viewing direction", stage);
             shadergen.emitScopeBegin(stage);
             context.pushClosureContext(&_callTransmission);
+            shadergen.emitLine("if (eta_flipped > 0.0)", stage, false);
+            shadergen.emitLine("specular_IOR = 1.0 / specular_IOR", stage);
+
             shadergen.emitFunctionCall(*bsdf, context, stage);
             if (context.getOptions().hwTransmissionRenderMethod ==
                 TRANSMISSION_REFRACTION) {

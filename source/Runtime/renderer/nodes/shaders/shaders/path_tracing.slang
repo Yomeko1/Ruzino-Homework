@@ -104,13 +104,21 @@ void ClosestHit(
     callData.materialBlobID = material_header.material_blob_id;
     CallShader(material_header.material_type_id, callData);
 
-    float pdf = callData.pdf;
+    payload.seed = callData.seed;
+    payload.color = callData.throughput;
+    return;
 
-    float3 ray_dir = callData.sampledDir;
+    float pdf = callData.pdf;    float3 ray_dir = callData.sampledDir;
     float3 local_ray_dir = sf.toLocal(ray_dir);
 
-    float cosine_factor = abs(local_ray_dir.z);
-    {
+    // For transmission, don't apply cosine weighting as it's already included in the BSDF
+    bool isTransmission = dot(ray_dir, vertex.normalW) < 0.0;
+    if (isTransmission) {
+        // For transmission, use the throughput directly without cosine weighting
+        payload.throughput *= callData.throughput / pdf;
+    } else {
+        // For reflection, apply cosine weighting
+        float cosine_factor = abs(local_ray_dir.z);
         payload.throughput *= cosine_factor * callData.throughput / pdf;
     }
 
