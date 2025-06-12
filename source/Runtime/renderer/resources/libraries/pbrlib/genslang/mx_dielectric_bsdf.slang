@@ -61,7 +61,10 @@ void mx_dielectric_bsdf_reflection(
 }
 
 void mx_dielectric_bsdf_transmission(
+    float3 L,
     float3 V,
+    float3 P,
+    float occlusion,
     float weight,
     float3 tint,
     float ior,
@@ -99,8 +102,8 @@ void mx_dielectric_bsdf_transmission(
 
     if (scatter_mode != 0) {
         bsdf.response = mx_surface_transmission(
-                            N, V, X, safeAlpha, distribution, fd, safeTint) *
-                        weight;
+                            N, V, L, X, safeAlpha, distribution, fd, safeTint) *
+                        occlusion * weight;
     }
 }
 

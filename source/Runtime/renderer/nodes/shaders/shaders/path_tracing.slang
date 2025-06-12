@@ -70,8 +70,10 @@ void ClosestHit(
         float2(attribs.barycentrics.x, attribs.barycentrics.y));
 
     // Fix normal orientation
+    uint eta_flipped = 0;
     if (dot(WorldRayDirection(), vertex.normalW) >= 0.0) {
         vertex.normalW = -vertex.normalW;
+        eta_flipped = 1;
     }
 
     // Create shading frame
@@ -98,6 +100,7 @@ void ClosestHit(
     callData.V = -WorldRayDirection();
     callData.color = float4(0, 0, 0, 1);
     callData.seed = seed;
+    callData.eta_flipped = eta_flipped;
     callData.materialBlobID = material_header.material_blob_id;
     CallShader(material_header.material_type_id, callData);
 
@@ -106,16 +109,21 @@ void ClosestHit(
     float3 ray_dir = callData.sampledDir;
     float3 local_ray_dir = sf.toLocal(ray_dir);
 
-    //payload.color = pdf;
+    // payload.color = pdf;
 
-    //payload.seed = callData.seed;
+    // payload.seed = callData.seed;
 
-    //return;
+    // return;    // Update payload
+    payload.throughput *= callData.throughput;
+    
+    // For transmission rays, we need to account for the cosine term differently
+    float cosine_factor = abs(local_ray_dir.z);
+    
+    // Apply cosine weighting and PDF correction
+    if (pdf > 0.0) {
+        payload.throughput *= cosine_factor / pdf;
+    }
 
-    // Update payload
-    payload.throughput *= local_ray_dir.z * callData.throughput / pdf;
-
-    // payload.throughput *= 0.8f;
     payload.hitPosition = vertex.posW;
     payload.hitNormal = vertex.normalW;
     payload.depth++;
@@ -124,7 +132,10 @@ void ClosestHit(
     // Trace next ray (light comes from environment/miss shader)
     if (!payload.terminated) {
         RayDesc nextRay;
-        nextRay.Origin = vertex.posW + vertex.normalW * 0.0001;
+        nextRay.Origin = vertex.posW + (dot(ray_dir, vertex.normalW) < 0.0
+                                            ? -vertex.normalW
+                                            : vertex.normalW) *
+                                           0.001;
         nextRay.Direction = ray_dir;
         nextRay.TMin = 0.0;
         nextRay.TMax = 1000.0;

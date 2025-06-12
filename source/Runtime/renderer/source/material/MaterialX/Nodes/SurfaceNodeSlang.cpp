@@ -38,7 +38,14 @@ SurfaceNodeSlang::SurfaceNodeSlang()
     _callTransmission.setSuffix(
         Type::BSDF, HwShaderGenerator::CLOSURE_CONTEXT_SUFFIX_TRANSMISSION);
     _callTransmission.addArgument(
+        Type::BSDF, ClosureContext::Argument(Type::VECTOR3, HW::DIR_L));
+    _callTransmission.addArgument(
         Type::BSDF, ClosureContext::Argument(Type::VECTOR3, HW::DIR_V));
+    _callTransmission.addArgument(
+        Type::BSDF,
+        ClosureContext::Argument(Type::VECTOR3, HW::WORLD_POSITION));
+    _callTransmission.addArgument(
+        Type::BSDF, ClosureContext::Argument(Type::FLOAT, HW::OCCLUSION));
     // Indirect/Environment context
     _callIndirect.setSuffix(
         Type::BSDF, HwShaderGenerator::CLOSURE_CONTEXT_SUFFIX_INDIRECT);

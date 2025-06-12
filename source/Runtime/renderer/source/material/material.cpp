@@ -92,6 +92,7 @@ struct CallableData
     float3 sampledDir;
     float pdf;
     uint seed;
+    uint eta_flipped;
     uint materialBlobID;
     VertexInfo vertexInfo;
 };
@@ -101,7 +102,7 @@ void $getColor(inout CallableData data)
 {
     MaterialDataBlob blob_data = materialBlobBuffer[data.materialBlobID];
 
-    eval_sample_pdf(data.color, data.sampledDir, data.throughput, data.pdf, data.seed, data.L, data.V, blob_data, data.vertexInfo);
+    eval_sample_pdf(data.color, data.sampledDir, data.throughput, data.pdf, data.seed, data.eta_flipped, data.L, data.V, blob_data, data.vertexInfo);
     if (length(data.L) < 0.1)
         data.color = 0.0f;
 }
@@ -119,6 +120,7 @@ void eval_sample_pdf(
     out float3 sampled_weight,
     out float pdf,
     inout uint seed,
+    uint eta_flipped,
     float3 L,
     float3 V,
     in MaterialDataBlob blob_data,

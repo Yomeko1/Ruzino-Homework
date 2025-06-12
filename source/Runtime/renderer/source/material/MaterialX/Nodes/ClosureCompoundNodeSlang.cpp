@@ -98,19 +98,21 @@ float3 sample_standard_surface(
     bool thin_walled, 
     float3 normal, 
     float3 tangent,
+    uint eta_flipped, // 0 for normal, 1 for flipped
     inout uint seed,
     out float pdf
 )
 {
     bool valid;
     ShadingFrame sf = ShadingFrame.createSafe(normal, float4(tangent, 1.0), valid);
-    
-    // Calculate layer weights for importance sampling
-    float diffuse_weight = base * (1.0 - metalness);
-    float specular_weight = specular + metalness; // Combine specular and metallic
+      // Calculate layer weights for importance sampling
+    float diffuse_weight = base * (1.0 - metalness) * (1.0 - transmission);
+    float specular_weight = specular * (1.0 - metalness) * (1.0 - transmission);
+    float metal_weight = metalness;
+    float transmission_weight = transmission * (1.0 - metalness);
     
     // Normalize weights
-    float total_weight = diffuse_weight + specular_weight;
+    float total_weight = diffuse_weight + specular_weight + metal_weight + transmission_weight;
     if (total_weight <= 0.0) {
         // Fallback to cosine hemisphere sampling
         float3 L = sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
@@ -119,21 +121,23 @@ float3 sample_standard_surface(
     
     diffuse_weight /= total_weight;
     specular_weight /= total_weight;
+    metal_weight /= total_weight;
+    transmission_weight /= total_weight;
     
     float3 L;
     
-    // Choose between diffuse and specular sampling
+    // Choose sampling method based on weights
     float r = random_float(seed);
     
-    if (r < specular_weight) {
-        // Sample GGX reflection
+    if (r < metal_weight) {
+        // Sample metallic reflection (same as specular but for metals)
         float2 roughness_vector;
         mx_roughness_anisotropy(specular_roughness, specular_anisotropy, roughness_vector);
         
         // Clamp roughness to avoid numerical issues
         float alpha = max(0.001, roughness_vector.x * roughness_vector.x);
         
-        // Sample GGX distribution (simplified isotropic version)
+        // Sample GGX distribution
         float2 xi = random_float2(seed);
         float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (alpha * alpha - 1.0) * xi.y));
         float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
@@ -146,33 +150,110 @@ float3 sample_standard_surface(
         // Reflect view direction around half vector
         L = reflect(-V, H);
         
-        // Calculate GGX PDF: D(H) * cos_theta / (4 * dot(V, H))
+        // Calculate GGX PDF
         float VdotH = max(0.001, dot(V, H));
         float NdotH = max(0.001, dot(normal, H));
         
-        // GGX distribution
         float alpha2 = alpha * alpha;
         float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
         float D = alpha2 / (M_PI * denom * denom);
         
-        // PDF for reflection sampling
-        pdf = specular_weight * D * NdotH / (4.0 * VdotH);
+        pdf = metal_weight * D * NdotH / (4.0 * VdotH);
         
-    } else {
+    } else if (r < metal_weight + specular_weight) {
+        // Sample dielectric reflection
+        float2 roughness_vector;
+        mx_roughness_anisotropy(specular_roughness, specular_anisotropy, roughness_vector);
+        
+        float alpha = max(0.001, roughness_vector.x * roughness_vector.x);
+        
+        float2 xi = random_float2(seed);
+        float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (alpha * alpha - 1.0) * xi.y));
+        float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
+        float phi = 2.0 * M_PI * xi.x;
+        
+        float3 H = float3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+        H = sf.fromLocal(H);
+        
+        L = reflect(-V, H);
+        
+        float VdotH = max(0.001, dot(V, H));
+        float NdotH = max(0.001, dot(normal, H));
+        
+        float alpha2 = alpha * alpha;
+        float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+        float D = alpha2 / (M_PI * denom * denom);
+        
+        pdf = specular_weight * D * NdotH / (4.0 * VdotH);
+          
+    } 
+    else if (r < metal_weight + specular_weight + transmission_weight) {
+        // Sample transmission with roughness
+        float eta;
+        if (eta_flipped == 1) {
+            // Going from material into air
+            eta = specular_IOR;
+        } else {
+            // Going from air into material
+            eta = 1.0 / specular_IOR;
+        }
+
+        // Use transmission roughness (with extra roughness added)
+        float transmission_roughness = specular_roughness + transmission_extra_roughness;
+        float2 roughness_vector;
+        mx_roughness_anisotropy(transmission_roughness, specular_anisotropy, roughness_vector);
+        
+        float alpha = max(0.001, roughness_vector.x * roughness_vector.x);
+        
+        // Sample microfacet normal using GGX distribution
+        float2 xi = random_float2(seed);
+        float cos_theta = sqrt((1.0 - xi.y) / (1.0 + (alpha * alpha - 1.0) * xi.y));
+        float sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
+        float phi = 2.0 * M_PI * xi.x;
+        
+        // Create microfacet normal in tangent space
+        float3 H = float3(sin_theta * cos(phi), sin_theta * sin(phi), cos_theta);
+        H = sf.fromLocal(H);
+        
+        float VdotH = dot(V, H);
+        
+        // Compute refraction direction using microfacet normal
+        float k = 1.0 - eta * eta * (1.0 - VdotH * VdotH);
+        
+        if (k < 0.0) {
+            // Total internal reflection - fall back to specular reflection around microfacet
+            L = reflect(-V, H);
+            
+            // Calculate reflection PDF
+            float NdotH = max(0.001, dot(normal, H));
+            float alpha2 = alpha * alpha;
+            float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+            float D = alpha2 / (M_PI * denom * denom);
+            pdf = transmission_weight * D * NdotH / (4.0 * abs(VdotH));
+        } else {
+            // Refraction around microfacet
+            L = eta * V - (eta * VdotH + sqrt(k)) * H;
+            L = normalize(L);
+            
+            // Calculate transmission PDF using microfacet distribution
+            float NdotH = max(0.001, dot(normal, H));
+            float LdotH = dot(L, H);
+            
+            float alpha2 = alpha * alpha;
+            float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+            float D = alpha2 / (M_PI * denom * denom);
+            
+            // Jacobian for transmission
+            float jacobian = abs(LdotH) / pow(eta * VdotH + LdotH, 2.0);
+            pdf = transmission_weight * D * NdotH * jacobian;
+        }
+        } else {
         // Sample diffuse (cosine-weighted hemisphere)
         L = sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
         L = sf.fromLocal(L);
         
         // Scale PDF by diffuse weight
         pdf *= diffuse_weight;
-    }
-    
-    // Ensure the sampled direction is in the correct hemisphere
-    if (dot(L, normal) <= 0.0) {
-        // Fallback to cosine-weighted hemisphere sampling
-        L = sample_cosine_hemisphere_concentric(random_float2(seed), pdf);
-        L = sf.fromLocal(L);
-        pdf = dot(L, normal) / M_PI;
     }
     
     // Clamp PDF to avoid numerical issues
@@ -438,6 +519,7 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
                 shadergen.emitInput(input, context, stage);
                 delim = ", ";
             }
+            shadergen.emitString(delim + "eta_flipped", stage);
 
             shadergen.emitString(", seed, pdf)", stage);
             shadergen.emitLineEnd(stage);

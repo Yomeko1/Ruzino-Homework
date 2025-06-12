@@ -9,6 +9,7 @@ struct CallableData {
     float3 sampledDir;
     float pdf;
     uint seed;
+    uint eta_flipped;
     uint materialBlobID;
     VertexInfo vertexInfo;
 };
