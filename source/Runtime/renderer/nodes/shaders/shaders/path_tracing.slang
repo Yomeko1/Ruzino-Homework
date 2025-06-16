@@ -88,8 +88,8 @@ void ClosestHit(
     visualize = dot(vertex.normalW, WorldRayDirection());
     visualize = vertex.tangentW.xyz * 0.5 + 0.5;  // Visualize tangent space
 
-    //payload.color = visualize;  // For debugging, visualize texture coordinates
-    //return;
+    // payload.color = visualize;  // For debugging, visualize texture
+    // coordinates return;
 
     // Get material ID
     var material_id = instanceDescBuffer[instance_id].materialID;
@@ -114,6 +114,13 @@ void ClosestHit(
     CallShader(material_header.material_type_id, callData);
 
     float pdf = callData.pdf;
+
+    if (pdf <= 0.0) {
+        payload.seed = callData.seed;
+        payload.terminated = true;
+        return;
+    }
+
     float3 ray_dir = callData.sampledDir;
     float3 local_ray_dir =
         sf.toLocal(ray_dir);  // Check if this is transmission or reflection
