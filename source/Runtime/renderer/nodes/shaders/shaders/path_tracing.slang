@@ -54,7 +54,7 @@ void ClosestHit(
     in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Check if maximum depth is reached
-    if (payload.depth >= 2) {
+    if (payload.depth >= 20) {
         payload.throughput = float3(0, 0, 0);
         payload.color = float3(0, 0, 0);
         payload.terminated = true;
@@ -127,14 +127,17 @@ void ClosestHit(
     bool isTransmission = local_ray_dir.z < 0.0;
 
     // if (isTransmission) {
-    //     payload.color = float3(1,0,0);  // For debugging, visualize transmission
-    //     payload.seed = callData.seed;
-    //     payload.terminated = true;
-    //     return;
+    //     // payload.color = float3(1,0,0);  // For debugging, visualize
+    //     transmission
+    //     // payload.seed = callData.seed;
+    //     // payload.terminated = true;
+    //     // return;
+    //     payload.throughput = 1.0f;
     // }
-    float cosine_factor = abs(local_ray_dir.z);
-    payload.throughput *= cosine_factor * callData.throughput / pdf;
-
+    {
+        float cosine_factor = abs(local_ray_dir.z);
+        payload.throughput *= cosine_factor * callData.throughput / pdf;
+    }
     payload.hitPosition = vertex.posW;
     payload.hitNormal = vertex.normalW;
     payload.depth++;
