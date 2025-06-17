@@ -47,9 +47,10 @@ void mx_conductor_bsdf_reflection(
     float G = mx_ggx_smith_G2(NdotL, NdotV, avgAlpha);
 
     float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
+    comp = 1.0f;
 
-    // Note: NdotL is cancelled out
-    bsdf.response = D * F * G * comp * occlusion * weight / (4.0 * NdotV);
+    bsdf.response =
+        D * F * G * comp * occlusion * weight / (4.0 * NdotV * NdotL);
 }
 
 void mx_conductor_bsdf_indirect(

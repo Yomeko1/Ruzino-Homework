@@ -123,8 +123,8 @@ float3 sample_transmission(float2 u, float3 V, float2 roughness, float eta, out 
     // Check for total internal reflection
     float discriminant = 1.0 - (1.0 - VdotH * VdotH) / (eta * eta);
     if (discriminant < 0.0) {
-        pdf = 0.0;
-        return float3(0.0);
+        pdf = M_FLOAT_EPS;
+        return reflect(-V, H); // Return reflection direction if TIR occurs
     }
     
     // Compute refracted direction using Snell's law
@@ -137,7 +137,7 @@ float3 sample_transmission(float2 u, float3 V, float2 roughness, float eta, out 
         return float3(0.0);
     }
     
-    float LdotH = max(-dot(L, H), M_FLOAT_EPS);
+    float LdotH = max(abs(dot(L, H)), M_FLOAT_EPS);
     
     // Compute PDF using GGX VNDF for transmission
     float D = mx_ggx_NDF(H, roughness);
@@ -313,9 +313,11 @@ float3 sample_standard_surface(
             float D = mx_ggx_NDF(H, alpha);
             float G1 = mx_ggx_smith_G1(NdotV, mx_average_alpha(alpha));
             float vndf_pdf = D * G1 * VdotH / NdotV;
-            reflection_pdf = vndf_pdf / (4.0 * VdotH);        }        
+            reflection_pdf = vndf_pdf / (4.0 * VdotH);    
+        }
         else if (L_local.z < -M_FLOAT_EPS) {
             // Transmission PDF - compute for downward directions
+            // For transmission, the half vector is computed differently
             float3 H = normalize(V_local + L_local * eta);
             
             // Ensure half vector points toward the incident side
@@ -324,16 +326,16 @@ float3 sample_standard_surface(
             }
             
             float VdotH = max(dot(V_local, H), M_FLOAT_EPS);
-            float LdotH = max(-dot(L_local, H), M_FLOAT_EPS);
+            float LdotH = max(abs(dot(L_local, H)), M_FLOAT_EPS);
             
             float D = mx_ggx_NDF(H, alpha);
             float G1 = mx_ggx_smith_G1(NdotV, mx_average_alpha(alpha));
             float vndf_pdf = D * G1 * VdotH / NdotV;
             
-            // Transform to transmission direction with Jacobian
+            // Transform to transmission direction with proper Jacobian
             float denom = VdotH + LdotH / eta;
             float jacobian = (eta * eta * LdotH) / (denom * denom);
-            transmission_pdf = vndf_pdf * jacobian;
+            transmission_pdf = vndf_pdf * jacobian / (4.0 * VdotH);
         }
         
         nonmetal_pdf = diffuse_pdf * diffuse_weight + reflection_pdf * reflection_weight + transmission_pdf * transmission_weight;

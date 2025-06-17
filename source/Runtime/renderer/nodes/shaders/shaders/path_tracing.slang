@@ -124,20 +124,45 @@ void ClosestHit(
     float3 ray_dir = callData.sampledDir;
     float3 local_ray_dir =
         sf.toLocal(ray_dir);  // Check if this is transmission or reflection
-    bool isTransmission = local_ray_dir.z < 0.0;
-
-    // if (isTransmission) {
+    bool isTransmission = local_ray_dir.z < 0.0;  // if (isTransmission) {
     //     // payload.color = float3(1,0,0);  // For debugging, visualize
     //     transmission
     //     // payload.seed = callData.seed;
     //     // payload.terminated = true;
     //     // return;
     //     payload.throughput = 1.0f;
+    // }    {
+    float cosine_factor = abs(local_ray_dir.z);
+
+
+    // For transmission, don't apply cosine factor to avoid double-counting
+    // if (isTransmission) {
+    //     payload.throughput *= callData.throughput / pdf;
+
+    //     payload.throughput *= 1.0f;
+    //     if (any(isnan(callData.throughput)) ||
+    //         any(isinf(callData.throughput)) || pdf <= 0.0) {
+    //         payload.terminated = true;
+    //         return;
+    //     }
+    //     // payload.terminated = true;
     // }
+    // else {
+    // }
+    payload.throughput *= cosine_factor * callData.throughput / pdf;
+    if (payload.depth == 2)
     {
-        float cosine_factor = abs(local_ray_dir.z);
-        payload.throughput *= cosine_factor * callData.throughput / pdf;
+        payload.color = cosine_factor * callData.throughput / pdf / 2;
+        payload.seed = callData.seed;
+        return;
     }
+    else {
+        payload.color = 0;
+    }
+    // payload.color = payload.throughput/2;
+    // payload.seed = callData.seed;
+    // return;
+
     payload.hitPosition = vertex.posW;
     payload.hitNormal = vertex.normalW;
     payload.depth++;
@@ -160,18 +185,18 @@ void ClosestHit(
         TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, nextRay, payload);
     }
 
-    // Russian roulette termination
-    if (payload.depth >= 3) {
-        float p =
-            max(payload.throughput.x,
-                max(payload.throughput.y, payload.throughput.z));
-        if (random_float(seed) > p) {
-            payload.terminated = true;
-        }
-        else {
-            payload.throughput /= p;
-        }
-    }
+    // // Russian roulette termination
+    // if (payload.depth >= 3) {
+    //     float p =
+    //         max(payload.throughput.x,
+    //             max(payload.throughput.y, payload.throughput.z));
+    //     if (random_float(seed) > p) {
+    //         payload.terminated = true;
+    //     }
+    //     else {
+    //         payload.throughput /= p;
+    //     }
+    // }
 }
 [shader("miss")]
 void Miss(inout RayPayload payload)

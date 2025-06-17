@@ -24,6 +24,12 @@ void mx_dielectric_bsdf_reflection(
 
     N = mx_forward_facing_normal(N, V);
 
+    if (dot(N, L) < 0.0) {
+        bsdf.throughput = 0.0;
+        bsdf.response = float3(0.0);
+        return;
+    }
+
     X = normalize(X - dot(X, N) * N);
     float3 Y = cross(N, X);
     float3 H = normalize(L + V);
@@ -50,12 +56,13 @@ void mx_dielectric_bsdf_reflection(
 
     float F0 = mx_ior_to_f0(ior);
     float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
+    comp = 1.0f;
     float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, F0, 1.0) * comp;
     bsdf.throughput = 1.0 - dirAlbedo * weight;
 
     // Note: NdotL is cancelled out
-    bsdf.response =
-        D * F * G * comp * safeTint * occlusion * weight / (4.0 * NdotV);
+    bsdf.response = D * F * G * comp * safeTint * occlusion * weight /
+                    (4.0 * NdotV * NdotL);
 }
 
 void mx_dielectric_bsdf_transmission(
@@ -101,6 +108,7 @@ void mx_dielectric_bsdf_transmission(
 
     float F0 = mx_ior_to_f0(ior);
     float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
+    comp = 1.0f;
     float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, F0, 1.0) * comp;
     bsdf.throughput = 1.0 - dirAlbedo * weight;
     if (scatter_mode != 0) {
@@ -111,6 +119,7 @@ void mx_dielectric_bsdf_transmission(
         // Add energy compensation for transmission
         float3 comp_transmission =
             mx_ggx_energy_compensation(NdotV, avgAlpha, F);
+        comp_transmission = 1.0f;
         bsdf.response *= comp_transmission;
     }
 }
