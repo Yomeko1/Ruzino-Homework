@@ -80,16 +80,12 @@ set_target_properties(glm PROPERTIES LINKER_LANGUAGE CXX)
 
 add_subdirectory(stb_image)
 
-# polyscope
-add_subdirectory(polyscope)
-set_target_properties(polyscope PROPERTIES ${OUTPUT_DIR})
-set_target_properties(glad PROPERTIES ${OUTPUT_DIR})
+
 
 # libigl
 set(LIBIGL_RESTRICTED_TRIANGLE ON CACHE BOOL "" FORCE)
 add_subdirectory(libigl)
 set_target_properties(igl_core PROPERTIES ${OUTPUT_DIR})
-set_target_properties(polyscope PROPERTIES ${OUTPUT_DIR})
 
 # autodiff
 set(AUTODIFF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -106,8 +102,7 @@ set_target_properties(imgui PROPERTIES FOLDER "ThirdParty")
 set_target_properties(OpenMeshCore PROPERTIES FOLDER "ThirdParty")
 set_target_properties(OpenMeshTools PROPERTIES FOLDER "ThirdParty")
 set_target_properties(glm PROPERTIES FOLDER "ThirdParty")
-set_target_properties(polyscope PROPERTIES FOLDER "ThirdParty")
-set_target_properties(glad PROPERTIES FOLDER "ThirdParty")
+
 set_target_properties(igl_core PROPERTIES FOLDER "ThirdParty")
 set_target_properties(autodiff PROPERTIES FOLDER "ThirdParty")
 set_target_properties(stb_image PROPERTIES FOLDER "ThirdParty")
@@ -118,3 +113,11 @@ if(MSVC)
     target_compile_options(igl_core INTERFACE /wd4244 /wd4267)
     target_compile_options(triangle PRIVATE /wd4311 /wd4302)
 endif()
+
+
+# polyscope
+# add_subdirectory(polyscope)
+# set_target_properties(polyscope PROPERTIES ${OUTPUT_DIR})
+# set_target_properties(glad PROPERTIES ${OUTPUT_DIR})
+# set_target_properties(polyscope PROPERTIES FOLDER "ThirdParty")
+# set_target_properties(glad PROPERTIES FOLDER "ThirdParty")
