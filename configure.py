@@ -357,11 +357,11 @@ def pack_sdk(dry_run=False):
             print(f"Packed {dst_dir} into SDK.zip")
 
         # Delete the SDK_temp directory
-        # if dry_run:
-        #     print(f"[DRY RUN] Would delete {dst_dir}")
-        # else:
-        #     shutil.rmtree(dst_dir)
-        #     print(f"Deleted {dst_dir}")
+        if dry_run:
+            print(f"[DRY RUN] Would delete {dst_dir}")
+        else:
+            shutil.rmtree(dst_dir)
+            print(f"Deleted {dst_dir}")
 
 
 def find_and_replace(file_path, replacements):
@@ -441,21 +441,21 @@ def main():
 
     if os.name == "nt":
         urls = {
-            "slang": "https://github.com/shader-slang/slang/releases/download/v2025.6.3/slang-2025.6.3-windows-x86_64.zip",
-            "d3d12": "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.613.0",
-            "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2407/dxc_2024_07_31.zip",
+            "slang": "https://github.com/shader-slang/slang/releases/download/v2025.12.1/slang-2025.12.1-windows-x86_64.zip",
+            "d3d12": "https://globalcdn.nuget.org/packages/microsoft.direct3d.d3d12.1.616.1.nupkg",
+            "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505.1/dxc_2025_07_14.zip",
         }
     elif os.name == "posix":
         urls = {
-            "slang": "https://github.com/shader-slang/slang/releases/download/v2024.15.2/slang-2024.15.2-macos-x86_64.zip",
-            "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2407/dxc_2024_07_31.zip",
+            "slang": "https://github.com/shader-slang/slang/releases/download/v2025.12.1/slang-2025.12.1-macos-x86_64.zip",
+            "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505.1/dxc_2025_07_14.zip",
         }
     else:
         urls = {
-            "slang": "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-linux-x86_64.zip",
-            "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2407/dxc_2024_07_31.zip",
+            "slang": "https://github.com/shader-slang/slang/releases/download/v2025.12.1/slang-2025.12.1-linux-x86_64.zip",
+            "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505.1/dxc_2025_07_14.zip",
         }
-    folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin"}
+    folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin/x64"}
 
 
     for lib in args.library:
