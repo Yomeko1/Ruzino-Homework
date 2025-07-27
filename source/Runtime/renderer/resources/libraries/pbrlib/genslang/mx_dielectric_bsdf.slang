@@ -63,6 +63,13 @@ void mx_dielectric_bsdf(
                         weight / (4.0 * NdotV * NdotL);
     }
     else if (closureData.closureType == CLOSURE_TYPE_TRANSMISSION) {
+        
+        if (dot(N, L) > 0.0) {
+            bsdf.throughput = 0.0;
+            bsdf.response = float3(0.0);
+            return;
+        }
+
         float3 F = mx_compute_fresnel(NdotV, fd);
 
         float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);

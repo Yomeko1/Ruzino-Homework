@@ -86,10 +86,10 @@ float3 sample_diffuse_lobe(float2 u, out float pdf)
 }
 
 // Sample specular reflection using GGX distribution
-float3 sample_specular_reflection(float2 u, float3 V, float2 roughness, out float pdf)
+float3 sample_specular_reflection(float2 u, float3 V, float2 alpha, out float pdf)
 {
     // Sample microfacet normal using GGX VNDF distribution
-    float3 H = mx_ggx_importance_sample_VNDF(u, V, roughness);
+    float3 H = mx_ggx_importance_sample_VNDF(u, V, alpha);
     // Ensure half vector points toward the incident side
     if (H.z < 0.0) {
         H = -H;
@@ -105,26 +105,24 @@ float3 sample_specular_reflection(float2 u, float3 V, float2 roughness, out floa
     }
     
     // Compute PDF using correct VNDF formulation
-    float NdotH = max(H.z, M_FLOAT_EPS);
     float VdotH = max(dot(V, H), M_FLOAT_EPS);
     float NdotV = max(V.z, M_FLOAT_EPS);
     
     // VNDF PDF: D(H) * G1(V) * max(0, V·H) / NdotV
-    float D = mx_ggx_NDF(H, roughness);
-    float G1 = mx_ggx_smith_G1(NdotV, mx_average_alpha(roughness));
+    float D = mx_ggx_NDF(H, alpha);
+    float G1 = mx_ggx_smith_G1(NdotV, mx_average_alpha(alpha));
     float vndf_pdf = D * G1 * VdotH / NdotV;
     
     // Transform to reflection direction: PDF_L = PDF_H / (4 * V·H)
     pdf = vndf_pdf / (4.0 * VdotH);
-    
     return L;
 }
 
 // Sample transmission using GGX distribution and Snell's law
-float3 sample_transmission(float2 u, float3 V, float2 roughness, float eta, out float pdf)
+float3 sample_transmission(float2 u, float3 V, float2 alpha, float eta, out float pdf)
 {
     // Sample microfacet normal using GGX VNDF distribution
-    float3 H = mx_ggx_importance_sample_VNDF(u, V, roughness);
+    float3 H = mx_ggx_importance_sample_VNDF(u, V, alpha);
     
     // Ensure half vector points toward the incident side
     if (H.z < 0.0) {
@@ -154,8 +152,8 @@ float3 sample_transmission(float2 u, float3 V, float2 roughness, float eta, out 
     float LdotH = max(abs(dot(L, H)), M_FLOAT_EPS);
     
     // Compute PDF using GGX VNDF for transmission
-    float D = mx_ggx_NDF(H, roughness);
-    float G1 = mx_ggx_smith_G1(NdotV, mx_average_alpha(roughness));
+    float D = mx_ggx_NDF(H, alpha);
+    float G1 = mx_ggx_smith_G1(NdotV, mx_average_alpha(alpha));
     float vndf_pdf = D * G1 * VdotH / NdotV;
     
     // Transform to transmission direction with Jacobian

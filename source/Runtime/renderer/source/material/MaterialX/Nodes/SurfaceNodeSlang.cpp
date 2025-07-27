@@ -56,9 +56,9 @@ void SurfaceNodeSlang::createVariables(
 
     const SlangShaderGenerator& shadergen =
         static_cast<const SlangShaderGenerator&>(context.getShaderGenerator());
-    // Note: addStageLightingUniforms method might not exist in SlangShaderGenerator
-    // If this causes compilation errors, remove this line as it's GLSL-specific
-    // shadergen.addStageLightingUniforms(context, ps);
+    // Note: addStageLightingUniforms method might not exist in
+    // SlangShaderGenerator If this causes compilation errors, remove this line
+    // as it's GLSL-specific shadergen.addStageLightingUniforms(context, ps);
 }
 
 void SurfaceNodeSlang::emitFunctionCall(
@@ -114,8 +114,10 @@ void SurfaceNodeSlang::emitFunctionCall(
 
         shadergen.emitScopeBegin(stage);
 
-        shadergen.emitLine("float3 N = normalize(" + prefix + HW::T_NORMAL_WORLD + ")", stage);
-        shadergen.emitLine("float3 P = " + prefix + HW::T_POSITION_WORLD, stage);
+        shadergen.emitLine(
+            "float3 N = normalize(" + prefix + HW::T_NORMAL_WORLD + ")", stage);
+        shadergen.emitLine(
+            "float3 P = " + prefix + HW::T_POSITION_WORLD, stage);
         shadergen.emitLine("float occlusion = 1.0", stage);
         shadergen.emitLineBreak(stage);
 
@@ -123,8 +125,7 @@ void SurfaceNodeSlang::emitFunctionCall(
         const string outTransparency = output->getVariable() + ".transparency";
 
         const ShaderInput* bsdfInput = node.getInput("bsdf");
-        if (const ShaderNode* bsdf = bsdfInput->getConnectedSibling())
-        {
+        if (const ShaderNode* bsdf = bsdfInput->getConnectedSibling()) {
             shadergen.emitLineBegin(stage);
             shadergen.emitString("float surfaceOpacity = ", stage);
             shadergen.emitInput(node.getInput("opacity"), context, stage);
@@ -135,104 +136,140 @@ void SurfaceNodeSlang::emitFunctionCall(
             // Handle direct lighting
             //
             shadergen.emitComment("Shadow occlusion", stage);
-            if (context.getOptions().hwShadowMap)
-            {
-                shadergen.emitLine("float3 shadowCoord = (" + HW::T_SHADOW_MATRIX + " * float4(" + prefix + HW::T_POSITION_WORLD + ", 1.0)).xyz", stage);
-                shadergen.emitLine("shadowCoord = shadowCoord * 0.5 + 0.5", stage);
-                shadergen.emitLine("float2 shadowMoments = " + HW::T_SHADOW_MAP + ".Sample(" + HW::T_SHADOW_MAP + "Sampler, shadowCoord.xy).xy", stage);
-                shadergen.emitLine("occlusion = mx_variance_shadow_occlusion(shadowMoments, shadowCoord.z)", stage);
+            if (context.getOptions().hwShadowMap) {
+                shadergen.emitLine(
+                    "float3 shadowCoord = (" + HW::T_SHADOW_MATRIX +
+                        " * float4(" + prefix + HW::T_POSITION_WORLD +
+                        ", 1.0)).xyz",
+                    stage);
+                shadergen.emitLine(
+                    "shadowCoord = shadowCoord * 0.5 + 0.5", stage);
+                shadergen.emitLine(
+                    "float2 shadowMoments = " + HW::T_SHADOW_MAP + ".Sample(" +
+                        HW::T_SHADOW_MAP + "Sampler, shadowCoord.xy).xy",
+                    stage);
+                shadergen.emitLine(
+                    "occlusion = mx_variance_shadow_occlusion(shadowMoments, "
+                    "shadowCoord.z)",
+                    stage);
             }
             shadergen.emitLineBreak(stage);
 
             emitLightLoop(node, context, stage, outColor);
 
-            //
-            // Handle indirect lighting.
-            //
-            shadergen.emitComment("Ambient occlusion", stage);
-            if (context.getOptions().hwAmbientOcclusion)
-            {
-                ShaderPort* texcoord = vertexData[HW::T_TEXCOORD + "_0"];
-                shadergen.emitLine("float2 ambOccUv = mx_transform_uv(" + prefix + texcoord->getVariable() + ", float2(1.0), float2(0.0))", stage);
-                shadergen.emitLine("occlusion = lerp(1.0, texture(" + HW::T_AMB_OCC_MAP + ", ambOccUv).x, " + HW::T_AMB_OCC_GAIN + ")", stage);
-            }
-            else
-            {
-                shadergen.emitLine("occlusion = 1.0", stage);
-            }
-            shadergen.emitLineBreak(stage);
+            // //
+            // // Handle indirect lighting.
+            // //
+            // shadergen.emitComment("Ambient occlusion", stage);
+            // if (context.getOptions().hwAmbientOcclusion) {
+            //     ShaderPort* texcoord = vertexData[HW::T_TEXCOORD + "_0"];
+            //     shadergen.emitLine(
+            //         "float2 ambOccUv = mx_transform_uv(" + prefix +
+            //             texcoord->getVariable() + ", float2(1.0),
+            //             float2(0.0))",
+            //         stage);
+            //     shadergen.emitLine(
+            //         "occlusion = lerp(1.0, texture(" + HW::T_AMB_OCC_MAP +
+            //             ", ambOccUv).x, " + HW::T_AMB_OCC_GAIN + ")",
+            //         stage);
+            // }
+            // else {
+            //     shadergen.emitLine("occlusion = 1.0", stage);
+            // }
+            // shadergen.emitLineBreak(stage);
 
-            shadergen.emitComment("Add environment contribution", stage);
-            shadergen.emitScopeBegin(stage);
+            // shadergen.emitComment("Add environment contribution", stage);
+            // shadergen.emitScopeBegin(stage);
 
-            // indirect lighting
-            if (bsdf->hasClassification(ShaderNode::Classification::BSDF_R)) {
-                shadergen.emitLine("ClosureData closureData = ClosureData(CLOSURE_TYPE_INDIRECT, L, V, N, P, occlusion)", stage);
-                shadergen.emitFunctionCall(*bsdf, context, stage);
-            }
-            else
-            {
-                shadergen.emitLineBegin(stage);
-                shadergen.emitOutput(bsdf->getOutput(), true, true, context, stage);
-                shadergen.emitLineEnd(stage);
-            }
+            // // indirect lighting
+            // if (bsdf->hasClassification(ShaderNode::Classification::BSDF_R))
+            // {
+            //     shadergen.emitLine(
+            //         "ClosureData closureData = "
+            //         "ClosureData(CLOSURE_TYPE_INDIRECT, L, V, N, P,
+            //         occlusion)", stage);
+            //     shadergen.emitFunctionCall(*bsdf, context, stage);
+            // }
+            // else {
+            //     shadergen.emitLineBegin(stage);
+            //     shadergen.emitOutput(
+            //         bsdf->getOutput(), true, true, context, stage);
+            //     shadergen.emitLineEnd(stage);
+            // }
 
-            shadergen.emitLineBreak(stage);
-            shadergen.emitLine(outColor + " += occlusion * " + bsdf->getOutput()->getVariable() + ".response", stage);
-            shadergen.emitScopeEnd(stage);
-            shadergen.emitLineBreak(stage);
+            // shadergen.emitLineBreak(stage);
+            // shadergen.emitLine(
+            //     outColor + " += occlusion * " +
+            //         bsdf->getOutput()->getVariable() + ".response",
+            //     stage);
+            // shadergen.emitScopeEnd(stage);
+            // shadergen.emitLineBreak(stage);
         }
 
-        //
-        // Handle surface emission.
-        //
-        const ShaderInput* edfInput = node.getInput("edf");
-        if (const ShaderNode* edf = edfInput->getConnectedSibling())
-        {
-            shadergen.emitComment("Add surface emission", stage);
-            shadergen.emitScopeBegin(stage);
+        // //
+        // // Handle surface emission.
+        // //
+        // const ShaderInput* edfInput = node.getInput("edf");
+        // if (const ShaderNode* edf = edfInput->getConnectedSibling()) {
+        //     shadergen.emitComment("Add surface emission", stage);
+        //     shadergen.emitScopeBegin(stage);
 
-            if (edf->hasClassification(ShaderNode::Classification::EDF)) {
-                shadergen.emitLine("ClosureData closureData = ClosureData(CLOSURE_TYPE_EMISSION, L, V, N, P, occlusion)", stage);
-                shadergen.emitFunctionCall(*edf, context, stage);
-            }
-            else
-            {
-                shadergen.emitLineBegin(stage);
-                shadergen.emitOutput(edf->getOutput(), true, true, context, stage);
-                shadergen.emitLineEnd(stage);
-            }
+        //     if (edf->hasClassification(ShaderNode::Classification::EDF)) {
+        //         shadergen.emitLine(
+        //             "ClosureData closureData = "
+        //             "ClosureData(CLOSURE_TYPE_EMISSION, L, V, N, P,
+        //             occlusion)", stage);
+        //         shadergen.emitFunctionCall(*edf, context, stage);
+        //     }
+        //     else {
+        //         shadergen.emitLineBegin(stage);
+        //         shadergen.emitOutput(
+        //             edf->getOutput(), true, true, context, stage);
+        //         shadergen.emitLineEnd(stage);
+        //     }
 
-            shadergen.emitLine(outColor + " += " + edf->getOutput()->getVariable(), stage);
-            shadergen.emitScopeEnd(stage);
-            shadergen.emitLineBreak(stage);
-        }
+        //     shadergen.emitLine(
+        //         outColor + " += " + edf->getOutput()->getVariable(), stage);
+        //     shadergen.emitScopeEnd(stage);
+        //     shadergen.emitLineBreak(stage);
+        // }
 
         //
         // Handle surface transmission and opacity.
         //
-        if (const ShaderNode* bsdf = bsdfInput->getConnectedSibling())
-        {
-            shadergen.emitComment("Calculate the BSDF transmission for viewing direction", stage);
+        if (const ShaderNode* bsdf = bsdfInput->getConnectedSibling()) {
+            shadergen.emitComment(
+                "Calculate the BSDF transmission for viewing direction", stage);
             shadergen.emitScopeBegin(stage);
-            if (bsdf->hasClassification(ShaderNode::Classification::BSDF_T) || bsdf->hasClassification(ShaderNode::Classification::VDF)) {
-                shadergen.emitLine("ClosureData closureData = ClosureData(CLOSURE_TYPE_TRANSMISSION, L, V, N, P, occlusion)", stage);
+            if (bsdf->hasClassification(ShaderNode::Classification::BSDF_T) ||
+                bsdf->hasClassification(ShaderNode::Classification::VDF)) {
+                shadergen.emitLine(
+                    "ClosureData closureData = "
+                    "ClosureData(CLOSURE_TYPE_TRANSMISSION, L, V, N, P, "
+                    "occlusion)",
+                    stage);
+
                 shadergen.emitFunctionCall(*bsdf, context, stage);
             }
-            else
-            {
+            else {
                 shadergen.emitLineBegin(stage);
-                shadergen.emitOutput(bsdf->getOutput(), true, true, context, stage);
+                shadergen.emitOutput(
+                    bsdf->getOutput(), true, true, context, stage);
                 shadergen.emitLineEnd(stage);
             }
 
-            if (context.getOptions().hwTransmissionRenderMethod == TRANSMISSION_REFRACTION)
-            {
-                shadergen.emitLine(outColor + " += " + bsdf->getOutput()->getVariable() + ".response", stage);
+            if (context.getOptions().hwTransmissionRenderMethod ==
+                TRANSMISSION_REFRACTION) {
+                shadergen.emitLine(
+                    outColor + " += " + bsdf->getOutput()->getVariable() +
+                        ".response",
+                    stage);
             }
-            else
-            {
-                shadergen.emitLine(outTransparency + " += " + bsdf->getOutput()->getVariable() + ".response", stage);
+            else {
+                shadergen.emitLine(
+                    outTransparency +
+                        " += " + bsdf->getOutput()->getVariable() + ".response",
+                    stage);
             }
 
             shadergen.emitScopeEnd(stage);
@@ -241,7 +278,10 @@ void SurfaceNodeSlang::emitFunctionCall(
             shadergen.emitComment("Compute and apply surface opacity", stage);
             shadergen.emitScopeBegin(stage);
             shadergen.emitLine(outColor + " *= surfaceOpacity", stage);
-            shadergen.emitLine(outTransparency + " = lerp(float3(1.0), " + outTransparency + ", surfaceOpacity)", stage);
+            shadergen.emitLine(
+                outTransparency + " = lerp(float3(1.0), " + outTransparency +
+                    ", surfaceOpacity)",
+                stage);
             shadergen.emitScopeEnd(stage);
         }
 
@@ -269,14 +309,19 @@ void SurfaceNodeSlang::emitLightLoop(
         const ShaderInput* bsdfInput = node.getInput("bsdf");
         const ShaderNode* bsdf = bsdfInput->getConnectedSibling();
 
-        shadergen.emitComment("Calculate the BSDF response for this light source", stage);
+        shadergen.emitComment(
+            "Calculate the BSDF response for this light source", stage);
+
+        shadergen.emitScopeBegin(stage);
 
         if (bsdf->hasClassification(ShaderNode::Classification::BSDF_R)) {
-            shadergen.emitLine("ClosureData closureData = ClosureData(CLOSURE_TYPE_REFLECTION, L, V, N, P, occlusion)", stage);
+            shadergen.emitLine(
+                "ClosureData closureData = "
+                "ClosureData(CLOSURE_TYPE_REFLECTION, L, V, N, P, occlusion)",
+                stage);
             shadergen.emitFunctionCall(*bsdf, context, stage);
         }
-        else
-        {
+        else {
             shadergen.emitLineBegin(stage);
             shadergen.emitOutput(bsdf->getOutput(), true, true, context, stage);
             shadergen.emitLineEnd(stage);
@@ -288,6 +333,7 @@ void SurfaceNodeSlang::emitLightLoop(
         shadergen.emitLine(
             outColor + " += " + bsdf->getOutput()->getVariable() + ".response",
             stage);
+        shadergen.emitScopeEnd(stage);
 
         shadergen.emitLineBreak(stage);
     }

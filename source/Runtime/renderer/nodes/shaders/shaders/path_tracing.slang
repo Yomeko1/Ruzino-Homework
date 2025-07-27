@@ -49,8 +49,8 @@ void RayGen()
             SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, get_ray_desc(ray), payload);
         output_color += payload.color;
     }
-    output_color /= float(spp); // Average color over multiple samples
-    //output_color = ray.Direction*0.5+0.5;
+    output_color /= float(spp);  // Average color over multiple samples
+    // output_color = ray.Direction*0.5+0.5;
     output[pixel] = float4(output_color, 1.0);
 
     random_seeds[DispatchRaysIndex().x] = payload.seed;
@@ -157,14 +157,16 @@ void ClosestHit(
     // else {
     // }
     payload.throughput *= cosine_factor * callData.throughput / pdf;
-    // if (payload.depth == 0) {
-        
-    //    payload.color = cosine_factor * callData.throughput / pdf / 2;
-    //    payload.color = WorldRayDirection() * 0.5 + 0.5;  // For debugging,
-    //    // payload.color = callData.sampledDir * 0.5 + 0.5;  // For debugging,
-    //    payload.seed = callData.seed;
-    //    return;
-    // }
+    if (payload.depth == 0) {
+        // payload.color =  callData.pdf / 1000 / 5;
+        payload.color = cosine_factor * callData.throughput / callData.pdf / 2;
+        payload.color = callData.throughput;
+        // if (!isTransmission)
+        //     payload.color = 0;
+        // payload.color = callData.sampledDir * 0.5 + 0.5;  // For debugging,
+        payload.seed = callData.seed;
+        return;
+    }
 
     // payload.color = payload.throughput/2;
     // payload.seed = callData.seed;
