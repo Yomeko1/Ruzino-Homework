@@ -827,4 +827,96 @@ NODE_EXECUTION_FUNCTION(create_trefoil)
     return true;
 }
 
+NODE_DECLARATION_FUNCTION(create_cube)
+{
+    b.add_input<float>("width").min(0.1).max(20).default_val(2.0);
+    b.add_input<float>("height").min(0.1).max(20).default_val(2.0);
+    b.add_input<float>("depth").min(0.1).max(20).default_val(2.0);
+    b.add_output<Geometry>("Geometry");
+}
+
+NODE_EXECUTION_FUNCTION(create_cube)
+{
+    float width = params.get_input<float>("width");
+    float height = params.get_input<float>("height");
+    float depth = params.get_input<float>("depth");
+
+    Geometry geometry;
+    std::shared_ptr<MeshComponent> mesh =
+        std::make_shared<MeshComponent>(&geometry);
+    geometry.attach_component(mesh);
+
+    pxr::VtArray<pxr::GfVec3f> points;
+    pxr::VtArray<pxr::GfVec3f> normals;
+    pxr::VtArray<pxr::GfVec2f> texcoord;
+    pxr::VtArray<int> faceVertexIndices;
+    pxr::VtArray<int> faceVertexCounts;
+
+    float halfWidth = width * 0.5f;
+    float halfHeight = height * 0.5f;
+    float halfDepth = depth * 0.5f;
+
+    // Define 8 vertices of the cube
+    pxr::VtArray<pxr::GfVec3f> vertices = {
+        pxr::GfVec3f(-halfWidth, -halfHeight, -halfDepth), // 0
+        pxr::GfVec3f( halfWidth, -halfHeight, -halfDepth), // 1
+        pxr::GfVec3f( halfWidth,  halfHeight, -halfDepth), // 2
+        pxr::GfVec3f(-halfWidth,  halfHeight, -halfDepth), // 3
+        pxr::GfVec3f(-halfWidth, -halfHeight,  halfDepth), // 4
+        pxr::GfVec3f( halfWidth, -halfHeight,  halfDepth), // 5
+        pxr::GfVec3f( halfWidth,  halfHeight,  halfDepth), // 6
+        pxr::GfVec3f(-halfWidth,  halfHeight,  halfDepth)  // 7
+    };
+
+    // Face normals
+    pxr::VtArray<pxr::GfVec3f> faceNormals = {
+        pxr::GfVec3f( 0,  0, -1), // Front
+        pxr::GfVec3f( 0,  0,  1), // Back
+        pxr::GfVec3f(-1,  0,  0), // Left
+        pxr::GfVec3f( 1,  0,  0), // Right
+        pxr::GfVec3f( 0, -1,  0), // Bottom
+        pxr::GfVec3f( 0,  1,  0)  // Top
+    };
+
+    // Face vertex indices (counter-clockwise)
+    int faces[6][4] = {
+        {0, 1, 2, 3}, // Front
+        {7, 6, 5, 4}, // Back
+        {4, 0, 3, 7}, // Left
+        {1, 5, 6, 2}, // Right
+        {4, 5, 1, 0}, // Bottom
+        {3, 2, 6, 7}  // Top
+    };
+
+    // UV coordinates for each face
+    pxr::VtArray<pxr::GfVec2f> faceUVs = {
+        pxr::GfVec2f(0, 0), pxr::GfVec2f(1, 0), pxr::GfVec2f(1, 1), pxr::GfVec2f(0, 1)
+    };
+
+    // Build the mesh
+    for (int face = 0; face < 6; ++face) {
+        for (int vert = 0; vert < 4; ++vert) {
+            points.push_back(vertices[faces[face][vert]]);
+            normals.push_back(faceNormals[face]);
+            texcoord.push_back(faceUVs[vert]);
+        }
+
+        faceVertexCounts.push_back(4);
+        int baseIdx = face * 4;
+        faceVertexIndices.push_back(baseIdx);
+        faceVertexIndices.push_back(baseIdx + 1);
+        faceVertexIndices.push_back(baseIdx + 2);
+        faceVertexIndices.push_back(baseIdx + 3);
+    }
+
+    mesh->set_vertices(points);
+    mesh->set_normals(normals);
+    mesh->set_face_vertex_indices(faceVertexIndices);
+    mesh->set_face_vertex_counts(faceVertexCounts);
+    mesh->set_texcoords_array(texcoord);
+
+    params.set_output("Geometry", std::move(geometry));
+    return true;
+}
+
 NODE_DEF_CLOSE_SCOPE

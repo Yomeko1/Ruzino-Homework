@@ -19,8 +19,10 @@ NODE_DECLARATION_FUNCTION(mesh2sdf)
 NODE_EXECUTION_FUNCTION(mesh2sdf)
 {
     auto geometry = params.get_input<Geometry>("M");
+    geometry.apply_transform();
 
     auto mesh_component = geometry.get_component<MeshComponent>();
+    
 
     // Check if we have a valid mesh
     if (!mesh_component) {
@@ -80,14 +82,14 @@ NODE_EXECUTION_FUNCTION(mesh2sdf)
             return false;
         }
     }
-
     openvdb::FloatGrid::Ptr grid =
-        openvdb::tools::meshToLevelSet<openvdb::FloatGrid>(
+        openvdb::tools::meshToSignedDistanceField<openvdb::FloatGrid>(
             *transform,
             points,
             tris,
             quads,
-            narrow_band_width * voxel_size  // Narrow band half-width
+            narrow_band_width * voxel_size,  // Exterior band width
+            narrow_band_width * voxel_size   // Interior band width
         );
     grid->setName("sdf");
 

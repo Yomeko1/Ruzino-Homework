@@ -8,6 +8,7 @@
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 #include <pxr/usd/usdVol/openVDBAsset.h>
+#include <pxr/usd/usdVol/volume.h>
 
 #include <string>
 
@@ -275,13 +276,46 @@ NODE_EXECUTION_FUNCTION(write_usd)
         }
     }
     else if (volume) {
-        auto openvdb_asset = pxr::UsdVolOpenVDBAsset::Define(stage, sdf_path);
+        pxr::UsdVolVolume usd_volume =
+            pxr::UsdVolVolume::Define(stage, sdf_path);
 
-        // Save the volume grid onto the disk
+        if (!usd_volume) {
+            params.set_error("Failed to create USD Volume");
+            return false;
+        }        // Create the OpenVDB asset as a child of the volume
+        // Use a generic field name that matches what VolumeComponent actually saves
+        auto vdb_asset_path = sdf_path.AppendChild(pxr::TfToken("field"));
+        auto openvdb_asset =
+            pxr::UsdVolOpenVDBAsset::Define(stage, vdb_asset_path);
+
+        if (!openvdb_asset) {
+            params.set_error("Failed to create OpenVDB asset");
+            return false;
+        }
+
+        // Save the volume grid onto the disk with the correct grid name
         auto file_name = "volume" + sdf_path.GetName() +
                          std::to_string(time.GetValue()) + ".vdb";
+        
+        // Save using the default grid name (VolumeComponent doesn't support custom grid names)
         volume->write_disk(file_name);
-        openvdb_asset.CreateFilePathAttr().Set(pxr::SdfAssetPath(file_name));
+
+        // Set file path and use a generic field name that will be resolved by Hydra
+        openvdb_asset.CreateFilePathAttr().Set(
+            pxr::SdfAssetPath(file_name), time);
+        // Don't specify a specific grid name - let Hydra use the first available grid
+        // openvdb_asset.CreateFieldNameAttr().Set(pxr::TfToken("density"), time);
+
+        // Set up the volume field relationship using a generic field name
+        // This will work for both "density" and "sdf" grids
+        if (!usd_volume.CreateFieldRelationship(
+                pxr::TfToken("field"), vdb_asset_path)) {
+            params.set_error("Failed to create field relationship");
+            return false;
+        }
+
+        // Ensure the volume prim is visible
+        usd_volume.MakeVisible(time);
     }
     else {
         params.set_error("No valid geometry component found");

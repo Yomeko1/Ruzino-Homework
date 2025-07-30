@@ -25,13 +25,19 @@
 
 #include "renderDelegate.h"
 
+#include <corecrt_math_defines.h>
+#include <pxr/imaging/hd/field.h>
+#include <pxr/usdImaging/usdVolImaging/tokens.h>
+
 #include <iostream>
 
 #include "Logger/Logger.h"
 #include "RHI/Hgi/desc_conversion.hpp"
 #include "RHI/rhi.hpp"
 #include "config.h"
+#include "geometries/field.h"
 #include "geometries/mesh.h"
+#include "geometries/volume.h"
 #include "hd_USTC_CG/render_global_payload.hpp"
 #include "instancer.h"
 #include "light.h"
@@ -42,6 +48,7 @@
 #include "nvrhi/nvrhi.h"
 #include "pxr/imaging/hd/extComputation.h"
 #include "renderBuffer.h"
+#include "renderParam.h"
 #include "renderPass.h"
 #include "renderer.h"
 
@@ -57,6 +64,7 @@ TF_DEFINE_PUBLIC_TOKENS(
 
 const TfTokenVector Hd_USTC_CG_RenderDelegate::SUPPORTED_RPRIM_TYPES = {
     HdPrimTypeTokens->mesh,
+    HdPrimTypeTokens->volume,
 };
 
 const TfTokenVector Hd_USTC_CG_RenderDelegate::SUPPORTED_SPRIM_TYPES = {
@@ -70,6 +78,7 @@ const TfTokenVector Hd_USTC_CG_RenderDelegate::SUPPORTED_SPRIM_TYPES = {
 
 const TfTokenVector Hd_USTC_CG_RenderDelegate::SUPPORTED_BPRIM_TYPES = {
     HdPrimTypeTokens->renderBuffer,
+    UsdVolImagingTokens->openvdbAsset
 };
 
 Hd_USTC_CG_RenderDelegate::Hd_USTC_CG_RenderDelegate() : HdRenderDelegate()
@@ -263,6 +272,11 @@ HdRprim* Hd_USTC_CG_RenderDelegate::CreateRprim(
         meshes.push_back(mesh);
         return mesh;
     }
+    else if (typeId == HdPrimTypeTokens->volume) {
+        auto volume = new Hd_USTC_CG_Volume(rprimId);
+        log::info("Created volume: %s", rprimId.GetText());
+        return volume;
+    }
     TF_CODING_ERROR(
         "Unknown Rprim type=%s id=%s", typeId.GetText(), rprimId.GetText());
     return nullptr;
@@ -287,7 +301,8 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateSprim(
     }
     else if (typeId == HdPrimTypeTokens->extComputation) {
         return new HdExtComputation(sprimId);
-    }    else if (typeId == HdPrimTypeTokens->material) {
+    }
+    else if (typeId == HdPrimTypeTokens->material) {
         auto material = new Hd_USTC_CG_MaterialX(sprimId);
         materials[sprimId] = material;
 
@@ -348,7 +363,8 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     }
     else if (typeId == HdPrimTypeTokens->extComputation) {
         return new HdExtComputation(SdfPath::EmptyPath());
-    }    else if (typeId == HdPrimTypeTokens->material) {
+    }
+    else if (typeId == HdPrimTypeTokens->material) {
         auto material = new Hd_USTC_CG_MaterialX(SdfPath::EmptyPath());
         materials[SdfPath::EmptyPath()] = material;
 
@@ -382,7 +398,8 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateFallbackSprim(const TfToken& typeId)
         return light;
     }
     else if (typeId == HdPrimTypeTokens->cylinderLight) {
-        auto light = new Hd_USTC_CG_Cylinder_Light(SdfPath::EmptyPath(), typeId);
+        auto light =
+            new Hd_USTC_CG_Cylinder_Light(SdfPath::EmptyPath(), typeId);
         lights.push_back(light);
         return light;
     }
@@ -424,6 +441,13 @@ HdBprim* Hd_USTC_CG_RenderDelegate::CreateBprim(
 
         return new Hd_USTC_CG_RenderBuffer(bprimId);
     }
+    if (typeId == UsdVolImagingTokens->openvdbAsset) {
+        // log::info(("Create bprim: type id=" + typeId.GetString() +
+        //            ",prim id = " + bprimId.GetString())
+        //               .c_str());
+        return new Hd_USTC_CG_Field(bprimId);
+    }
+
     TF_CODING_ERROR("Unknown Bprim Type %s", typeId.GetText());
     return nullptr;
 }
@@ -431,7 +455,14 @@ HdBprim* Hd_USTC_CG_RenderDelegate::CreateBprim(
 HdBprim* Hd_USTC_CG_RenderDelegate::CreateFallbackBprim(const TfToken& typeId)
 {
     if (typeId == HdPrimTypeTokens->renderBuffer) {
+        log::info(
+            ("Create fallback bprim: type id=" + typeId.GetString()).c_str());
         return new Hd_USTC_CG_RenderBuffer(SdfPath::EmptyPath());
+    }
+    if (typeId == UsdVolImagingTokens->openvdbAsset) {
+        log::info(
+            ("Create fallback bprim: type id=" + typeId.GetString()).c_str());
+        return new Hd_USTC_CG_Field(SdfPath::EmptyPath());
     }
     TF_CODING_ERROR("Unknown Bprim Type %s", typeId.GetText());
     return nullptr;

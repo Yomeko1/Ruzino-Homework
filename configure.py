@@ -139,9 +139,9 @@ def process_usd(targets, dry_run=False, keep_original_files=True, copy_only=Fals
             }
             build_variant = build_variant_map.get(target, target.lower())
             if build_variant == "relwithdebuginfo":
-                openvdb_args = 'OpenVDB,"-DUSE_EXPLICIT_INSTANTIATION=OFF -DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBUGINFO="RelWithDebInfo;Release;"" '
+                openvdb_args = 'OpenVDB,"-DUSE_EXPLICIT_INSTANTIATION=OFF -DOPENVDB_BUILD_NANOVDB=ON -DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBUGINFO="RelWithDebInfo;Release;"" '
             else:
-                openvdb_args = "OpenVDB,-DUSE_EXPLICIT_INSTANTIATION=OFF "
+                openvdb_args = 'OpenVDB,"-DUSE_EXPLICIT_INSTANTIATION=OFF -DOPENVDB_BUILD_NANOVDB=ON" '
 
             no_tbb_linkage = "-DCMAKE_CXX_FLAGS=-D__TBB_NO_IMPLICIT_LINKAGE=1"
             openimageio_args = f"OpenImageIO,{no_tbb_linkage} "
