@@ -348,7 +348,6 @@ struct AppendStructuredBuffer {
     CUDALinearBufferHandle d_workqueue;
     CUDALinearBufferHandle workqueue_buffer;
 };
-}  // namespace cuda
 
 #define HOST_DEVICE __host__ __device__
 
@@ -412,10 +411,6 @@ void GPUParallelFor(const char* description, int nItems, F func)
     nvtxRangePush(description);
 #endif
 
-#ifdef _DEBUG
-    std::cerr << "Launching " << std::string(description) << " with size "
-              << nItems << std::endl;
-#endif
     if (nItems > 0) {
         auto kernel = &Kernel<F>;
 
@@ -423,6 +418,7 @@ void GPUParallelFor(const char* description, int nItems, F func)
 
         int gridSize = (nItems + blockSize - 1) / blockSize;
         kernel<<<gridSize, blockSize>>>(func, nItems);
+        CUDA_SYNC_CHECK();
     }
 
 #ifdef NVTX
@@ -437,10 +433,6 @@ void GPUParallelFor2D(const char* description, int2 resolution, F func)
     nvtxRangePush(description);
 #endif
 
-#ifdef _DEBUG
-    std::cerr << "Launching " << std::string(description) << " with size ("
-              << resolution.x << ", " << resolution.y << ")" << std::endl;
-#endif
 
     auto kernel = &Kernel2D<F>;
 
@@ -448,6 +440,7 @@ void GPUParallelFor2D(const char* description, int2 resolution, F func)
 
     int gridSize = (resolution.x * resolution.y + blockSize - 1) / blockSize;
     kernel<<<gridSize, blockSize>>>(func, resolution);
+    CUDA_SYNC_CHECK();
 
 #ifdef NVTX
     nvtxRangePop();
@@ -458,6 +451,8 @@ void GPUParallelFor2D(const char* description, int2 resolution, F func)
 
 #define GPU_LAMBDA(...)    [ =, *this ] __device__(__VA_ARGS__) mutable
 #define GPU_LAMBDA_Ex(...) [=] __device__(__VA_ARGS__) mutable
+
+}  // namespace cuda
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
 
