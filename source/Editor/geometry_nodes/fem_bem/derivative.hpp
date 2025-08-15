@@ -87,9 +87,11 @@ namespace fem_bem {
             // Add all variables to symbol table
             ParameterMap<T> temp_values = values;
 
-            for (const auto& pair : temp_values) {
+            for (std::size_t i = 0; i < temp_values.size(); ++i) {
+                const char* name = temp_values.get_name_at(i);
+                const T& value = temp_values.get_value_at(i);
                 symbol_table.add_variable(
-                    pair.first, const_cast<T&>(pair.second));
+                    name, const_cast<T&>(temp_values.get_value_at(i)));
             }
 
             symbol_table.add_constants();
@@ -127,16 +129,15 @@ namespace fem_bem {
             const T x_init = *var_value;
 
             // Create modified value maps for derivative computation
-            ParameterMap<T> values_plus_h = values;
-            ParameterMap<T> values_minus_h = values;
+            ParameterMap<T> values_h = values;
+            values_h.insert_or_assign(variable_name.c_str(), x_init + h);
+            const T y_plus = compound_evaluator(values_h);
 
-            values_plus_h.insert_or_assign(variable_name.c_str(), x_init + h);
-            values_minus_h.insert_or_assign(variable_name.c_str(), x_init - h);
+            values_h.insert_or_assign(variable_name.c_str(), x_init - h);
 
             // Use simple 2-point central difference for better numerical
             // stability
-            const T y_plus = compound_evaluator(values_plus_h);
-            const T y_minus = compound_evaluator(values_minus_h);
+            const T y_minus = compound_evaluator(values_h);
 
             return (y_plus - y_minus) / (T(2) * h);
         };

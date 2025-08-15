@@ -173,7 +173,8 @@ namespace fem_bem {
                 // Evaluate substitutions first
                 ParameterMap<T> outer_values;
 
-                for (const auto& pair : substitution_map_) {
+                for (std::size_t i = 0; i < substitution_map_.size(); ++i) {
+                    const auto& pair = substitution_map_[i];
                     T sub_result = pair.second.evaluate_at(variable_values);
                     outer_values.insert_or_assign(pair.first, sub_result);
                 }
@@ -186,8 +187,9 @@ namespace fem_bem {
                 // If no variables specified, discover them from the values
                 // provided
                 if (variable_names_.empty()) {
-                    for (const auto& pair : variable_values) {
-                        variable_names_.push_back(pair.first);
+                    for (std::size_t i = 0; i < variable_values.size(); ++i) {
+                        variable_names_.push_back(
+                            variable_values.get_name_at(i));
                     }
                 }
                 parse_expression();
@@ -203,12 +205,10 @@ namespace fem_bem {
             const exprtk::symbol_table<T>& sym_table =
                 compiled_expression_->get_symbol_table();
 
-            for (const auto& pair : variable_values) {
-                *temp_variables_.find(pair.first) = pair.second;
-                //auto* var_node = sym_table.get_variable_unchecked(pair.first);
-                //if (var_node) {
-                //    var_node->ref() = pair.second;
-                //}
+            for (std::size_t i = 0; i < variable_values.size(); ++i) {
+                const char* name = variable_values.get_name_at(i);
+                const T& value = variable_values.get_value_at(i);
+                *temp_variables_.find(name) = value;
             }
 
             T result = compiled_expression_->value();

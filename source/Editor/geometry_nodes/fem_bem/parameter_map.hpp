@@ -1,46 +1,42 @@
 #pragma once
 #include <cstring>
-#include <vector>
-
+#include <initializer_list>
+#include <utility>
 
 namespace USTC_CG {
 namespace fem_bem {
 
-    // Efficient parameter map using vector with pre-allocated capacity
-    // Optimized for small parameter lists with minimal string construction
-    // overhead
-    template<typename T, std::size_t ReserveSize = 8, std::size_t NameBufferSize = 16>
+    // Stack-based parameter map using fixed-size array
+    // Optimized for small parameter lists with no dynamic memory allocation
+    template<
+        typename T,
+        std::size_t MaxSize = 8,
+        std::size_t NameBufferSize = 4>
     class ParameterMap {
        private:
         struct Entry {
             char name[NameBufferSize];
             T value;
+            bool occupied;
 
-            Entry() : value{}
+            Entry() : value{}, occupied(false)
             {
                 name[0] = '\0';
             }
-            
-            Entry(const char* n, const T& v) : value(v)
-            {
-                std::strncpy(name, n, NameBufferSize - 1);
-                name[NameBufferSize - 1] = '\0';
-            }
         };
 
-        std::vector<Entry> entries_;
+        Entry entries_[MaxSize];
+        std::size_t size_;
 
        public:
-        ParameterMap()
+        ParameterMap() : size_(0)
         {
-            entries_.reserve(
-                ReserveSize);  // Pre-allocate capacity to avoid reallocations
         }
 
         // Constructor from initializer list
         ParameterMap(std::initializer_list<std::pair<const char*, T>> init)
+            : size_(0)
         {
-            entries_.reserve(std::max(ReserveSize, init.size()));
             for (const auto& pair : init) {
                 insert_or_assign(pair.first, pair.second);
             }
@@ -50,34 +46,89 @@ namespace fem_bem {
         void insert_or_assign(const char* name, const T& value)
         {
             // First check if key already exists
-            for (auto& entry : entries_) {
-                if (std::strcmp(entry.name, name) == 0) {
-                    entry.value = value;
+            for (std::size_t i = 0; i < size_; ++i) {
+                if (entries_[i].occupied && entries_[i].name[0] == name[0] &&
+                    std::strcmp(entries_[i].name, name) == 0) {
+                    entries_[i].value = value;
                     return;
                 }
             }
 
-            // Insert new entry
-            entries_.emplace_back(name, value);
+            // Insert new entry if there's space
+            if (size_ < MaxSize) {
+                Entry& entry = entries_[size_];
+
+                // Optimized string copy - handle common single character case
+                // first
+                if (name[1] == '\0') {
+                    // Single character optimization
+                    entry.name[0] = name[0];
+                    entry.name[1] = '\0';
+                }
+                else {
+                    // Fast manual copy for longer strings
+                    const char* src = name;
+                    char* dst = entry.name;
+                    std::size_t i = 0;
+                    while (i < NameBufferSize - 1 && *src != '\0') {
+                        *dst++ = *src++;
+                        ++i;
+                    }
+                    *dst = '\0';
+                }
+
+                entry.value = value;
+                entry.occupied = true;
+                ++size_;
+            }
         }
 
-        // Access by key (const version)
+        // Access by key (const version) - optimized for single character names
         const T* find(const char* name) const
         {
-            for (const auto& entry : entries_) {
-                if (std::strcmp(entry.name, name) == 0) {
-                    return &entry.value;
+            // Fast path for single character names
+            if (name[1] == '\0') {
+                const char ch = name[0];
+                for (std::size_t i = 0; i < size_; ++i) {
+                    if (entries_[i].occupied && entries_[i].name[0] == ch &&
+                        entries_[i].name[1] == '\0') {
+                        return &entries_[i].value;
+                    }
+                }
+            }
+            else {
+                // Slower path for multi-character names
+                for (std::size_t i = 0; i < size_; ++i) {
+                    if (entries_[i].occupied &&
+                        std::strcmp(entries_[i].name, name) == 0) {
+                        return &entries_[i].value;
+                    }
                 }
             }
             return nullptr;
         }
 
-        // Access by key (non-const version)
+        // Access by key (non-const version) - optimized for single character
+        // names
         T* find(const char* name)
         {
-            for (auto& entry : entries_) {
-                if (std::strcmp(entry.name, name) == 0) {
-                    return &entry.value;
+            // Fast path for single character names
+            if (name[1] == '\0') {
+                const char ch = name[0];
+                for (std::size_t i = 0; i < size_; ++i) {
+                    if (entries_[i].occupied && entries_[i].name[0] == ch &&
+                        entries_[i].name[1] == '\0') {
+                        return &entries_[i].value;
+                    }
+                }
+            }
+            else {
+                // Slower path for multi-character names
+                for (std::size_t i = 0; i < size_; ++i) {
+                    if (entries_[i].occupied &&
+                        std::strcmp(entries_[i].name, name) == 0) {
+                        return &entries_[i].value;
+                    }
                 }
             }
             return nullptr;
@@ -92,62 +143,38 @@ namespace fem_bem {
         // Get size
         std::size_t size() const
         {
-            return entries_.size();
+            return size_;
         }
 
         // Check if empty
         bool empty() const
         {
-            return entries_.empty();
+            return size_ == 0;
         }
 
         // Clear all entries
         void clear()
         {
-            entries_.clear();
+            size_ = 0;
+            for (std::size_t i = 0; i < MaxSize; ++i) {
+                entries_[i].occupied = false;
+            }
         }
 
-        // Iterator support for range-based loops
-        class const_iterator {
-           private:
-            typename std::vector<Entry>::const_iterator it_;
-
-           public:
-            const_iterator(typename std::vector<Entry>::const_iterator it)
-                : it_(it)
-            {
-            }
-
-            const std::pair<const char*, const T&> operator*() const
-            {
-                return { it_->name, it_->value };
-            }
-
-            const_iterator& operator++()
-            {
-                ++it_;
-                return *this;
-            }
-
-            bool operator!=(const const_iterator& other) const
-            {
-                return it_ != other.it_;
-            }
-
-            bool operator==(const const_iterator& other) const
-            {
-                return it_ == other.it_;
-            }
-        };
-
-        const_iterator begin() const
+        // Index-based access for performance (replaces iterator interface)
+        const char* get_name_at(std::size_t index) const
         {
-            return const_iterator(entries_.begin());
+            return index < size_ ? entries_[index].name : nullptr;
         }
 
-        const_iterator end() const
+        const T& get_value_at(std::size_t index) const
         {
-            return const_iterator(entries_.end());
+            return entries_[index].value;
+        }
+
+        T& get_value_at(std::size_t index)
+        {
+            return entries_[index].value;
         }
     };
 

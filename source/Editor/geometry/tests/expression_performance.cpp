@@ -27,12 +27,11 @@ int main()
 
     long long operations = 0;
 
-#ifdef DEBUG
+#ifdef _DEBUG
     auto step = 0.001f;
 #else
     auto step = 0.0001f;  // Use smaller step for performance testing
 #endif
-
 
     for (float u = 0.0f; u <= 1.0f; u += step) {
         for (float v = 0.0f; v <= 1.0f; v += 0.002f) {
@@ -48,11 +47,17 @@ int main()
     std::cout << "Evaluation took " << duration << " ms." << std::endl;
     std::cout << "Total operations: " << operations << std::endl;
 
-    std::cout << "flops: " << (operations / (duration / 1000.0))/ 1000.0 << " kflops/s."
-              << std::endl;
+    std::cout << "flops: " << (operations / (duration / 1000.0)) / 1000.0
+              << " kflops/s." << std::endl;
 
     // Baseline: 46.32 kflops/s.
     // Unchecked get_variable(): 71.36 kflops/s
     // Use local buffer: 200 kflops/s
+    // remove range-based for loop: 347.3 kflops/s
+    // Use array: 1705.79 kflops/s
+
+
     // Release version: 3174.06 kflops/s
- }
+    // Use plain array: 5887.19 kflops/s
+    // Use fast path: 10636.9 kflops/s
+}
