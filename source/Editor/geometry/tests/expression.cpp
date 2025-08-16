@@ -29,9 +29,7 @@ TEST(ExpressionFocusedTest, VariableManagementAPI)
     ExpressionD expr("a + b * c");
 
     // Test evaluate_at method since add_variable is removed
-    ParameterMap<double> values = { { "a", 1.0 },
-                                   { "b", 2.0 },
-                                   { "c", 3.0 } };
+    ParameterMap<double> values = { { "a", 1.0 }, { "b", 2.0 }, { "c", 3.0 } };
 
     EXPECT_DOUBLE_EQ(expr.evaluate_at(values), 7.0);
 
@@ -132,8 +130,7 @@ TEST(ExpressionFocusedTest, CopySemantics)
     EXPECT_EQ(expr2.get_string(), "x * y + 5");
 
     // Both expressions should evaluate to the same result with same inputs
-    ParameterMap<double> values = { { "x", 2.0 },
-                                   { "y", 3.0 } };
+    ParameterMap<double> values = { { "x", 2.0 }, { "y", 3.0 } };
     EXPECT_DOUBLE_EQ(expr1.evaluate_at(values), 11.0);  // 2*3+5
     EXPECT_DOUBLE_EQ(expr2.evaluate_at(values), 11.0);  // 2*3+5
 }
@@ -215,7 +212,8 @@ TEST(ExpressionFocusedTest, ErrorHandling)
     // Test empty expression
     ExpressionD empty_expr;
     EXPECT_EQ(empty_expr.get_string(), "");
-    EXPECT_THROW(empty_expr.evaluate_at(ParameterMap<double>{}), std::runtime_error);
+    EXPECT_THROW(
+        empty_expr.evaluate_at(ParameterMap<double>{}), std::runtime_error);
 }
 
 // Test Expression class specific functionality - Derivative interface
