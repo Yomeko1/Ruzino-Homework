@@ -8,24 +8,34 @@ namespace fem_bem {
         const real& h)
     {
         const real x_init = var->ref();
-        const real _2h = real(2) * h;
 
-        var->ref() = x_init + _2h;
-        const real y0 = expr.value();
+        // Use 2-point central difference with better stability
         var->ref() = x_init + h;
-        const real y1 = expr.value();
+        const real y_plus = expr.value();
         var->ref() = x_init - h;
-        const real y2 = expr.value();
-        var->ref() = x_init - _2h;
-        const real y3 = expr.value();
+        const real y_minus = expr.value();
         var->ref() = x_init;
 
-        return (-y0 + real(8) * (y1 - y2) + y3) / (real(12) * h);
+        // Check for numerical issues and use adaptive step if needed
+        real derivative = (y_plus - y_minus) / (real(2) * h);
+
+        // If derivative seems too large, try with smaller step
+        if (std::abs(derivative) > real(1e6)) {
+            real smaller_h = h * real(0.1);
+            var->ref() = x_init + smaller_h;
+            const real y_plus_small = expr.value();
+            var->ref() = x_init - smaller_h;
+            const real y_minus_small = expr.value();
+            var->ref() = x_init;
+            derivative = (y_plus_small - y_minus_small) / (real(2) * smaller_h);
+        }
+
+        return derivative;
     }
     std::function<real(const ParameterMap<real>&)> create_derivative_function(
         const std::string& expression_string,
         const std::string& variable_name,
-        const real& h = real(1e-6))
+        const real& h)
     {
         return [expression_string, variable_name, h](
                    const ParameterMap<real>& values) -> real {
@@ -67,7 +77,7 @@ namespace fem_bem {
         const std::function<real(const ParameterMap<real>&)>&
             compound_evaluator,
         const std::string& variable_name,
-        const real& h = real(1e-6))
+        const real& h)
     {
         return [compound_evaluator, variable_name, h](
                    const ParameterMap<real>& values) -> real {
@@ -79,17 +89,34 @@ namespace fem_bem {
             const real x_init = *var_value;
 
             // Create modified value maps for derivative computation
-            ParameterMap<real> values_h = values;
-            values_h.insert_or_assign(variable_name.c_str(), x_init + h);
-            const real y_plus = compound_evaluator(values_h);
+            ParameterMap<real> values_plus = values;
+            ParameterMap<real> values_minus = values;
 
-            values_h.insert_or_assign(variable_name.c_str(), x_init - h);
+            // Use 2-point central difference
+            values_plus.insert_or_assign(variable_name.c_str(), x_init + h);
+            const real y_plus = compound_evaluator(values_plus);
 
-            // Use simple 2-point central difference for better numerical
-            // stability
-            const real y_minus = compound_evaluator(values_h);
+            values_minus.insert_or_assign(variable_name.c_str(), x_init - h);
+            const real y_minus = compound_evaluator(values_minus);
 
-            return (y_plus - y_minus) / (real(2) * h);
+            real derivative = (y_plus - y_minus) / (real(2) * h);
+
+            // Check for numerical issues and use adaptive step if needed
+            if (std::abs(derivative) > real(1e6)) {
+                real smaller_h = h * real(0.1);
+                values_plus.insert_or_assign(
+                    variable_name.c_str(), x_init + smaller_h);
+                const real y_plus_small = compound_evaluator(values_plus);
+
+                values_minus.insert_or_assign(
+                    variable_name.c_str(), x_init - smaller_h);
+                const real y_minus_small = compound_evaluator(values_minus);
+
+                derivative =
+                    (y_plus_small - y_minus_small) / (real(2) * smaller_h);
+            }
+
+            return derivative;
         };
     }
 
@@ -213,7 +240,9 @@ namespace fem_bem {
         for (std::size_t i = 0; i < variable_values.size(); ++i) {
             const char* name = variable_values.get_name_at(i);
             const real& value = variable_values.get_value_at(i);
-            *temp_variables_.find(name) = value;
+            auto ptr = temp_variables_.find(name);
+            if (ptr)
+                *ptr = value;
         }
 
         real result = compiled_expression_->value();
@@ -261,25 +290,46 @@ namespace fem_bem {
     DerivativeExpression Expression::derivative(
         const std::string& variable_name) const
     {
+        // Use more conservative step sizes for float precision
+        real h;
+        if (is_compound_ && outer_expression_) {
+            // Check if any of the substitutions are derivatives
+            bool has_derivative_substitution = false;
+            for (const auto& pair : substitution_map_) {
+                if (pair.second.derivative_evaluator_) {
+                    has_derivative_substitution = true;
+                    break;
+                }
+            }
+            // For compound expressions with derivatives, use significantly larger step
+            h = has_derivative_substitution ? real(5e-3) : real(1e-4);
+        } else if (derivative_evaluator_) {
+            // This is already a derivative, so we're computing second derivative
+            h = real(5e-3);
+        } else {
+            // Simple expression
+            h = real(1e-4);
+        }
+        
         // For compound expressions, use numerical chain rule
         if (is_compound_ && outer_expression_) {
             auto compound_evaluator = [this](const ParameterMap<real>& values) {
                 return this->evaluate_at(values);
             };
             auto derivative_func = create_compound_derivative_function(
-                compound_evaluator, variable_name);
+                compound_evaluator, variable_name, h);
             return DerivativeExpression(derivative_func, variable_name);
         }
         // Handle derivative expressions (derivatives of derivatives)
         else if (derivative_evaluator_) {
             auto derivative_func = create_compound_derivative_function(
-                derivative_evaluator_, variable_name);
+                derivative_evaluator_, variable_name, h);
             return DerivativeExpression(derivative_func, variable_name);
         }
         else {
             // For simple expressions, use string-based derivative
-            auto derivative_func =
-                create_derivative_function(expression_string_, variable_name);
+            auto derivative_func = create_derivative_function(
+                expression_string_, variable_name, h);
             return DerivativeExpression(derivative_func, variable_name);
         }
     }

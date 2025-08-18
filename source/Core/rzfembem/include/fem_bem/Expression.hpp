@@ -16,7 +16,7 @@ namespace fem_bem {
 
     // Forward declarations
     class DerivativeExpression;
-    
+
     class RZFEMBEM_API Expression {
        public:
         using expression_type = exprtk::expression<real>;
@@ -180,9 +180,8 @@ namespace fem_bem {
             std::size_t intervals);
     };
 
-
-    Expression operator*(real scalar, const Expression& expr);
-    Expression make_expression(const std::string& expr_str);
+    RZFEMBEM_API Expression operator*(real scalar, const Expression& expr);
+    RZFEMBEM_API Expression make_expression(const std::string& expr_str);
 
     // Numerical derivative class that inherits from Expression
     class DerivativeExpression : public Expression {
@@ -218,7 +217,6 @@ namespace fem_bem {
         // Note: Integration methods are inherited from Expression base class
     };
 
-    
     // Integration methods
     template<typename MappingFunc = std::nullptr_t>
     real integrate_over_simplex(
