@@ -7,31 +7,33 @@ namespace USTC_CG {
 namespace fem_bem {
 
     // Stack-based parameter map using fixed-size array
-    // Optimized for small parameter lists with no dynamic memory allocation
+    // Ultra-lightweight optimized for small parameter lists with no dynamic memory allocation
     template<
         typename T,
         std::size_t MaxSize = 8,
         std::size_t NameBufferSize = 4>
     class ParameterMap {
        private:
+        // Ultra-compact entry layout optimized for cache lines
         struct Entry {
             char name[NameBufferSize];
             T value;
-            bool occupied;
-
-            Entry() : value{}, occupied(false)
+            
+            // No occupied flag - use name[0] == '\0' to indicate empty
+            Entry() : value{}
             {
                 name[0] = '\0';
             }
+            
+            bool is_empty() const { return name[0] == '\0'; }
+            void mark_empty() { name[0] = '\0'; }
         };
 
         Entry entries_[MaxSize];
         std::size_t size_;
 
        public:
-        ParameterMap() : size_(0)
-        {
-        }
+        ParameterMap() : size_(0) {}
 
         // Constructor from initializer list
         ParameterMap(std::initializer_list<std::pair<const char*, T>> init)
@@ -42,92 +44,109 @@ namespace fem_bem {
             }
         }
 
-        // Insert or update a value
-        void insert_or_assign(const char* name, const T& value)
+        // Ultra-fast insert or update - optimized for hot path
+        inline void insert_or_assign(const char* name, const T& value)
         {
-            // First check if key already exists
-            for (std::size_t i = 0; i < size_; ++i) {
-                if (entries_[i].occupied && entries_[i].name[0] == name[0] &&
-                    std::strcmp(entries_[i].name, name) == 0) {
-                    entries_[i].value = value;
+            // Fast path for single character names (most common case)
+            if (name[1] == '\0') {
+                const char ch = name[0];
+                // Check existing entries first (likely to be small number)
+                for (std::size_t i = 0; i < size_; ++i) {
+                    Entry& entry = entries_[i];
+                    if (entry.name[0] == ch && entry.name[1] == '\0') {
+                        entry.value = value;
+                        return;
+                    }
+                }
+                
+                // Insert new single-char entry
+                if (size_ < MaxSize) {
+                    Entry& entry = entries_[size_];
+                    entry.name[0] = ch;
+                    entry.name[1] = '\0';
+                    entry.value = value;
+                    ++size_;
                     return;
                 }
             }
 
-            // Insert new entry if there's space
+            // Multi-character path with efficient string comparison
+            const std::size_t name_len = std::strlen(name);
+            if (name_len >= NameBufferSize) return; // Name too long
+            
+            // Check existing entries
+            for (std::size_t i = 0; i < size_; ++i) {
+                Entry& entry = entries_[i];
+                if (entry.name[0] == name[0]) {
+                    // Quick memcmp for exact match (faster than strcmp for short strings)
+                    if (std::memcmp(entry.name, name, name_len + 1) == 0) {
+                        entry.value = value;
+                        return;
+                    }
+                }
+            }
+
+            // Insert new entry
             if (size_ < MaxSize) {
                 Entry& entry = entries_[size_];
-
-                // Optimized string copy - handle common single character case
-                // first
-                if (name[1] == '\0') {
-                    // Single character optimization
-                    entry.name[0] = name[0];
-                    entry.name[1] = '\0';
-                }
-                else {
-                    // Fast manual copy for longer strings
-                    const char* src = name;
-                    char* dst = entry.name;
-                    std::size_t i = 0;
-                    while (i < NameBufferSize - 1 && *src != '\0') {
-                        *dst++ = *src++;
-                        ++i;
-                    }
-                    *dst = '\0';
-                }
-
+                std::memcpy(entry.name, name, name_len + 1);
                 entry.value = value;
-                entry.occupied = true;
                 ++size_;
             }
         }
 
-        // Access by key (const version) - optimized for single character names
-        const T* find(const char* name) const
+        // Ultra-fast find for const access
+        inline const T* find(const char* name) const
         {
             // Fast path for single character names
             if (name[1] == '\0') {
                 const char ch = name[0];
                 for (std::size_t i = 0; i < size_; ++i) {
-                    if (entries_[i].occupied && entries_[i].name[0] == ch &&
-                        entries_[i].name[1] == '\0') {
-                        return &entries_[i].value;
+                    const Entry& entry = entries_[i];
+                    if (entry.name[0] == ch && entry.name[1] == '\0') {
+                        return &entry.value;
                     }
                 }
+                return nullptr;
             }
-            else {
-                // Slower path for multi-character names
-                for (std::size_t i = 0; i < size_; ++i) {
-                    if (entries_[i].occupied &&
-                        std::strcmp(entries_[i].name, name) == 0) {
-                        return &entries_[i].value;
+
+            // Multi-character search with optimized comparison
+            const std::size_t name_len = std::strlen(name);
+            for (std::size_t i = 0; i < size_; ++i) {
+                const Entry& entry = entries_[i];
+                if (entry.name[0] == name[0]) {
+                    // Quick memcmp for exact match
+                    if (std::memcmp(entry.name, name, name_len + 1) == 0) {
+                        return &entry.value;
                     }
                 }
             }
             return nullptr;
         }
 
-        // Access by key (non-const version) - optimized for single character
-        // names
-        T* find(const char* name)
+        // Ultra-fast find for non-const access
+        inline T* find(const char* name)
         {
             // Fast path for single character names
             if (name[1] == '\0') {
                 const char ch = name[0];
                 for (std::size_t i = 0; i < size_; ++i) {
-                    if (entries_[i].occupied && entries_[i].name[0] == ch &&
-                        entries_[i].name[1] == '\0') {
-                        return &entries_[i].value;
+                    Entry& entry = entries_[i];
+                    if (entry.name[0] == ch && entry.name[1] == '\0') {
+                        return &entry.value;
                     }
                 }
+                return nullptr;
             }
-            else {
-                // Slower path for multi-character names
-                for (std::size_t i = 0; i < size_; ++i) {
-                    if (entries_[i].occupied &&
-                        std::strcmp(entries_[i].name, name) == 0) {
-                        return &entries_[i].value;
+
+            // Multi-character search with optimized comparison
+            const std::size_t name_len = std::strlen(name);
+            for (std::size_t i = 0; i < size_; ++i) {
+                Entry& entry = entries_[i];
+                if (entry.name[0] == name[0]) {
+                    // Quick memcmp for exact match
+                    if (std::memcmp(entry.name, name, name_len + 1) == 0) {
+                        return &entry.value;
                     }
                 }
             }
@@ -156,9 +175,7 @@ namespace fem_bem {
         void clear()
         {
             size_ = 0;
-            for (std::size_t i = 0; i < MaxSize; ++i) {
-                entries_[i].occupied = false;
-            }
+            // Simply reset size, entries will be overwritten
         }
 
         // Index-based access for performance (replaces iterator interface)

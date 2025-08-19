@@ -10,15 +10,15 @@ using namespace USTC_CG::fem_bem;
 // Test Expression class specific functionality - Derivative interface
 int main()
 {
-    ExpressionD expr2("x + y");
-    ExpressionD element1("u+v");
-    ExpressionD element2("(u-v)^2");
-    ExpressionD compound(expr2, { { "x", element1 }, { "y", element2 } });
+    Expression expr2("x + y");
+    Expression element1("u+v");
+    Expression element2("(u-v)^2");
+    Expression compound(expr2, { { "x", element1 }, { "y", element2 } });
 
     auto derivative = compound.derivative("u");  // 1 + 2 * (u - v)
 
     // Test that derivative can be used in compound expressions
-    auto compound2 = ExpressionD(
+    auto compound2 = Expression(
         expr2,
         { { "x", element1 }, { "y", derivative } });  // u + v + 1 + 2 * (u - v)
 

@@ -98,15 +98,14 @@ namespace fem_bem {
        protected:
         // Protected members for derived classes to access
         std::string expression_string_;
-        mutable std::vector<std::string> variable_names_;
 
         // Parsed expression components
         mutable std::unique_ptr<symbol_table_type> symbol_table_;
         mutable std::unique_ptr<expression_type> compiled_expression_;
         mutable bool is_parsed_ = false;
 
-        // Storage for variables
-        mutable ParameterMap<real> temp_variables_;
+        // Unified variable storage - serves both as temp storage for exprtk and bound variables
+        mutable ParameterMap<real> variables_;
 
         // Compound expression support
         bool is_compound_ = false;
@@ -115,9 +114,7 @@ namespace fem_bem {
 
         // Support for DerivativeExpression conversion
         std::function<real(const ParameterMap<real>&)> derivative_evaluator_;
-
-        // Closure support - pre-bound variables
-        ParameterMap<real> bound_variables_;
+        bool has_derivative_evaluator_ = false;
 
         void ensure_parsed() const;
 
@@ -157,6 +154,7 @@ namespace fem_bem {
         {
             // Set up the base class with the derivative evaluator
             this->derivative_evaluator_ = std::move(func);
+            this->has_derivative_evaluator_ = true;
             this->expression_string_ =
                 "";  // Derivatives don't have string representation
             this->is_compound_ = false;
@@ -206,7 +204,7 @@ namespace fem_bem {
 
         // Handle compound expressions or derivatives using numerical
         // integration
-        if (final_expr.derivative_evaluator_ ||
+        if (final_expr.has_derivative_evaluator_ ||
             (final_expr.is_compound_ && final_expr.outer_expression_) ||
             final_expr.has_bound_variables()) {
             auto evaluator = [&final_expr](const ParameterMap<real>& values) {

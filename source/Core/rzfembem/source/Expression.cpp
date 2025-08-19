@@ -63,9 +63,11 @@ namespace fem_bem {
         const std::string& expr_str,
         const std::vector<std::string>& variable_names)
         : expression_string_(expr_str),
-          variable_names_(variable_names),
           is_compound_(false)
     {
+        for (const auto& var_name : variable_names) {
+            variables_.insert_or_assign(var_name.c_str(), real(0));
+        }
     }
 
     Expression::Expression(
@@ -98,7 +100,6 @@ namespace fem_bem {
 
     Expression::Expression(const Expression& other)
         : expression_string_(other.expression_string_),
-          variable_names_(other.variable_names_),
           is_parsed_(false),  // Force re-parsing with new symbol table
           is_compound_(other.is_compound_),
           outer_expression_(
@@ -107,14 +108,14 @@ namespace fem_bem {
                   : nullptr),
           substitution_map_(other.substitution_map_),
           derivative_evaluator_(other.derivative_evaluator_),
-          bound_variables_(other.bound_variables_)
+          has_derivative_evaluator_(other.has_derivative_evaluator_),
+          variables_(other.variables_)
     {
     }
     Expression& Expression::operator=(const Expression& other)
     {
         if (this != &other) {
             expression_string_ = other.expression_string_;
-            variable_names_ = other.variable_names_;
             is_parsed_ = false;  // Force re-parsing
             compiled_expression_.reset();
             symbol_table_.reset();
@@ -125,7 +126,8 @@ namespace fem_bem {
                     : nullptr;
             substitution_map_ = other.substitution_map_;
             derivative_evaluator_ = other.derivative_evaluator_;
-            bound_variables_ = other.bound_variables_;
+            has_derivative_evaluator_ = other.has_derivative_evaluator_;
+            variables_ = other.variables_;
         }
         return *this;
     }
@@ -162,7 +164,7 @@ namespace fem_bem {
         for (std::size_t i = 0; i < bound_values.size(); ++i) {
             const char* name = bound_values.get_name_at(i);
             const real& value = bound_values.get_value_at(i);
-            closure.bound_variables_.insert_or_assign(name, value);
+            closure.variables_.insert_or_assign(name, value);
         }
 
         return closure;
@@ -173,16 +175,16 @@ namespace fem_bem {
         real value) const
     {
         Expression closure = *this;
-        closure.bound_variables_.insert_or_assign(var_name.c_str(), value);
+        closure.variables_.insert_or_assign(var_name.c_str(), value);
         return closure;
     }
     bool Expression::has_bound_variables() const
     {
-        return !bound_variables_.empty();
+        return !variables_.empty();
     }
     const ParameterMap<real>& Expression::get_bound_variables() const
     {
-        return bound_variables_;
+        return variables_;
     }
     const Expression::expression_type* Expression::get_compiled_expression()
         const
@@ -200,9 +202,9 @@ namespace fem_bem {
         const ParameterMap<real>& variable_values) const
     {
         // Handle expressions created from DerivativeExpression
-        if (derivative_evaluator_) {
+        if (has_derivative_evaluator_) {
             // Merge bound variables with provided values
-            ParameterMap<real> merged_values = bound_variables_;
+            ParameterMap<real> merged_values = variables_;
             for (std::size_t i = 0; i < variable_values.size(); ++i) {
                 const char* name = variable_values.get_name_at(i);
                 const real& value = variable_values.get_value_at(i);
@@ -215,36 +217,37 @@ namespace fem_bem {
         if (is_compound_ && outer_expression_) {
             // Merge bound variables with provided values for substitution
             // evaluation
-            ParameterMap<real> merged_values = bound_variables_;
-            for (std::size_t i = 0; i < variable_values.size(); ++i) {
-                const char* name = variable_values.get_name_at(i);
-                const real& value = variable_values.get_value_at(i);
-                merged_values.insert_or_assign(name, value);
-            }
+            if (variables_.empty())
+                variables_ = variable_values;
+            else
+                for (std::size_t i = 0; i < variable_values.size(); ++i) {
+                    const char* name = variable_values.get_name_at(i);
+                    const real& value = variable_values.get_value_at(i);
+                    variables_.insert_or_assign(name, value);
+                }
 
             // Evaluate substitutions
             ParameterMap<real> outer_values;
             for (std::size_t i = 0; i < substitution_map_.size(); ++i) {
                 const auto& pair = substitution_map_[i];
-                real sub_result = pair.second.evaluate_at(merged_values);
+                real sub_result = pair.second.evaluate_at(variable_values);
                 outer_values.insert_or_assign(pair.first, sub_result);
             }
 
             return outer_expression_->evaluate_at(outer_values);
         }
 
+        if (variables_.empty())
+            variables_ = variable_values;
+        else
+            for (std::size_t i = 0; i < variable_values.size(); ++i) {
+                const char* name = variable_values.get_name_at(i);
+                const real& value = variable_values.get_value_at(i);
+                variables_.insert_or_assign(name, value);
+            }
+
         // Standard evaluation for non-compound expressions
         if (!is_parsed_ || !compiled_expression_) {
-            // If no variables specified, discover them from the values provided
-            if (variable_names_.empty()) {
-                for (std::size_t i = 0; i < variable_values.size(); ++i) {
-                    variable_names_.push_back(variable_values.get_name_at(i));
-                }
-                // Also add bound variable names
-                for (std::size_t i = 0; i < bound_variables_.size(); ++i) {
-                    variable_names_.push_back(bound_variables_.get_name_at(i));
-                }
-            }
             parse_expression();
         }
 
@@ -255,21 +258,23 @@ namespace fem_bem {
 
         // Merge bound variables with provided values (provided values take
         // precedence)
-        ParameterMap<real> merged_values = bound_variables_;
-        for (std::size_t i = 0; i < variable_values.size(); ++i) {
-            const char* name = variable_values.get_name_at(i);
-            const real& value = variable_values.get_value_at(i);
-            merged_values.insert_or_assign(name, value);
-        }
 
-        // Set all variables in temp_variables_
-        for (std::size_t i = 0; i < merged_values.size(); ++i) {
-            const char* name = merged_values.get_name_at(i);
-            const real& value = merged_values.get_value_at(i);
-            auto ptr = temp_variables_.find(name);
-            if (ptr)
-                *ptr = value;
-        }
+        // ParameterMap<real> merged_values = variables_;
+
+        // for (std::size_t i = 0; i < variable_values.size(); ++i) {
+        //     const char* name = variable_values.get_name_at(i);
+        //     const real& value = variable_values.get_value_at(i);
+        //     merged_values.insert_or_assign(name, value);
+        // }
+
+        // Set all variables in variables_ for exprtk
+        // for (std::size_t i = 0; i < merged_values.size(); ++i) {
+        //    const char* name = merged_values.get_name_at(i);
+        //    const real& value = merged_values.get_value_at(i);
+        //    auto ptr = variables_.find(name);
+        //    if (ptr)
+        //        *ptr = value;
+        //}
 
         real result = compiled_expression_->value();
         return result;
@@ -322,7 +327,7 @@ namespace fem_bem {
             // Check if any of the substitutions are derivatives
             bool has_derivative_substitution = false;
             for (const auto& pair : substitution_map_) {
-                if (pair.second.derivative_evaluator_) {
+                if (pair.second.has_derivative_evaluator_) {
                     has_derivative_substitution = true;
                     break;
                 }
@@ -331,7 +336,7 @@ namespace fem_bem {
             // larger step
             h = has_derivative_substitution ? real(5e-3) : real(1e-4);
         }
-        else if (derivative_evaluator_) {
+        else if (has_derivative_evaluator_) {
             // This is already a derivative, so we're computing second
             // derivative
             h = real(5e-3);
@@ -342,7 +347,16 @@ namespace fem_bem {
         }
 
         // For compound expressions, use numerical chain rule
-        if (derivative_evaluator_) {
+        if (is_compound_ && outer_expression_) {
+            auto compound_evaluator = [this](const ParameterMap<real>& values) {
+                return this->evaluate_at(values);
+            };
+            auto derivative_func = create_compound_derivative_function(
+                compound_evaluator, variable_name, h);
+            return DerivativeExpression(derivative_func, variable_name);
+        }
+        // Handle derivative expressions (derivatives of derivatives)
+        else if (has_derivative_evaluator_) {
             auto derivative_func = create_compound_derivative_function(
                 derivative_evaluator_, variable_name, h);
             return DerivativeExpression(derivative_func, variable_name);
@@ -371,15 +385,13 @@ namespace fem_bem {
         symbol_table_->add_constants();
 
         // Register specified variables only
-        if (!variable_names_.empty()) {
-            for (const auto& var_name : variable_names_) {
-                auto* temp_var_ptr = temp_variables_.find(var_name.c_str());
-                if (!temp_var_ptr) {
-                    temp_variables_.insert_or_assign(var_name.c_str(), real(0));
-                    temp_var_ptr = temp_variables_.find(var_name.c_str());
-                }
+        if (!variables_.empty()) {
+            for (int i = 0; i < variables_.size(); i++) {
+                auto var_name = variables_.get_name_at(i);
+                auto* var_ptr = &variables_.get_value_at(i);
+
                 symbol_table_->add_variable(
-                    var_name, const_cast<real&>(*temp_var_ptr));
+                    var_name, const_cast<real&>(*var_ptr));
             }
         }
 
