@@ -1,12 +1,13 @@
 USTC_CG_ADD_LIB(
 	stage
 	SHARED
-	PRIVATE_LIBS 
-		geometry
-		spdlog::spdlog
+	PUBLIC_LIBS
 		usd
 		usdImaging
 		usdShade
+	PRIVATE_LIBS 
+		geometry
+		spdlog::spdlog
 		nodes_system
 		MaterialXCore
 		MaterialXFormat

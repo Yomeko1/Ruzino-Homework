@@ -1,4 +1,3 @@
-#include <spdlog/spdlog.h>
 #include <MaterialXCore/Document.h>
 #include <MaterialXFormat/File.h>
 #include <MaterialXFormat/Util.h>
@@ -6,6 +5,7 @@
 #include <MaterialXGenShader/ShaderTranslator.h>
 #include <MaterialXGenShader/Util.h>
 #include <gtest/gtest.h>
+#include <spdlog/spdlog.h>
 
 #include <fstream>
 

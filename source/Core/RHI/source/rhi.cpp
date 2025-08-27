@@ -77,7 +77,8 @@ int init(bool with_window, bool use_dx12)
         return ret;
     }
     else {
-        return device_manager->CreateHeadlessDevice(params);
+        if (device_manager->CreateHeadlessDevice(params))
+            return 0;
     }
     return 1;
 }

@@ -15,7 +15,10 @@ NB_MODULE(GUI_py, m)
     nb::class_<Window>(m, "Window")
         .def(nb::init<>(), "Create a new window")
         .def("run", &Window::run, "Start the main rendering loop")
-        .def("get_elapsed_time", &Window::get_elapsed_time, "Get elapsed time in seconds");
+        .def(
+            "get_elapsed_time",
+            &Window::get_elapsed_time,
+            "Get elapsed time in seconds");
 
     // Bind ImVec2 for drawing functions
     nb::class_<ImVec2>(m, "ImVec2")

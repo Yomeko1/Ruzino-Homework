@@ -1,19 +1,17 @@
 if(USTC_CG_WITH_OPENUSD)
-
 USTC_CG_ADD_LIB(
 	MCore
 	SHARED
+	PUBLIC_LIBS
+		nodes_system
+		nodes_ui_imgui
+		usdMtlx
+		MaterialXGenShader
 	PRIVATE_LIBS 
 		usd
 		usdImaging
-		nodes_system
-		usdMtlx
-		nodes_ui_imgui
 		blueprints
-		MaterialXGenShader
-
 	COMPILE_DEFS
 		NOMINMAX=1
 )
-
 endif()

@@ -197,7 +197,8 @@ function(USTC_CG_ADD_LIB LIB_NAME)
     set_target_properties(${name} PROPERTIES ${OUTPUT_DIR})
 
     if(USTC_CG_ADD_LIB_PYTHON_WRAP_SRC)
-        nanobind_add_module(${name}_py ${USTC_CG_ADD_LIB_PYTHON_WRAP_SRC})
+        nanobind_add_module(${name}_py NB_SHARED ${USTC_CG_ADD_LIB_PYTHON_WRAP_SRC})
+        set_target_properties(nanobind PROPERTIES ${OUTPUT_DIR})
         target_link_libraries(${name}_py PRIVATE ${name})
 
         # Set folder for Python wrapper
@@ -254,7 +255,6 @@ function(USTC_CG_ADD_LIB LIB_NAME)
             LIBS
             ${name}
             ${USTC_CG_ADD_LIB_PUBLIC_LIBS}
-            ${USTC_CG_ADD_LIB_PRIVATE_LIBS}
         )
         # Set folder for test targets
         string(REGEX REPLACE "(.*/)([a-zA-Z0-9_ ]+)(\.cpp|\.cu)" "\\2" test_name ${source})

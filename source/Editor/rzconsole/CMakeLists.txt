@@ -1,8 +1,10 @@
 USTC_CG_ADD_LIB(
 	rzconsole
 	SHARED
+	PUBLIC_LIBS 
+		GUI spdlog::spdlog
 	PRIVATE_LIBS 
-		GUI glm::glm spdlog::spdlog
+		glm::glm 
 	COMPILE_DEFS
 		NOMINMAX=1
 )

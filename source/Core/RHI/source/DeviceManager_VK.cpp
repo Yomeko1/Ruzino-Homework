@@ -56,7 +56,7 @@ freely, subject to the following restrictions:
 #include <unordered_set>
 
 #define VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL 1
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC    1
 #include <sstream>
 #include <vulkan/vulkan.hpp>
 
@@ -294,7 +294,7 @@ class DeviceManager_VK : public DeviceManager {
         }
 
         spdlog::warn(
-            "[Vulkan: location=0x%zx code=%d, layerPrefix='%s'] %s",
+            "[Vulkan: location=0x{:x} code={}, layerPrefix='{}'] {}",
             location,
             code,
             layerPrefix,
@@ -385,14 +385,14 @@ bool DeviceManager_VK::createInstance()
         for (const auto& ext : requiredExtensions)
             ss << std::endl << "  - " << ext;
 
-        spdlog::error("%s", ss.str().c_str());
+        spdlog::error("{}", ss.str());
         return false;
     }
 
     spdlog::log(
         m_DeviceParams.infoLogSeverity, "Enabled Vulkan instance extensions:");
     for (const auto& ext : enabledExtensions.instance) {
-        spdlog::log(m_DeviceParams.infoLogSeverity, "    %s", ext.c_str());
+        spdlog::log(m_DeviceParams.infoLogSeverity, "    {}", ext);
     }
 
     std::unordered_set<std::string> requiredLayers = enabledExtensions.layers;
@@ -414,13 +414,13 @@ bool DeviceManager_VK::createInstance()
         for (const auto& ext : requiredLayers)
             ss << std::endl << "  - " << ext;
 
-        spdlog::error("%s", ss.str().c_str());
+        spdlog::error("{}", ss.str());
         return false;
     }
 
     spdlog::log(m_DeviceParams.infoLogSeverity, "Enabled Vulkan layers:");
     for (const auto& layer : enabledExtensions.layers) {
-        spdlog::log(m_DeviceParams.infoLogSeverity, "    %s", layer.c_str());
+        spdlog::log(m_DeviceParams.infoLogSeverity, "    {}", layer);
     }
 
     auto instanceExtVec = stringSetToVector(enabledExtensions.instance);
@@ -434,7 +434,7 @@ bool DeviceManager_VK::createInstance()
 
     if (res != vk::Result::eSuccess) {
         spdlog::error(
-            "Call to vkEnumerateInstanceVersion failed, error code = %s",
+            "Call to vkEnumerateInstanceVersion failed, error code = {}",
             nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
@@ -478,7 +478,7 @@ bool DeviceManager_VK::createInstance()
     res = vk::createInstance(&info, nullptr, &m_VulkanInstance);
     if (res != vk::Result::eSuccess) {
         spdlog::error(
-            "Failed to create a Vulkan instance, error code = %s",
+            "Failed to create a Vulkan instance, error code = {}",
             nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
@@ -677,7 +677,7 @@ bool DeviceManager_VK::pickPhysicalDevice()
         return true;
     }
 
-    spdlog::error("%s", errorStream.str().c_str());
+    spdlog::error("{}", errorStream.str());
 
     return false;
 }
@@ -775,7 +775,7 @@ bool DeviceManager_VK::createDevice()
     spdlog::log(
         m_DeviceParams.infoLogSeverity, "Enabled Vulkan device extensions:");
     for (const auto& ext : enabledExtensions.device) {
-        spdlog::log(m_DeviceParams.infoLogSeverity, "    %s", ext.c_str());
+        spdlog::log(m_DeviceParams.infoLogSeverity, "    {}", ext);
 
         if (ext == VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME)
             accelStructSupported = true;
@@ -840,10 +840,11 @@ bool DeviceManager_VK::createDevice()
     std::vector<vk::DeviceQueueCreateInfo> queueDesc;
     queueDesc.reserve(uniqueQueueFamilies.size());
     for (int queueFamily : uniqueQueueFamilies) {
-        queueDesc.push_back(vk::DeviceQueueCreateInfo()
-                                .setQueueFamilyIndex(queueFamily)
-                                .setQueueCount(1)
-                                .setPQueuePriorities(&priority));
+        queueDesc.push_back(
+            vk::DeviceQueueCreateInfo()
+                .setQueueFamilyIndex(queueFamily)
+                .setQueueCount(1)
+                .setPQueuePriorities(&priority));
     }
 
     auto accelStructFeatures =
@@ -938,7 +939,7 @@ bool DeviceManager_VK::createDevice()
         &deviceDesc, nullptr, &m_VulkanDevice);
     if (res != vk::Result::eSuccess) {
         spdlog::error(
-            "Failed to create a Vulkan physical device, error code = %s",
+            "Failed to create a Vulkan physical device, error code = {}",
             nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
@@ -958,7 +959,7 @@ bool DeviceManager_VK::createDevice()
 
     spdlog::log(
         m_DeviceParams.infoLogSeverity,
-        "Created Vulkan device: %s",
+        "Created Vulkan device: {}",
         m_RendererString.c_str());
 
     return true;
@@ -970,7 +971,7 @@ bool DeviceManager_VK::createWindowSurface()
         m_VulkanInstance, m_Window, nullptr, (VkSurfaceKHR*)&m_WindowSurface);
     if (res != VK_SUCCESS) {
         spdlog::error(
-            "Failed to create a GLFW window surface, error code = %s",
+            "Failed to create a GLFW window surface, error code = {}",
             nvrhi::vulkan::resultToString(res));
         return false;
     }
@@ -996,8 +997,9 @@ bool DeviceManager_VK::createSwapChain()
 {
     destroySwapChain();
 
-    m_SwapChainFormat = { vk::Format(nvrhi::vulkan::convertFormat(
-                              m_DeviceParams.swapChainFormat)),
+    m_SwapChainFormat = { vk::Format(
+                              nvrhi::vulkan::convertFormat(
+                                  m_DeviceParams.swapChainFormat)),
                           vk::ColorSpaceKHR::eSrgbNonlinear };
 
     vk::Extent2D extent = vk::Extent2D(
@@ -1069,7 +1071,7 @@ bool DeviceManager_VK::createSwapChain()
         m_VulkanDevice.createSwapchainKHR(&desc, nullptr, &m_SwapChain);
     if (res != vk::Result::eSuccess) {
         spdlog::error(
-            "Failed to create a Vulkan swap chain, error code = %s",
+            "Failed to create a Vulkan swap chain, error code = {}",
             nvrhi::vulkan::resultToString(VkResult(res)));
         return false;
     }
@@ -1340,8 +1342,10 @@ bool DeviceManager_VK::BeginFrame()
         (m_AcquireSemaphoreIndex + 1) % m_AcquireSemaphores.size();
 
     if (res == vk::Result::eSuccess ||
-        res == vk::Result::eSuboptimalKHR) {  // Suboptimal is considered a success
-        // Schedule the wait. The actual wait operation will be submitted when the app executes any command list.
+        res ==
+            vk::Result::eSuboptimalKHR) {  // Suboptimal is considered a success
+        // Schedule the wait. The actual wait operation will be submitted when
+        // the app executes any command list.
         m_NvrhiDevice->queueWaitForSemaphore(
             nvrhi::CommandQueue::Graphics, semaphore, 0);
         return true;
@@ -1357,8 +1361,9 @@ bool DeviceManager_VK::Present()
     m_NvrhiDevice->queueSignalSemaphore(
         nvrhi::CommandQueue::Graphics, semaphore, 0);
 
-    // NVRHI buffers the semaphores and signals them when something is submitted to a queue.
-    // Call 'executeCommandLists' with no command lists to actually signal the semaphore.
+    // NVRHI buffers the semaphores and signals them when something is submitted
+    // to a queue. Call 'executeCommandLists' with no command lists to actually
+    // signal the semaphore.
     m_NvrhiDevice->executeCommandLists(nullptr, 0);
 
     vk::PresentInfoKHR info = vk::PresentInfoKHR()
@@ -1380,8 +1385,9 @@ bool DeviceManager_VK::Present()
 
 #ifndef _WIN32
     if (m_DeviceParams.vsyncEnabled || m_DeviceParams.enableDebugRuntime) {
-        // according to vulkan-tutorial.com, "the validation layer implementation expects
-        // the application to explicitly synchronize with the GPU"
+        // according to vulkan-tutorial.com, "the validation layer
+        // implementation expects the application to explicitly synchronize with
+        // the GPU"
         m_PresentQueue.waitIdle();
     }
 #endif
