@@ -138,7 +138,7 @@ std::vector<std::string_view> MatchObjectNames(char const* regex = ".*");
 
 std::vector<Object*> MatchObjects(char const* regex = ".*");
 
-Command* FindCommand(std::string_view name);
+RZCONSOLE_API Command* FindCommand(std::string_view name);
 
 // note: ini files can only modify values of existing consolve variables
 void ParseIniFile(char const* inidata, char const* filename);

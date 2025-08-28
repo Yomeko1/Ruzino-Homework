@@ -1,11 +1,9 @@
 #pragma once
 
 #include <nanobind/nanobind.h>
-#include <nanobind/ndarray.h>
-#include <nanobind/stl/string.h>
-#include <nanobind/stl/vector.h>
 
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 
@@ -22,12 +20,10 @@ RZPYTHON_EXTERN RZPYTHON_API PyObject* main_dict;
 RZPYTHON_EXTERN RZPYTHON_API bool initialized;
 RZPYTHON_EXTERN RZPYTHON_API std::unordered_map<std::string, nb::object>
     bound_objects;
+
+// Forward declare functions that are implemented in the .cpp file
 RZPYTHON_API PyObject* call_raw(const std::string& code);
-
-// Helper to check if a Python module uses Boost.Python
 RZPYTHON_API bool is_boost_python_module(const std::string& module_name);
-
-// Safe import function that handles Boost.Python conflicts
 RZPYTHON_API void safe_import(const std::string& module_name);
 
 // Helper to determine if we should use eval or file input mode
@@ -104,12 +100,6 @@ void reference(const std::string& name, T* obj)
         throw std::runtime_error(
             "Failed to bind object '" + name + "': " + e.what());
     }
-}
-
-template<typename T>
-void bind_object(const std::string& name, T* obj)
-{
-    reference(name, obj);
 }
 
 template<typename T>

@@ -63,18 +63,25 @@ class Lexer;
 class RZCONSOLE_API Interpreter {
    public:
     Interpreter();
+    virtual ~Interpreter() = default;
 
     struct Result {
         bool status = false;
         std::string output;
     };
 
-    Result Execute(std::string_view const cmdline);
+    virtual Result Execute(std::string_view const cmdline);
 
     // parse incomplete command line & return auto-completion suggestions
-    std::vector<std::string> Suggest(
+    virtual std::vector<std::string> Suggest(
         std::string_view const cmdline,
         size_t cursor_pos);
+
+   protected:
+    // Virtual methods for extensibility
+    virtual Result ExecuteCommand(std::string_view command, const std::vector<std::string>& args);
+    virtual std::vector<std::string> SuggestCommand(std::string_view command, std::string_view cmdline, size_t cursor_pos);
+    virtual bool IsValidCommand(std::string_view command) const;
 
    private:
 };

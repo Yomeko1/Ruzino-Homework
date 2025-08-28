@@ -191,6 +191,12 @@ Interpreter::Result Interpreter::Execute(std::string_view const cmdline)
     if (args.empty())
         return { false };
 
+    // Try virtual command execution first
+    if (IsValidCommand(args[0])) {
+        return ExecuteCommand(args[0], args);
+    }
+
+    // Fall back to console command system
     if (auto* cobj = FindObject(args[0])) {
         if (auto* cmd = cobj->AsCommand()) {
             auto [status, output] = cmd->Execute(args);
@@ -222,15 +228,48 @@ std::vector<std::string> Interpreter::Suggest(
             // user is looking for a command
             auto names = MatchObjectNames(
                 ("^" + std::string(token_start, cursor) + ".*").c_str());
-            return { names.begin(), names.end() };
+            std::vector<std::string> suggestions(names.begin(), names.end());
+
+            // Add virtual command suggestions
+            auto virtual_suggestions = SuggestCommand("", cmdline, cursor_pos);
+            suggestions.insert(
+                suggestions.end(),
+                virtual_suggestions.begin(),
+                virtual_suggestions.end());
+
+            return suggestions;
         }
         else {
             // user is looking for the command's arguments
+            if (IsValidCommand(tokens[0])) {
+                return SuggestCommand(tokens[0], cmdline, cursor_pos);
+            }
             if (auto* cobj = FindCommand(tokens[0]))
                 return cobj->Suggest(cmdline, cursor_pos);
         }
     }
     return {};
+}
+
+// Default virtual method implementations
+Interpreter::Result Interpreter::ExecuteCommand(
+    std::string_view command,
+    const std::vector<std::string>& args)
+{
+    return { false, "Command not implemented" };
+}
+
+std::vector<std::string> Interpreter::SuggestCommand(
+    std::string_view command,
+    std::string_view cmdline,
+    size_t cursor_pos)
+{
+    return {};
+}
+
+bool Interpreter::IsValidCommand(std::string_view command) const
+{
+    return false;
 }
 
 // Register various commands

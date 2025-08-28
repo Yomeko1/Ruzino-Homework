@@ -64,10 +64,6 @@ T call_safe(const std::string& code);
 template<>
 RZPYTHON_API void call<void>(const std::string& code);
 
-// Bind C++ object to Python variable name
-template<typename T>
-void bind_object(const std::string& name, T* obj);
-
 // Helper function to get nanobind cast for objects
 template<typename T>
 void reference(const std::string& name, T* obj);

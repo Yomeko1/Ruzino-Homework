@@ -1,9 +1,9 @@
 USTC_CG_ADD_LIB(
 	rzpython
 	SHARED
-	PUBLIC_LIBS GUI nanobind
+	PUBLIC_LIBS GUI nanobind rzconsole
 	PRIVATE_LIBS 
-		glm::glm spdlog::spdlog rzconsole Python3::Module
+		glm::glm spdlog::spdlog Python3::Module
 	COMPILE_DEFS
 		NOMINMAX=1
 )
