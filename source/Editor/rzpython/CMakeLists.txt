@@ -10,4 +10,4 @@ USTC_CG_ADD_LIB(
 
 target_include_directories(rzpython PUBLIC ${NB_DIR}/include)
 
-target_link_libraries(rzpython_runtime_test PUBLIC RHI)
+target_link_libraries(rzpython_runtime_test PUBLIC RHI usd)
