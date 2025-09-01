@@ -290,6 +290,8 @@ class RHI_API DeviceManager {
     }
     virtual void SetFullscreen(bool enabled);
     [[nodiscard]] bool IsFullscreen() const;
+    virtual void SetMaximized(bool enabled);
+    [[nodiscard]] bool IsMaximized() const;
     virtual void ReportLiveObjects()
     {
     }

@@ -47,6 +47,9 @@ class GUI_API Window {
     virtual void SetFullscreen(bool enabled);
     [[nodiscard]] bool IsFullscreen() const;
 
+    virtual void SetMaximized(bool enabled);
+    [[nodiscard]] bool IsMaximized() const;
+
    protected:
     std::unique_ptr<DockingImguiRenderer> imguiRenderPass;
     float elapsedTimeSeconds = 0.0f;

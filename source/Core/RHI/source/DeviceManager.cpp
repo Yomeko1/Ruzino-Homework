@@ -1142,6 +1142,27 @@ bool DeviceManager::IsFullscreen() const
     return glfwGetWindowMonitor(m_Window) != nullptr;
 }
 
+void DeviceManager::SetMaximized(bool enabled)
+{
+    if (!m_Window)
+        return;
+
+    if (enabled) {
+        glfwMaximizeWindow(m_Window);
+    }
+    else {
+        glfwRestoreWindow(m_Window);
+    }
+}
+
+bool DeviceManager::IsMaximized() const
+{
+    if (!m_Window)
+        return false;
+
+    return glfwGetWindowAttrib(m_Window, GLFW_MAXIMIZED) == GLFW_TRUE;
+}
+
 DeviceManager *DeviceManager::Create(nvrhi::GraphicsAPI api)
 {
     switch (api) {

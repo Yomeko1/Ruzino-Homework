@@ -439,4 +439,19 @@ bool Window::IsFullscreen() const
     return manager->IsFullscreen();
 }
 
+void Window::SetMaximized(bool enabled)
+{
+    auto manager = imguiRenderPass->GetDeviceManager();
+    manager->SetMaximized(enabled);
+}
+
+bool Window::IsMaximized() const
+{
+    auto manager = imguiRenderPass->GetDeviceManager();
+    if (!manager)
+        return false;
+
+    return manager->IsMaximized();
+}
+
 USTC_CG_NAMESPACE_CLOSE_SCOPE

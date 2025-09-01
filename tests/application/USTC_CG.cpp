@@ -275,7 +275,7 @@ int main(int argc, char* argv[])
 
     window->register_function_after_frame(
         [&stage](Window* window) { stage->finish_tick(); });
-
+    window->SetMaximized(true);
     window->run();
 
     unregister_cpp_type();
