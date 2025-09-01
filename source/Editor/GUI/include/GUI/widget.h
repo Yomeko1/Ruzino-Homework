@@ -17,6 +17,10 @@ class GUI_API IWidget {
     }
     virtual ~IWidget();
     virtual bool BuildUI() = 0;
+    virtual bool borderless()
+    {
+        return false;
+    }
 
     virtual void SetCallBack(const std::function<void(Window*, IWidget*)>&);
 
@@ -61,11 +65,17 @@ class GUI_API IWidget {
     unsigned height = 600;
 
     bool size_changed = true;
-    virtual bool Begin();    virtual void SetNodeSystemDirty(bool dirty = true);
+    virtual bool Begin();
+    virtual void SetNodeSystemDirty(bool dirty = true);
 
     // Menu bar support
-    virtual bool HasMenuBar() const { return false; }
-    virtual void DrawMenuBar() {}
+    virtual bool HasMenuBar() const
+    {
+        return false;
+    }
+    virtual void DrawMenuBar()
+    {
+    }
 
    private:
     bool is_open = true;

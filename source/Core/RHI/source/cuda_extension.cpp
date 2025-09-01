@@ -82,6 +82,15 @@ int optix_trace_ray(
     CUDA_SYNC_CHECK();
     return 0;
 }
+nvrhi::TextureHandle cuda_linear_buffer_to_nvrhi_texture(
+    nvrhi::IDevice* device,
+    CUDALinearBufferHandle buffer,
+    nvrhi::TextureDesc desc,
+    unsigned int row_pitch)
+{
+    desc.isShaderResource = true;
+    auto texture = device->createTexture(desc);
+}
 
 static bool readSourceFile(std::string& str, const std::string& filename)
 {

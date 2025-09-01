@@ -10,7 +10,9 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 bool IWidget::Begin()
 {
     FirstUseEver();
-
+    if (borderless()) {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    }
     auto ret =
         ImGui::Begin(GetWindowUniqueName().c_str(), &is_open, GetWindowFlag());
     draw_list = ImGui::GetWindowDrawList();
@@ -21,6 +23,9 @@ bool IWidget::Begin()
 void IWidget::End()
 {
     ImGui::End();
+    if (borderless()) {
+        ImGui::PopStyleVar();
+    }
 }
 
 bool IWidget::IsOpen()

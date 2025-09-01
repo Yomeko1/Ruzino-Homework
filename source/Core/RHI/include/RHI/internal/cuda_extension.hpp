@@ -319,14 +319,16 @@ struct AppendStructuredBuffer {
     {
         workqueue_buffer = create_cuda_linear_buffer<T>(max_size);
         d_workqueue = create_cuda_linear_buffer<WorkQueue<T>>();
-        d_workqueue->assign_host_value(WorkQueue{
-            reinterpret_cast<T*>(workqueue_buffer->get_device_ptr()) });
+        d_workqueue->assign_host_value(
+            WorkQueue{
+                reinterpret_cast<T*>(workqueue_buffer->get_device_ptr()) });
     }
 
     void reset()
     {
-        d_workqueue->assign_host_value(WorkQueue{
-            reinterpret_cast<T*>(workqueue_buffer->get_device_ptr()) });
+        d_workqueue->assign_host_value(
+            WorkQueue{
+                reinterpret_cast<T*>(workqueue_buffer->get_device_ptr()) });
     }
 
     WorkQueue<T>* get_device_queue_ptr()
@@ -433,7 +435,6 @@ void GPUParallelFor2D(const char* description, int2 resolution, F func)
     nvtxRangePush(description);
 #endif
 
-
     auto kernel = &Kernel2D<F>;
 
     int blockSize = GetBlockSize(description, kernel);
@@ -451,6 +452,12 @@ void GPUParallelFor2D(const char* description, int2 resolution, F func)
 
 #define GPU_LAMBDA(...)    [ =, *this ] __device__(__VA_ARGS__) mutable
 #define GPU_LAMBDA_Ex(...) [=] __device__(__VA_ARGS__) mutable
+
+RHI_API nvrhi::TextureHandle cuda_linear_buffer_to_nvrhi_texture(
+    nvrhi::IDevice* device,
+    CUDALinearBufferHandle buffer,
+    nvrhi::TextureDesc desc,
+    unsigned int row_pitch = 0);
 
 }  // namespace cuda
 

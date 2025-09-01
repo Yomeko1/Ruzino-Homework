@@ -126,12 +126,6 @@ void ImGui_Console::ClearHistory()
 
 bool ImGui_Console::BuildUI()
 {
-    ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-    if (!Begin()) {
-        End();
-        return true;
-    }
-
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("Close Console")) {
             // For IWidget, we don't directly control closing, return false to
@@ -251,9 +245,11 @@ bool ImGui_Console::BuildUI()
     ImGui::SameLine();
     filterButton("Info", &m_Options.show_info, LogSeverity::Info);
     ImGui::PopStyleVar();  // FrameBorder
-
-    End();
     return true;
+}
+std::string ImGui_Console::GetWindowUniqueName()
+{
+    return "Python Console";
 }
 
 static void printLines(ImGui_Console& console, std::string const& output)
@@ -277,17 +273,18 @@ void ImGui_Console::ExecCommand(char const* cmdline)
         this->Print("> %s", cmd.data());
 
         auto result = m_Interpreter->Execute(cmd);
-        
+
         // Always show something - even if execution failed
         if (!result.output.empty()) {
             printLines(*this, result.output);
         }
-        
+
         if (result.status) {
             // Success - add to history
             m_History.push_back(cmd.data());
             m_HistoryPos = -1;
-        } else {
+        }
+        else {
             // Failure - show error message if output is empty
             if (result.output.empty()) {
                 this->Print("Command failed with no output");

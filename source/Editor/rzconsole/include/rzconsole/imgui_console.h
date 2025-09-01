@@ -107,10 +107,11 @@ class RZCONSOLE_API ImGui_Console : public IWidget {
     bool BuildUI() override;
 
    protected:
-    const char* GetWindowName() override {
+    const char* GetWindowName() override
+    {
         return "Console";
     }
-
+    std::string GetWindowUniqueName() override;
     // Menu bar support for console
     bool HasMenuBar() const override { 
         return true; 
