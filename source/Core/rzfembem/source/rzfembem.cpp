@@ -266,7 +266,7 @@ class FEMSolver2D : public ElementSolver {
     {
         // Use iterative solver for sparse system
         auto solver = Solver::SolverFactory::create(
-            Solver::SolverType::EIGEN_ITERATIVE_BICGSTAB);
+            Solver::SolverType::CUDA_GMRES);
 
         Eigen::VectorXf x = Eigen::VectorXf::Zero(b.size());
 
@@ -700,8 +700,7 @@ class FEMSolver3D : public ElementSolver {
         const Eigen::SparseMatrix<float>& A,
         const Eigen::VectorXf& b)
     {
-        auto solver = Solver::SolverFactory::create(
-            Solver::SolverType::EIGEN_ITERATIVE_BICGSTAB);
+        auto solver = Solver::SolverFactory::create(Solver::SolverType::CUDA_GMRES);
 
         Eigen::VectorXf x = Eigen::VectorXf::Zero(b.size());
 

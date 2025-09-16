@@ -1,6 +1,6 @@
 set(NODE_IMGUI_ENABLED ON)
+add_subdirectory(Solver)
 add_subdirectory(rznode)
 add_subdirectory(rzfembem)
 add_subdirectory(RHI)
-add_subdirectory(Solver)
 add_subdirectory(GPUContext)
