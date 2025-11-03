@@ -28,55 +28,32 @@ jobs:
         id: check
         shell: powershell
         run: |
-          $ErrorActionPreference = "SilentlyContinue"
-          try {
-            $configureHash = (Get-FileHash configure.py).Hash
-            Write-Output "configure-hash=$configureHash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            
-            $needsRebuild = $false
-            
-            # First check if configure.py changed
-            $sdkDir = "SDK"
-            $hashFile = Join-Path $sdkDir ".configure_hash"
-            
-            if (Test-Path -Path $hashFile) {
-              $storedHash = (Get-Content $hashFile -Raw).Trim()
-              if ($storedHash -ne $configureHash) {
-                Write-Output "configure.py changed, SDK rebuild required"
-                $needsRebuild = $true
-              } else {
-                Write-Output "configure.py unchanged, checking if SDK exists in remote Release..."
-                
-                # Check if SDK exists in GitHub Release
-                $tagName = "sdk-$configureHash"
-                $releaseExists = $false
-                
-                # Try to view the release
-                $output = & gh release view $tagName --repo ${{ github.repository }} 2>&1
-                if ($?) {
-                  Write-Output "Found release with tag: $tagName"
-                  $releaseExists = $true
-                } else {
-                  Write-Output "Release not found with tag: $tagName"
-                }
-                
-                if ($releaseExists) {
-                  Write-Output "SDK exists in remote Release, no rebuild needed"
-                  $needsRebuild = $false
-                } else {
-                  Write-Output "SDK not found in remote Release, will rebuild and upload"
-                  $needsRebuild = $true
-                }
-              }
+          $ErrorActionPreference = "Continue"
+          $WarningPreference = "SilentlyContinue"
+          
+          $configureHash = (Get-FileHash configure.py).Hash
+          Write-Output "configure-hash=$configureHash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          
+          $needsRebuild = $false
+          
+          # First check if configure.py changed
+          $sdkDir = "SDK"
+          $hashFile = Join-Path $sdkDir ".configure_hash"
+          
+          if (Test-Path -Path $hashFile) {
+            $storedHash = (Get-Content $hashFile -Raw).Trim()
+            if ($storedHash -ne $configureHash) {
+              Write-Output "configure.py changed, SDK rebuild required"
+              $needsRebuild = $true
             } else {
-              Write-Output "No hash file found, will check if SDK exists in remote Release..."
+              Write-Output "configure.py unchanged, checking if SDK exists in remote Release..."
               
-              # Check if SDK exists in GitHub Release with current hash
+              # Check if SDK exists in GitHub Release
               $tagName = "sdk-$configureHash"
               $releaseExists = $false
               
               # Try to view the release
-              $output = & gh release view $tagName --repo ${{ github.repository }} 2>&1
+              & gh release view $tagName --repo ${{ github.repository }} > $null 2>&1
               if ($?) {
                 Write-Output "Found release with tag: $tagName"
                 $releaseExists = $true
@@ -85,25 +62,44 @@ jobs:
               }
               
               if ($releaseExists) {
-                Write-Output "SDK exists in remote Release, will download instead of rebuild"
+                Write-Output "SDK exists in remote Release, no rebuild needed"
                 $needsRebuild = $false
               } else {
                 Write-Output "SDK not found in remote Release, will rebuild and upload"
                 $needsRebuild = $true
               }
             }
+          } else {
+            Write-Output "No hash file found, will check if SDK exists in remote Release..."
             
-            if ($needsRebuild) {
-              Write-Output "needs-rebuild=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-              Write-Output "SDK rebuild needed"
+            # Check if SDK exists in GitHub Release with current hash
+            $tagName = "sdk-$configureHash"
+            $releaseExists = $false
+            
+            # Try to view the release
+            & gh release view $tagName --repo ${{ github.repository }} > $null 2>&1
+            if ($?) {
+              Write-Output "Found release with tag: $tagName"
+              $releaseExists = $true
             } else {
-              Write-Output "needs-rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-              Write-Output "SDK is up to date, will restore from Release"
+              Write-Output "Release not found with tag: $tagName"
             }
-          } catch {
-            Write-Output "Error checking SDK: $_"
+            
+            if ($releaseExists) {
+              Write-Output "SDK exists in remote Release, will download instead of rebuild"
+              $needsRebuild = $false
+            } else {
+              Write-Output "SDK not found in remote Release, will rebuild and upload"
+              $needsRebuild = $true
+            }
+          }
+          
+          if ($needsRebuild) {
             Write-Output "needs-rebuild=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Output "configure-hash=$configureHash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Output "SDK rebuild needed"
+          } else {
+            Write-Output "needs-rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Output "SDK is up to date, will restore from Release"
           }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
