@@ -569,7 +569,8 @@ def main():
 
     for lib in args.library:
         if lib == "openusd":
-            process_usd(targets, dry_run, keep_original_files, copy_only)
+            # process_usd(targets, dry_run, keep_original_files, copy_only)
+            aaaaa = 3
         elif lib == "d3d12" and os.name == "nt":
             if not copy_only:
                 # Download the nupkg file
