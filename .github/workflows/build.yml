@@ -261,15 +261,21 @@ jobs:
 
       - name: Upload SDK to GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: SDK/SDK.zip
-          tag_name: sdk-${{ needs.check-sdk.outputs.configure-hash }}
-          body: "SDK build for configure.py hash: ${{ needs.check-sdk.outputs.configure-hash }}"
-          draft: false
-          prerelease: false
+        shell: powershell
+        run: |
+          $tag = "sdk-${{ needs.check-sdk.outputs.configure-hash }}"
+          $body = "SDK build for configure.py hash: ${{ needs.check-sdk.outputs.configure-hash }}"
+          
+          # Create release and upload
+          gh release create $tag SDK/SDK.zip --title "SDK ${{ needs.check-sdk.outputs.configure-hash }}" --notes $body --repo ${{ github.repository }} 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Output "Release created successfully"
+          } else {
+            Write-Output "Release may already exist, attempting upload to existing release..."
+            gh release upload $tag SDK/SDK.zip --clobber --repo ${{ github.repository }}
+          }
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   restore-sdk:
     name: Restore or build SDK
