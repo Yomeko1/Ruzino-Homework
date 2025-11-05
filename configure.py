@@ -710,7 +710,7 @@ def main():
             process_usd(targets, dry_run, keep_original_files, copy_only)
         elif lib == "d3d12" and os.name == "nt":
             if not copy_only:
-                # Download the nupkg file
+                # Download the nupkg file 
                 nupkg_path = os.path.dirname(__file__) + "/SDK/cache/d3d12.nupkg"
                 download_with_progress(urls[lib], nupkg_path, dry_run)
 
