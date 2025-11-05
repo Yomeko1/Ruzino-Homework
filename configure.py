@@ -51,7 +51,7 @@ def copy_python_dlls_to_binaries(targets, dry_run=False):
 
 
 def download_with_progress(url, zip_path, dry_run=False):
-    if dry_run:
+    if dry_run: 
         print(f"[DRY RUN] Would download from {url} to {zip_path}")
         return
 
