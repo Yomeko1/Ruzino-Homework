@@ -390,7 +390,7 @@ jobs:
           
           cmake -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
-            -DENABLE_CUDA=OFF ^
+            -DUSTC_CG_WITH_CUDA=OFF ^
             -DCMAKE_INSTALL_PREFIX="../install_nocuda" ^
             ..
           
@@ -507,7 +507,7 @@ jobs:
             $cuda_available = $false
             
             # Check CUDA_PATH environment variable
-            if (Test-Path -Env:CUDA_PATH) {
+            if ($env:CUDA_PATH) {
               Write-Output "Found CUDA_PATH: $env:CUDA_PATH"
               $cuda_available = $true
             }
@@ -584,7 +584,7 @@ jobs:
           
           cmake -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
-            -DENABLE_CUDA=ON ^
+            -DUSTC_CG_WITH_CUDA=ON ^
             -DCMAKE_CUDA_ARCHITECTURES=75;86;89 ^
             -DCMAKE_INSTALL_PREFIX="../install_cuda" ^
             ..
