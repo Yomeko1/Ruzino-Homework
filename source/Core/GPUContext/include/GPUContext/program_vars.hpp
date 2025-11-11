@@ -11,7 +11,7 @@ class ProgramVars;
 
 class GPUCONTEXT_API ProgramVarsProxy {
    public:
-    ProgramVarsProxy(ProgramVars* parent, const std::string& path);
+    ProgramVarsProxy(ProgramVars* parent, const std::string& path, int array_index = -1);
 
     // Support nested access with string
     ProgramVarsProxy operator[](const std::string& name);
@@ -27,10 +27,10 @@ class GPUCONTEXT_API ProgramVarsProxy {
 
    private:
     ProgramVars* parent_;
-    std::string path_;
+    std::string path_;  // Base path without array index
+    int array_index_;   // -1 means not an array access
 
     std::string build_path(const std::string& name) const;
-    std::string build_path(int index) const;
 };
 
 class GPUCONTEXT_API ProgramVars {
@@ -91,9 +91,9 @@ class GPUCONTEXT_API ProgramVars {
 
     nvrhi::ResourceType get_binding_type(const std::string& name);
     std::tuple<unsigned, unsigned> get_binding_location(
-        const std::string& name);
+        const std::string& name, int array_index = -1);
 
-    nvrhi::IResource*& get_resource_direct(const std::string& name);
+    nvrhi::IResource*& get_resource_direct(const std::string& name, int array_index = -1);
 
     ShaderReflectionInfo final_reflection_info;
 };

@@ -7,9 +7,10 @@
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
 // ProgramVarsProxy implementation
-ProgramVarsProxy::ProgramVarsProxy(ProgramVars* parent, const std::string& path)
+ProgramVarsProxy::ProgramVarsProxy(ProgramVars* parent, const std::string& path, int array_index)
     : parent_(parent),
-      path_(path)
+      path_(path),
+      array_index_(array_index)
 {
 }
 
@@ -20,18 +21,19 @@ ProgramVarsProxy ProgramVarsProxy::operator[](const std::string& name)
 
 ProgramVarsProxy ProgramVarsProxy::operator[](int index)
 {
-    return ProgramVarsProxy(parent_, build_path(index));
+    // For array access, keep the base path and store the index separately
+    return ProgramVarsProxy(parent_, path_, index);
 }
 
 ProgramVarsProxy& ProgramVarsProxy::operator=(nvrhi::IResource* resource)
 {
-    parent_->get_resource_direct(path_) = resource;
+    parent_->get_resource_direct(path_, array_index_) = resource;
     return *this;
 }
 
 ProgramVarsProxy::operator nvrhi::IResource*&()
 {
-    return parent_->get_resource_direct(path_);
+    return parent_->get_resource_direct(path_, array_index_);
 }
 
 std::string ProgramVarsProxy::build_path(const std::string& name) const
@@ -41,15 +43,6 @@ std::string ProgramVarsProxy::build_path(const std::string& name) const
     }
     // Handle both member access and nested structures
     return path_ + "." + name;
-}
-
-std::string ProgramVarsProxy::build_path(int index) const
-{
-    if (path_.empty()) {
-        return "[" + std::to_string(index) + "]";
-    }
-    // Support chained array access like array[0][1] or member.array[0]
-    return path_ + "[" + std::to_string(index) + "]";
 }
 
 // ProgramVars implementation
@@ -130,17 +123,27 @@ nvrhi::ResourceType ProgramVars::get_binding_type(const std::string& name)
 
 // This is where it is within the binding set
 std::tuple<unsigned, unsigned> ProgramVars::get_binding_location(
-    const std::string& name)
+    const std::string& name, int array_index)
 {
-    // Check if we've already created a binding location for this exact path (including array index)
-    auto path_it = path_to_binding_location.find(name);
+    // Build cache key based on name and array_index
+    std::string cache_key = name;
+    if (array_index >= 0) {
+        cache_key += "[" + std::to_string(array_index) + "]";
+    }
+    
+    // Check if we've already created a binding location for this exact path
+    auto path_it = path_to_binding_location.find(cache_key);
     if (path_it != path_to_binding_location.end()) {
         return path_it->second;
     }
     
-    // Get the base name without array indices
+    // Get the base name (in case name itself contains array syntax like "samplers[3]")
     std::string base_name = final_reflection_info.get_base_name(name);
-    int array_index = final_reflection_info.parse_array_index(name);
+    
+    // If array_index is -1, try parsing from the name string
+    if (array_index < 0) {
+        array_index = final_reflection_info.parse_array_index(name);
+    }
     
     unsigned binding_space_id = get_binding_space(base_name);
 
@@ -203,7 +206,7 @@ std::tuple<unsigned, unsigned> ProgramVars::get_binding_location(
 
     // Cache this path -> binding location mapping
     auto result = std::make_tuple(binding_space_id, binding_set_location);
-    path_to_binding_location[name] = result;
+    path_to_binding_location[cache_key] = result;
 
     return result;
 }
@@ -215,9 +218,9 @@ ProgramVarsProxy ProgramVars::operator[](const std::string& name)
     return ProgramVarsProxy(this, name);
 }
 
-nvrhi::IResource*& ProgramVars::get_resource_direct(const std::string& name)
+nvrhi::IResource*& ProgramVars::get_resource_direct(const std::string& name, int array_index)
 {
-    auto [binding_space_id, binding_set_location] = get_binding_location(name);
+    auto [binding_space_id, binding_set_location] = get_binding_location(name, array_index);
 
     if (binding_space_id == -1) {
         return placeholder;
