@@ -24,14 +24,14 @@ NODE_EXECUTION_FUNCTION(simulation_in)
         std::vector<entt::meta_any> outputs;
 
         for (auto& input : inputs) {
-            outputs.push_back(std::move(*input));
+            outputs.push_back((*input));
         }
 
-        params.set_output_group("Simulation Out", std::move(outputs));
+        params.set_output_group("Simulation Out", (outputs));
     }
     else {
         auto& outputs = params.get_storage<SimulationStorage&>().data;
-        params.set_output_group("Simulation Out", std::move(outputs));
+        params.set_output_group("Simulation Out", (outputs));
     }
 
     return true;
@@ -50,10 +50,10 @@ NODE_EXECUTION_FUNCTION(simulation_out)
     std::vector<entt::meta_any> outputs;
 
     for (auto& input : inputs) {
-        outputs.push_back(std::move(*input));
+        outputs.push_back((*input));
     }
     params.get_storage<SimulationStorage&>().data = outputs;
-    params.set_output_group("Simulation Out", std::move(outputs));
+    params.set_output_group("Simulation Out", (outputs));
     return true;
 }
 
