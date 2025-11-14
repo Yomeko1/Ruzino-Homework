@@ -1240,8 +1240,6 @@ inline void ShaderGeneratorTester::validate_shader_compile(
                             file.close();
                         }
 
-                        spdlog::info("Compiled shader: %s", elementName.c_str());
-
                         // Run compile test
                         if (compileSource(sourceCodePaths)) {
                             successed_files.insert(doc->getSourceUri());

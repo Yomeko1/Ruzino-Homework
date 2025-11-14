@@ -42,11 +42,6 @@ void SlangResourceBindingContext::emitDirectives(
         else if (stage.getName() == Stage::PIXEL) {
             shaderStage = "fragment";
         }
-
-        if (!shaderStage.empty()) {
-            generator.emitLine(
-                "#pragma shader_stage(" + shaderStage + ")", stage, false);
-        }
     }
 
     for (auto& extension : _requiredExtensions) {

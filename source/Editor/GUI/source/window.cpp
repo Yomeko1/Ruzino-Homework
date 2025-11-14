@@ -346,7 +346,6 @@ Window::~Window()
 
     manager->RemoveRenderPass(imguiRenderPass.get());
     imguiRenderPass.reset();
-    RHI::shutdown();
 }
 
 float Window::get_elapsed_time()
@@ -406,7 +405,7 @@ std::vector<IWidget*> Window::get_widgets() const
 void Window::close()
 {
     auto manager = RHI::internal::get_device_manager();
-    manager->Shutdown();
+    manager->RequestWindowClose();
 }
 int Window::get_size_x() const
 {

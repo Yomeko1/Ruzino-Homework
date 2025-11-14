@@ -141,90 +141,116 @@ int main()
     RHI::init(true);
     USTC_CG::cuda::cuda_init();
 
-    Window window;
-    window.register_function_after_frame([](Window* window) {
-        static int frame_count = 0;
-        frame_count++;
-        if (frame_count > 100) {
-            window->close();
+    {
+        Window window;
+        window.register_function_after_frame([](Window* window) {
+            static int frame_count = 0;
+            frame_count++;
+            if (frame_count > 100) {
+                window->close();
+            }
+        });
+        // Create a 256x256 texture using CUDA linear buffer
+        const int width = 256;
+        const int height = 256;
+        const int pixel_count = width * height;
+
+        // Create CUDA linear buffer for RGBA data
+        auto cuda_buffer =
+            USTC_CG::cuda::create_cuda_linear_buffer<uint32_t>(pixel_count);
+
+        // Fill the buffer with red color using CUDA (validation of CUDA
+        // filling)
+        std::vector<uint32_t> red_data(pixel_count);
+        for (int i = 0; i < pixel_count; ++i) {
+            // RGBA format as uint32_t: 0xAABBGGRR
+            red_data[i] = 0xFF007FFF;  // Alpha=255, Blue=0, Green=127, Red=255
         }
-    });
-    // Create a 256x256 texture using CUDA linear buffer
-    const int width = 256;
-    const int height = 256;
-    const int pixel_count = width * height;
+        cuda_buffer->assign_host_vector(red_data);
 
-    // Create CUDA linear buffer for RGBA data
-    auto cuda_buffer =
-        USTC_CG::cuda::create_cuda_linear_buffer<uint32_t>(pixel_count);
+        // Create texture description
+        nvrhi::TextureDesc texture_desc;
+        texture_desc.width = width;
+        texture_desc.height = height;
+        texture_desc.format = nvrhi::Format::RGBA8_UNORM;
+        texture_desc.debugName = "cuda_red_texture";
+        texture_desc.isRenderTarget = false;
+        texture_desc.isShaderResource = true;
+        texture_desc.keepInitialState = true;
+        texture_desc.initialState = nvrhi::ResourceStates::CopyDest;
 
-    // Fill the buffer with red color using CUDA (validation of CUDA filling)
-    std::vector<uint32_t> red_data(pixel_count);
-    for (int i = 0; i < pixel_count; ++i) {
-        // RGBA format as uint32_t: 0xAABBGGRR
-        red_data[i] = 0xFF007FFF;  // Alpha=255, Blue=0, Green=127, Red=255
-    }
-    cuda_buffer->assign_host_vector(red_data);
+        // Convert CUDA linear buffer to NVRHI texture (validating the
+        // conversion)
+        auto device = RHI::get_device();
+        auto texture_handle =
+            USTC_CG::cuda::cuda_linear_buffer_to_nvrhi_texture(
+                device, cuda_buffer, texture_desc);
 
-    // Create texture description
-    nvrhi::TextureDesc texture_desc;
-    texture_desc.width = width;
-    texture_desc.height = height;
-    texture_desc.format = nvrhi::Format::RGBA8_UNORM;
-    texture_desc.debugName = "cuda_red_texture";
-    texture_desc.isRenderTarget = false;
-    texture_desc.isShaderResource = true;
+        // Create and register the image widget
+        auto image_widget = std::make_unique<ImageWidget>(texture_handle);
+        window.register_widget(std::move(image_widget));
+        window.register_function_after_frame([](Window* window) {
+            static int frame_count = 0;
+            frame_count++;
+            if (frame_count > 100) {
+                window->close();
+            }
+        });
 
-    // Convert CUDA linear buffer to NVRHI texture (validating the conversion)
-    auto device = RHI::get_device();
-    auto texture_handle = USTC_CG::cuda::cuda_linear_buffer_to_nvrhi_texture(
-        device, cuda_buffer, texture_desc);
+        window.run();
+    }  // window is destroyed here, before RHI::shutdown()
 
-    // Create and register the image widget
-    auto image_widget = std::make_unique<ImageWidget>(texture_handle);
-    window.register_widget(std::move(image_widget));
-
-    window.run();
+    RHI::shutdown();
 
 #else
     // Fallback for non-CUDA builds
     RHI::init(true);
 
-    Window window;
-    window.register_function_after_frame([](Window* window) {
-        static int frame_count = 0;
-        frame_count++;
-        if (frame_count > 100) {
-            window->close();
+    {
+        Window window;
+        window.register_function_after_frame([](Window* window) {
+            static int frame_count = 0;
+            frame_count++;
+            if (frame_count > 100) {
+                window->close();
+            }
+        });
+        // Create a simple red texture without CUDA
+        const int width = 256;
+        const int height = 256;
+        std::vector<uint8_t> red_data(width * height * 4);
+
+        for (int i = 0; i < width * height; ++i) {
+            red_data[i * 4 + 0] = 255;  // Red
+            red_data[i * 4 + 1] = 127;  // Green
+            red_data[i * 4 + 2] = 0;    // Blue
+            red_data[i * 4 + 3] = 255;  // Alpha
         }
-    });
-    // Create a simple red texture without CUDA
-    const int width = 256;
-    const int height = 256;
-    std::vector<uint8_t> red_data(width * height * 4);
 
-    for (int i = 0; i < width * height; ++i) {
-        red_data[i * 4 + 0] = 255;  // Red
-        red_data[i * 4 + 1] = 127;  // Green
-        red_data[i * 4 + 2] = 0;    // Blue
-        red_data[i * 4 + 3] = 255;  // Alpha
-    }
+        nvrhi::TextureDesc texture_desc;
+        texture_desc.width = width;
+        texture_desc.height = height;
+        texture_desc.format = nvrhi::Format::RGBA8_UNORM;
+        texture_desc.debugName = "fallback_red_texture";
+        texture_desc.isRenderTarget = false;
+        texture_desc.isShaderResource = true;
+        texture_desc.keepInitialState = true;
+        texture_desc.initialState = nvrhi::ResourceStates::CopyDest;
 
-    nvrhi::TextureDesc texture_desc;
-    texture_desc.width = width;
-    texture_desc.height = height;
-    texture_desc.format = nvrhi::Format::RGBA8_UNORM;
-    texture_desc.debugName = "fallback_red_texture";
-    texture_desc.isRenderTarget = false;
-    texture_desc.isShaderResource = true;
+        auto [texture_handle, staging_handle] =
+            RHI::load_texture(texture_desc, red_data.data());
 
-    auto [texture_handle, staging_handle] =
-        RHI::load_texture(texture_desc, red_data.data());
-
-    auto image_widget = std::make_unique<ImageWidget>(texture_handle);
-    window.register_widget(std::move(image_widget));
-
-    window.run();
+        auto image_widget = std::make_unique<ImageWidget>(texture_handle);
+        window.register_widget(std::move(image_widget));
+        window.register_function_after_frame([](Window* window) {
+            static int frame_count = 0;
+            frame_count++;
+            if (frame_count > 100) {
+                window->close();
+            }
+        });
+        window.run();
+    }  // window is destroyed here, before RHI::shutdown()
 
     RHI::shutdown();
 #endif

@@ -20,6 +20,13 @@ TEST(USDWIDGET, create_widget)
     auto widget = std::make_unique<UsdFileViewer>(stage.get());
     auto window = std::make_unique<Window>();
     window->register_widget(std::move(widget));
+    window->register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
     window->run();
     window.reset();
 }

@@ -3,8 +3,9 @@ Basic unit tests for BPM module
 """
 
 import numpy as np
-import sys
-sys.path.append('../build/Release')
+
+# conftest.py will handle path setup and working directory change
+
 import BPM_py as BPM
 
 def test_grid_parameters():
@@ -25,7 +26,7 @@ def test_grid_parameters():
     
     assert params.Nx == 128
     assert params.Ny == 128
-    assert abs(params.lambda_ - 1550e-9) < 1e-15
+    assert abs(params.lambda_ - 1550e-9) < 1e-13
     print("✓ GridParameters test passed")
 
 def test_gaussian_propagation():

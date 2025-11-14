@@ -42,8 +42,12 @@ TEST(cpu_call, gen_shader)
         {},
         shader_str);
 
-    std::cout << error_string << std::endl;
-    std::cout << reflection << std::endl;
+    // This shader has invalid HLSL syntax and is expected to fail compilation
+    // Just verify that the factory handled it without crashing
+    if (!error_string.empty()) {
+        // Expected failure case - invalid register syntax
+        EXPECT_EQ(program_handle, nullptr);
+    }
 }
 
 const char* str2 = R"(
@@ -109,17 +113,9 @@ TEST(cpu_call, gen_shader2)
 
     program_handle->host_call(varyingInput, uniformState);
 
-    // Print out the values before the computation
-    printf("Before:\n");
-    for (float v : startBufferContents) {
-        printf("%f, ", v);
+    // Verify results
+    const float expected[] = { 1.414214f, -20.0f, -6.0f, 2.236068f };
+    for (size_t i = 0; i < SLANG_COUNT_OF(bufferContents); ++i) {
+        EXPECT_NEAR(bufferContents[i], expected[i], 0.001f);
     }
-    printf("\n");
-
-    // Print out the values the the kernel produced
-    printf("After: \n");
-    for (float v : bufferContents) {
-        printf("%f, ", v);
-    }
-    printf("\n");
 }

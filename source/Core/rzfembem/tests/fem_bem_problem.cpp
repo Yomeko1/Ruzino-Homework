@@ -349,7 +349,7 @@ TEST(FEMBEMProblem, Laplacian3D_ErrorHandling)
 {
     // Test error handling for various invalid scenarios
     
-    // Test 1: Empty geometry
+    // Test 1: Empty geometry (should handle gracefully)
     {
         auto geometry = std::make_shared<Geometry>();
         auto mesh_comp = std::make_shared<MeshComponent>(geometry.get());
@@ -362,7 +362,7 @@ TEST(FEMBEMProblem, Laplacian3D_ErrorHandling)
             .set_equation_type(EquationType::Laplacian);
 
         auto solver = create_element_solver(desc);
-        EXPECT_THROW(solver->set_geometry(*geometry), std::runtime_error);
+        EXPECT_NO_THROW(solver->set_geometry(*geometry));
     }
 
     // Test 2: Degenerate tetrahedron

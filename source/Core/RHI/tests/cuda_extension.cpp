@@ -139,8 +139,11 @@ TEST(cuda_extension, nvrhi_texture_to_cuda_linear_buffer)
     desc.height = 32;
     desc.format = nvrhi::Format::RGBA8_UNORM;
     desc.isShaderResource = true;
-    desc.isRenderTarget = true;
+    desc.isRenderTarget = false;
     desc.debugName = "test_texture_source";
+    desc.sharedResourceFlags = nvrhi::SharedResourceFlags::Shared;
+    desc.keepInitialState = true;
+    desc.initialState = nvrhi::ResourceStates::CopyDest;
 
     auto device = USTC_CG::RHI::get_device();
     auto source_texture = device->createTexture(desc);

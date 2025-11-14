@@ -1567,6 +1567,7 @@ CUDALinearBufferHandle copy_texture_to_linear_buffer_with_cleanup(
         // Create a shared copy of the texture
         nvrhi::TextureDesc shared_desc = desc;
         shared_desc.sharedResourceFlags = nvrhi::SharedResourceFlags::Shared;
+        shared_desc.keepInitialState = true;
         shared_desc.initialState = nvrhi::ResourceStates::CopyDest;
 
         shared_texture = device->createTexture(shared_desc);
@@ -1574,6 +1575,7 @@ CUDALinearBufferHandle copy_texture_to_linear_buffer_with_cleanup(
         // Copy the original texture to the shared texture
         nvrhi::CommandListHandle cmd = device->createCommandList();
         cmd->open();
+        cmd->beginTrackingTextureState(shared_texture, nvrhi::AllSubresources, nvrhi::ResourceStates::CopyDest);
         cmd->copyTexture(
             shared_texture,
             nvrhi::TextureSlice(),

@@ -68,7 +68,7 @@ int init(bool with_window, bool use_dx12)
 
     if (with_window) {
         auto ret =
-            device_manager->CreateWindowDeviceAndSwapChain(params, "Ruzino");
+            !device_manager->CreateWindowDeviceAndSwapChain(params, "Ruzino");
 
         device_manager->m_callbacks.afterPresent = [](DeviceManager& manager) {
             manager.SetInformativeWindowTitle("Ruzino");

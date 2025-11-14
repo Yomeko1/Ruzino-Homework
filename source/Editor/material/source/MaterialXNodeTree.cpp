@@ -231,11 +231,6 @@ void MaterialXNodeTree::buildUiBaseGraph(mx::DocumentPtr doc)
         setUiNodeInfo(currNode, output->getType(), output->getCategory());
     }
 
-    for (auto& node : nodes) {
-        std::cout << node->typeinfo->id_name
-                  << ", id name: " << node->typeinfo->id_name << std::endl;
-    }
-
     // Create edges for nodegraphs
     for (mx::NodeGraphPtr graph : nodeGraphs) {
         for (mx::InputPtr input : graph->getActiveInputs()) {

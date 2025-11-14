@@ -187,15 +187,6 @@ TEST_F(NonSPDMatrixTest, ConvectionDiffusionCUDA)
         std::vector<SolverType> cuda_solvers = { SolverType::CUDA_BICGSTAB,
                                                  SolverType::CUDA_GMRES };
 
-        std::cout
-            << "\n=== Convection-Diffusion Test (Known Difficult Problem) ==="
-            << std::endl;
-        std::cout << "Note: This is a challenging convection-dominated problem."
-                  << std::endl;
-        std::cout
-            << "Failure to converge is expected for basic iterative solvers."
-            << std::endl;
-
         bool any_converged = false;
 
         for (auto solver_type : cuda_solvers) {
@@ -206,26 +197,15 @@ TEST_F(NonSPDMatrixTest, ConvectionDiffusionCUDA)
             SolverConfig config;
             config.tolerance = 1e-4f;  // 放宽容差
             config.max_iterations = 5000;
-            config.verbose = true;
+            config.verbose = false;
 
             auto result = solver->solve(convection_A, convection_b, x, config);
-
-            std::cout << "Solver: " << SolverFactory::getTypeName(solver_type)
-                      << std::endl;
-            std::cout << "Converged: " << (result.converged ? "Yes" : "No")
-                      << std::endl;
 
             if (result.converged) {
                 Eigen::VectorXf residual = convection_A * x - convection_b;
                 float rel_residual = residual.norm() / convection_b.norm();
-                std::cout << "Relative residual: " << rel_residual << std::endl;
                 EXPECT_LT(rel_residual, 1e-3f);  // 如果收敛了，检查质量
                 any_converged = true;
-            }
-            else {
-                std::cout << "Error: " << result.error_message << std::endl;
-                std::cout << "Final residual: " << result.final_residual
-                          << std::endl;
             }
         }
 
@@ -235,23 +215,6 @@ TEST_F(NonSPDMatrixTest, ConvectionDiffusionCUDA)
             << "Convection-diffusion is a known difficult problem. "
             << "Solvers handled it appropriately (with or without "
                "convergence).";
-
-        std::cout << "\n=== Test Assessment ===" << std::endl;
-        if (any_converged) {
-            std::cout << "✓ At least one solver converged - excellent!"
-                      << std::endl;
-        }
-        else {
-            std::cout << "✓ No solvers converged - this is expected for this "
-                         "difficult problem."
-                      << std::endl;
-            std::cout
-                << "  Real applications would use specialized methods like:"
-                << std::endl;
-            std::cout << "  - Algebraic Multigrid (AMG)" << std::endl;
-            std::cout << "  - ILU preconditioning" << std::endl;
-            std::cout << "  - Stabilized finite element methods" << std::endl;
-        }
     }
     catch (const std::exception& e) {
         GTEST_SKIP() << "CUDA not available: " << e.what();
@@ -278,8 +241,6 @@ TEST_F(NonSPDMatrixTest, EigenSolversComparison)
     };
 
     for (const auto& test_case : test_cases) {
-        std::cout << "\n=== Testing " << test_case.name << " ===" << std::endl;
-
         for (auto solver_type : eigen_solvers) {
             auto solver = SolverFactory::create(solver_type);
             ASSERT_NE(solver, nullptr);
@@ -293,19 +254,11 @@ TEST_F(NonSPDMatrixTest, EigenSolversComparison)
             auto result =
                 solver->solve(*test_case.matrix, *test_case.rhs, x, config);
 
-            std::cout << "Solver: " << SolverFactory::getTypeName(solver_type);
             if (result.converged) {
                 Eigen::VectorXf residual =
                     (*test_case.matrix) * x - (*test_case.rhs);
                 float rel_residual = residual.norm() / test_case.rhs->norm();
-                std::cout << " - PASS (residual: " << rel_residual << ")"
-                          << std::endl;
                 EXPECT_LT(rel_residual, 1e-3f);
-            }
-            else {
-                std::cout << " - FAIL (" << result.error_message << ")"
-                          << std::endl;
-                // Some failures expected for difficult matrices
             }
         }
     }
@@ -324,28 +277,15 @@ TEST_F(NonSPDMatrixTest, CUDAvsEigenBiCGSTAB)
         SolverConfig config;
         config.tolerance = 1e-6f;
         config.max_iterations = 2000;
-        config.verbose = true;
-
-        std::cout << "\n=== CUDA vs Eigen BiCGSTAB Comparison ===" << std::endl;
+        config.verbose = false;
 
         auto cuda_result =
             cuda_solver->solve(random_A, random_b, x_cuda, config);
         auto eigen_result =
             eigen_solver->solve(random_A, random_b, x_eigen, config);
 
-        std::cout << "CUDA BiCGSTAB: "
-                  << (cuda_result.converged ? "PASS" : "FAIL") << " ("
-                  << cuda_result.iterations << " iters, "
-                  << cuda_result.solve_time.count() << " μs)" << std::endl;
-
-        std::cout << "Eigen BiCGSTAB: "
-                  << (eigen_result.converged ? "PASS" : "FAIL") << " ("
-                  << eigen_result.iterations << " iters, "
-                  << eigen_result.solve_time.count() << " μs)" << std::endl;
-
         if (cuda_result.converged && eigen_result.converged) {
             float solution_diff = (x_cuda - x_eigen).norm() / x_eigen.norm();
-            std::cout << "Solution difference: " << solution_diff << std::endl;
             EXPECT_LT(solution_diff, 1e-2f);  // Solutions should be similar
         }
     }
@@ -366,24 +306,12 @@ TEST_F(NonSPDMatrixTest, CUDAIterativeSolversComparison)
         SolverConfig config;
         config.tolerance = 1e-6f;
         config.max_iterations = 2000;
-        config.verbose = true;
-
-        std::cout << "\n=== CUDA BiCGSTAB vs GMRES Comparison ===" << std::endl;
+        config.verbose = false;
 
         auto bicgstab_result =
             bicgstab_solver->solve(random_A, random_b, x_bicgstab, config);
         auto gmres_result =
             gmres_solver->solve(random_A, random_b, x_gmres, config);
-
-        std::cout << "CUDA BiCGSTAB: "
-                  << (bicgstab_result.converged ? "PASS" : "FAIL") << " ("
-                  << bicgstab_result.iterations << " iters, "
-                  << bicgstab_result.solve_time.count() << " μs)" << std::endl;
-
-        std::cout << "CUDA GMRES: "
-                  << (gmres_result.converged ? "PASS" : "FAIL") << " ("
-                  << gmres_result.iterations << " iters, "
-                  << gmres_result.solve_time.count() << " μs)" << std::endl;
 
         // GMRES should be more robust than BiCGSTAB
         if (!bicgstab_result.converged) {
@@ -394,7 +322,6 @@ TEST_F(NonSPDMatrixTest, CUDAIterativeSolversComparison)
         if (bicgstab_result.converged && gmres_result.converged) {
             float solution_diff =
                 (x_bicgstab - x_gmres).norm() / x_gmres.norm();
-            std::cout << "Solution difference: " << solution_diff << std::endl;
             EXPECT_LT(solution_diff, 1e-2f);  // Solutions should be similar
         }
     }

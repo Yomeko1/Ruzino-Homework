@@ -347,6 +347,14 @@ class RHI_API DeviceManager {
         const char* extraInfo = nullptr);
     const char* GetWindowTitle();
 
+    // Request the window to close by setting the should_close flag
+    void RequestWindowClose()
+    {
+        if (m_Window) {
+            glfwSetWindowShouldClose(m_Window, GLFW_TRUE);
+        }
+    }
+
     virtual bool IsVulkanInstanceExtensionEnabled(
         const char* extensionName) const
     {
