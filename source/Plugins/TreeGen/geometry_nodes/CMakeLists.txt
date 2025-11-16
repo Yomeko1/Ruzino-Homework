@@ -1,5 +1,7 @@
 add_nodes(
 	TARGET_NAME TreeGen_geometry_nodes
 	JSON_DIR Plugins
-	DEP_LIBS TreeGen
+	DEP_LIBS TreeGen geometry usdShade
+	COMPILE_DEFS NOMINMAX
+	EXTRA_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/source/Editor/geometry_nodes
 )

@@ -1,0 +1,124 @@
+#pragma once
+
+#include "TreeParameters.h"
+#include "TreeStructure.h"
+#include "api.h"
+#include <random>
+
+namespace TreeGen {
+
+class TREEGEN_API TreeGrowth {
+public:
+    TreeGrowth(const TreeParameters& params);
+    
+    // Initialize a new tree with a single trunk
+    TreeStructure initialize_tree();
+    
+    // Perform one growth cycle
+    void grow_one_cycle(TreeStructure& tree);
+    
+    // Grow tree for multiple cycles
+    void grow_tree(TreeStructure& tree, int cycles);
+    
+private:
+    TreeParameters params_;
+    std::mt19937 rng_;
+    std::normal_distribution<float> normal_dist_;
+    std::uniform_real_distribution<float> uniform_dist_;
+    
+    // Initialize random number generator
+    void init_random();
+    
+    // Get random value from normal distribution
+    float random_normal(float mean, float stddev);
+    
+    // Get random value from uniform distribution
+    float random_uniform(float min = 0.0f, float max = 1.0f);
+    
+    // ===== Bud Management =====
+    
+    // Update bud states (death, dormancy)
+    void update_bud_states(TreeStructure& tree);
+    
+    // Calculate illumination for all buds (simplified)
+    void calculate_illumination(TreeStructure& tree);
+    
+    // Calculate auxin levels for lateral buds
+    void calculate_auxin_levels(TreeStructure& tree);
+    
+    // Determine which buds will flush (grow)
+    void determine_bud_flushing(TreeStructure& tree);
+    
+    // Calculate flush probability for apical bud
+    float calculate_apical_flush_probability(const TreeBud& bud);
+    
+    // Calculate flush probability for lateral bud
+    float calculate_lateral_flush_probability(const TreeBud& bud, 
+                                               const TreeStructure& tree);
+    
+    // ===== Shoot Growth =====
+    
+    // Grow a new shoot from a bud
+    void grow_shoot_from_bud(TreeStructure& tree, std::shared_ptr<TreeBud> bud);
+    
+    // Calculate growth rate for a shoot based on branch level
+    float calculate_growth_rate(int branch_level, int tree_age);
+    
+    // Calculate internode length based on tree age
+    float calculate_internode_length(int tree_age);
+    
+    // Create internodes along a shoot
+    void create_internodes(TreeStructure& tree, 
+                          std::shared_ptr<TreeBranch> parent,
+                          const glm::vec3& start_pos,
+                          const glm::vec3& initial_dir,
+                          int num_internodes,
+                          int branch_level);
+    
+    // ===== Direction and Tropism =====
+    
+    // Calculate new growth direction with tropisms
+    glm::vec3 calculate_growth_direction(const glm::vec3& bud_direction,
+                                         const glm::vec3& position,
+                                         float illumination);
+    
+    // Apply phototropism (bending towards light)
+    glm::vec3 apply_phototropism(const glm::vec3& direction, float strength);
+    
+    // Apply gravitropism (bending due to gravity)
+    glm::vec3 apply_gravitropism(const glm::vec3& direction, float strength);
+    
+    // ===== Lateral Bud Creation =====
+    
+    // Create lateral buds along a branch
+    void create_lateral_buds(std::shared_ptr<TreeBranch> branch);
+    
+    // Calculate branching direction for lateral bud
+    glm::vec3 calculate_lateral_direction(const glm::vec3& parent_dir,
+                                          int bud_index,
+                                          int total_buds);
+    
+    // ===== Structural Updates =====
+    
+    // Update branch radii based on pipe model
+    void update_branch_radii(TreeStructure& tree);
+    
+    // Apply structural bending due to weight
+    void apply_structural_bending(TreeStructure& tree);
+    
+    // Prune branches based on light and height
+    void prune_branches(TreeStructure& tree);
+    
+    // ===== Utility Functions =====
+    
+    // Calculate distance along branch path between two buds
+    float calculate_branch_distance(const TreeBud& bud1, const TreeBud& bud2);
+    
+    // Rotate vector around axis
+    glm::vec3 rotate_vector(const glm::vec3& vec, const glm::vec3& axis, float angle);
+    
+    // Get perpendicular vector
+    glm::vec3 get_perpendicular(const glm::vec3& vec);
+};
+
+} // namespace TreeGen
