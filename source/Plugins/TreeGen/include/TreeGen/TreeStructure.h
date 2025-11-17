@@ -9,6 +9,7 @@ namespace TreeGen {
 // Forward declarations
 struct TreeBud;
 struct TreeBranch;
+struct TreeLeaf;
 
 // Bud type
 enum class BudType {
@@ -40,6 +41,21 @@ struct TreeBud {
     TreeBranch* parent_branch = nullptr;
 };
 
+// Tree leaf structure
+struct TreeLeaf {
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 normal = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+    
+    float size = 1.0f;              // Leaf scale
+    float rotation = 0.0f;          // Rotation around normal (radians)
+    
+    int age = 0;                    // Age in growth cycles
+    int parent_level = 0;           // Level of parent branch
+    
+    TreeBranch* parent_branch = nullptr;
+};
+
 // Tree branch structure (internode)
 struct TreeBranch {
     glm::vec3 start_position = glm::vec3(0.0f);
@@ -55,6 +71,7 @@ struct TreeBranch {
     TreeBranch* parent = nullptr;
     std::vector<std::shared_ptr<TreeBranch>> children;
     std::vector<std::shared_ptr<TreeBud>> lateral_buds;
+    std::vector<std::shared_ptr<TreeLeaf>> leaves;
     std::shared_ptr<TreeBud> apical_bud;
     
     // For structural bending
@@ -66,6 +83,7 @@ struct TreeStructure {
     std::shared_ptr<TreeBranch> root;
     std::vector<std::shared_ptr<TreeBranch>> all_branches;
     std::vector<std::shared_ptr<TreeBud>> all_buds;
+    std::vector<std::shared_ptr<TreeLeaf>> all_leaves;
     
     int current_age = 0;
     
@@ -89,6 +107,16 @@ struct TreeStructure {
                 if (bud->state == BudState::Active) {
                     all_buds.push_back(bud);
                 }
+            }
+        }
+    }
+    
+    // Helper to collect all leaves
+    void collect_all_leaves() {
+        all_leaves.clear();
+        for (auto& branch : all_branches) {
+            for (auto& leaf : branch->leaves) {
+                all_leaves.push_back(leaf);
             }
         }
     }

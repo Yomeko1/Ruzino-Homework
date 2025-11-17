@@ -100,6 +100,7 @@ void TreeGrowth::grow_one_cycle(TreeStructure& tree) {
     tree.all_branches.clear();
     tree.collect_branches(tree.root);
     tree.collect_active_buds();
+    tree.collect_all_leaves();
 }
 
 void TreeGrowth::update_bud_states(TreeStructure& tree) {
@@ -214,9 +215,20 @@ void TreeGrowth::grow_shoot_from_bud(TreeStructure& tree, std::shared_ptr<TreeBu
     glm::vec3 growth_dir = calculate_growth_direction(
         bud->direction, bud->position, bud->illumination);
     
+    // Find parent branch properly
+    std::shared_ptr<TreeBranch> parent_branch = nullptr;
+    if (bud->parent_branch) {
+        // Search for the shared_ptr in all_branches
+        for (auto& branch : tree.all_branches) {
+            if (branch.get() == bud->parent_branch) {
+                parent_branch = branch;
+                break;
+            }
+        }
+    }
+    
     // Create internodes
-    create_internodes(tree, bud->parent_branch ? 
-                      tree.all_branches[0] : nullptr,  // Simplified parent lookup
+    create_internodes(tree, parent_branch, 
                       bud->position, growth_dir, 
                       num_internodes, bud->level);
     
@@ -266,9 +278,8 @@ void TreeGrowth::create_internodes(TreeStructure& tree,
         branch->age = 0;
         branch->parent = current_parent.get();
         
-        // Calculate radius based on level
-        branch->radius = params_.initial_radius * 
-                        std::pow(params_.thickness_ratio, branch_level);
+        // Set initial small radius (will be updated by pipe model)
+        branch->radius = params_.initial_radius * 0.1f;
         
         // Add to parent's children
         if (current_parent) {
@@ -277,6 +288,11 @@ void TreeGrowth::create_internodes(TreeStructure& tree,
         
         // Create lateral buds along this internode
         create_lateral_buds(branch);
+        
+        // Create leaves if enabled and at appropriate level
+        if (params_.generate_leaves && branch_level >= params_.min_leaf_level) {
+            create_leaves(branch);
+        }
         
         // Create apical bud at the end
         auto apical_bud = std::make_shared<TreeBud>();
@@ -374,31 +390,33 @@ void TreeGrowth::create_lateral_buds(std::shared_ptr<TreeBranch> branch) {
 glm::vec3 TreeGrowth::calculate_lateral_direction(const glm::vec3& parent_dir,
                                                   int bud_index,
                                                   int total_buds) {
-    // Calculate branching angle
+    // Calculate branching angle from parent direction
     float branch_angle = glm::radians(
         random_normal(params_.branching_angle_mean, 
                      params_.branching_angle_variance));
     
-    // Calculate roll angle (phyllotaxis)
+    // Calculate roll angle (phyllotaxis) - golden angle distribution
+    // Each bud is rotated around the parent axis by approximately 137.5 degrees
+    float base_roll = params_.roll_angle_mean;  // Default: 137.5 degrees (golden angle)
     float roll_angle = glm::radians(
-        random_normal(params_.roll_angle_mean * bud_index, 
+        random_normal(base_roll * (bud_index + 1.0f), 
                      params_.roll_angle_variance));
     
-    // Get perpendicular vector
+    // Get perpendicular vector to parent direction
     glm::vec3 perp = get_perpendicular(parent_dir);
     
     // Rotate perpendicular by roll angle around parent direction
     glm::vec3 radial = glm::rotate(perp, roll_angle, parent_dir);
     
     // Rotate parent direction by branch angle towards radial direction
-    glm::vec3 axis = glm::cross(parent_dir, radial);
+    glm::vec3 axis = glm::normalize(glm::cross(parent_dir, radial));
     glm::vec3 lateral_dir = glm::rotate(parent_dir, branch_angle, axis);
     
     return glm::normalize(lateral_dir);
 }
 
 void TreeGrowth::update_branch_radii(TreeStructure& tree) {
-    // Simple pipe model: parent radius = sum of child radii
+    // Pipe model: parent cross-sectional area = sum of child cross-sectional areas
     // Process branches from tips to root
     
     std::function<void(std::shared_ptr<TreeBranch>)> update_radius;
@@ -412,12 +430,21 @@ void TreeGrowth::update_branch_radii(TreeStructure& tree) {
         
         // Calculate this branch's radius based on children
         if (!branch->children.empty()) {
+            // Sum of child cross-sectional areas
             float child_area_sum = 0.0f;
             for (auto& child : branch->children) {
                 child_area_sum += child->radius * child->radius;
             }
+            // Parent radius from total area: r = sqrt(sum(r_child^2))
             branch->radius = std::sqrt(child_area_sum);
+        } else {
+            // Terminal branch (no children) - use base radius scaled by level
+            branch->radius = params_.initial_radius * 
+                           std::pow(params_.thickness_ratio, branch->level);
         }
+        
+        // Ensure minimum radius
+        branch->radius = std::max(branch->radius, params_.initial_radius * 0.05f);
     };
     
     if (tree.root) {
@@ -468,6 +495,63 @@ glm::vec3 TreeGrowth::get_perpendicular(const glm::vec3& vec) {
         : glm::vec3(0.0f, 1.0f, 0.0f);
     
     return glm::normalize(glm::cross(vec, arbitrary));
+}
+
+void TreeGrowth::create_leaves(std::shared_ptr<TreeBranch> branch) {
+    if (!params_.generate_leaves) return;
+    if (branch->level < params_.min_leaf_level) return;
+    
+    int num_leaves = params_.leaves_per_internode;
+    
+    for (int i = 0; i < num_leaves; ++i) {
+        auto leaf = std::make_shared<TreeLeaf>();
+        
+        // Position along the branch
+        float t = (i + 1.0f) / (num_leaves + 1.0f);
+        leaf->position = branch->start_position + 
+                        (branch->end_position - branch->start_position) * t;
+        
+        // Calculate leaf orientation using phyllotaxis
+        glm::vec3 branch_dir = glm::normalize(branch->direction);
+        leaf->normal = calculate_leaf_normal(branch_dir, i);
+        
+        // Calculate tangent perpendicular to normal
+        leaf->tangent = glm::normalize(glm::cross(leaf->normal, branch_dir));
+        
+        // Leaf size decreases with branch level
+        float level_factor = std::pow(0.8f, branch->level - params_.min_leaf_level);
+        leaf->size = random_normal(params_.leaf_size_base * level_factor, 
+                                   params_.leaf_size_variance);
+        leaf->size = std::max(0.01f, leaf->size);  // Minimum size
+        
+        // Add rotation variation
+        leaf->rotation = random_normal(0.0f, 
+                                      glm::radians(params_.leaf_rotation_variance));
+        
+        leaf->age = 0;
+        leaf->parent_level = branch->level;
+        leaf->parent_branch = branch.get();
+        
+        branch->leaves.push_back(leaf);
+    }
+}
+
+glm::vec3 TreeGrowth::calculate_leaf_normal(const glm::vec3& branch_dir, int leaf_index) {
+    // Use phyllotaxis angle for spiral arrangement
+    float phyllotaxis = glm::radians(params_.leaf_phyllotaxis_angle);
+    float angle = phyllotaxis * (leaf_index + 1.0f);
+    
+    // Get perpendicular to branch
+    glm::vec3 perp = get_perpendicular(branch_dir);
+    
+    // Rotate around branch direction
+    glm::vec3 radial = glm::rotate(perp, angle, branch_dir);
+    
+    // Leaf normal points outward with slight upward bias
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 normal = glm::normalize(radial * 0.7f + up * 0.3f);
+    
+    return normal;
 }
 
 } // namespace TreeGen

@@ -40,12 +40,18 @@ def test_full_tree_generation():
     to_mesh = g.createNode("tree_to_mesh", name="mesh_converter")
     print(f"✓ Created tree_to_mesh node")
     
-    write_node = g.createNode("write_usd", name="writer")
-    print(f"✓ Created write_usd node")
+    write_branches = g.createNode("write_usd", name="writer_branches")
+    print(f"✓ Created write_usd node for branches")
     
-    # Connect nodes: tree_generate -> tree_to_mesh -> write_usd
+    write_leaves = g.createNode("write_usd", name="writer_leaves")
+    print(f"✓ Created write_usd node for leaves")
+    
+    # Connect nodes: 
+    # tree_generate -> tree_to_mesh -> write_usd (branches)
+    # tree_generate -> write_usd (leaves)
     g.addEdge(tree_gen, "Tree Branches", to_mesh, "Tree Branches")
-    g.addEdge(to_mesh, "Mesh", write_node, "Geometry")
+    g.addEdge(to_mesh, "Mesh", write_branches, "Geometry")
+    g.addEdge(tree_gen, "Leaves", write_leaves, "Geometry")
     print(f"✓ Connected nodes")
     
     # Set parameters for tree generation
@@ -53,18 +59,23 @@ def test_full_tree_generation():
         (tree_gen, "Growth Years"): 3,
         (tree_gen, "Internode Length"): 1.0,
         (tree_gen, "Branch Angle"): 30.0,
+        (tree_gen, "Generate Leaves"): True,
+        (tree_gen, "Leaves Per Internode"): 3,
         (to_mesh, "Radial Segments"): 8,
+        (write_branches, "Sub Path"): "branches",
+        (write_leaves, "Sub Path"): "leaves",
     }
-    print(f"✓ Set parameters: Years=3, Internode=1.0, Angle=30°, Segments=8")
+    print(f"✓ Set parameters: Years=3, Internode=1.0, Angle=30°, Segments=8, Leaves=ON")
     
     # Create Stage and convert to GeomPayload
     stage = stage_py.Stage(output_file)
     geom_payload = stage_py.create_payload_from_stage(stage, "/tree")
     g.setGlobalParams(geom_payload)
     
-    # Execute
-    g.prepare_and_execute(inputs, required_node=write_node)
-    print(f"✓ Executed graph")
+    # Execute both outputs
+    g.prepare_and_execute(inputs, required_node=write_branches)
+    g.prepare_and_execute(inputs, required_node=write_leaves)
+    print(f"✓ Executed graph with branches at /tree/branches and leaves at /tree/leaves")
     
     # Save the stage
     stage.save()

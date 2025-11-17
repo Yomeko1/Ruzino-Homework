@@ -81,6 +81,29 @@ struct TreeParameters {
     // Gravity bending angle factor
     float gravity_bending_angle = 0.05f;
     
+    // ========== Leaf Parameters ==========
+    
+    // Generate leaves on branches
+    bool generate_leaves = true;
+    
+    // Number of leaves per internode
+    int leaves_per_internode = 3;
+    
+    // Leaf size base (scales with branch level)
+    float leaf_size_base = 0.15f;
+    
+    // Leaf size variation
+    float leaf_size_variance = 0.03f;
+    
+    // Minimum branch level to generate leaves (0=trunk)
+    int min_leaf_level = 1;
+    
+    // Leaf rotation randomness (degrees)
+    float leaf_rotation_variance = 30.0f;
+    
+    // Leaf phyllotaxis angle (like branches)
+    float leaf_phyllotaxis_angle = 137.5f;  // golden angle
+    
     // ========== Simulation Parameters ==========
     
     // Growth time (years/iterations)

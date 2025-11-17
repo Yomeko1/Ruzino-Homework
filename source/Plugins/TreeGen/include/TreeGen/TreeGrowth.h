@@ -109,6 +109,14 @@ private:
     // Prune branches based on light and height
     void prune_branches(TreeStructure& tree);
     
+    // ===== Leaf Generation =====
+    
+    // Create leaves on a branch
+    void create_leaves(std::shared_ptr<TreeBranch> branch);
+    
+    // Calculate leaf normal direction
+    glm::vec3 calculate_leaf_normal(const glm::vec3& branch_dir, int leaf_index);
+    
     // ===== Utility Functions =====
     
     // Calculate distance along branch path between two buds

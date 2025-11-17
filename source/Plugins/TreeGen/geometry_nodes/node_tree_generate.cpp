@@ -31,8 +31,14 @@ NODE_DECLARATION_FUNCTION(tree_generate)
     b.add_input<float>("Phototropism").min(0.0f).max(1.0f).default_val(0.3f);
     b.add_input<float>("Gravitropism").min(0.0f).max(1.0f).default_val(0.2f);
     
+    // Leaf parameters
+    b.add_input<bool>("Generate Leaves").default_val(true);
+    b.add_input<int>("Leaves Per Internode").min(0).max(10).default_val(3);
+    b.add_input<float>("Leaf Size").min(0.01f).max(1.0f).default_val(0.15f);
+    
     // Output
     b.add_output<Geometry>("Tree Branches");
+    b.add_output<Geometry>("Leaves");
 }
 
 NODE_EXECUTION_FUNCTION(tree_generate)
@@ -52,6 +58,9 @@ NODE_EXECUTION_FUNCTION(tree_generate)
     tree_params.lateral_light_factor = params.get_input<float>("Light Factor");
     tree_params.phototropism = params.get_input<float>("Phototropism");
     tree_params.gravitropism = params.get_input<float>("Gravitropism");
+    tree_params.generate_leaves = params.get_input<bool>("Generate Leaves");
+    tree_params.leaves_per_internode = params.get_input<int>("Leaves Per Internode");
+    tree_params.leaf_size_base = params.get_input<float>("Leaf Size");
     
     // Create tree growth system
     TreeGrowth growth(tree_params);
@@ -88,6 +97,70 @@ NODE_EXECUTION_FUNCTION(tree_generate)
     curve->set_periodic(false);
     
     params.set_output("Tree Branches", curve_geom);
+    
+    // Generate leaf geometry as mesh
+    Geometry leaf_geom = Geometry::CreateMesh();
+    auto leaf_mesh = leaf_geom.get_component<MeshComponent>();
+    
+    std::vector<glm::vec3> leaf_vertices;
+    std::vector<int> leaf_face_counts;
+    std::vector<int> leaf_face_indices;
+    std::vector<glm::vec3> leaf_normals;
+    
+    // Generate all leaves
+    for (const auto& branch : tree.all_branches) {
+        if (!branch) continue;
+        
+        for (const auto& leaf : branch->leaves) {
+            if (!leaf) continue;
+            
+            int base_idx = leaf_vertices.size();
+            
+            // Create diamond-shaped leaf
+            float hw = leaf->size * 0.5f;  // half width
+            float hh = leaf->size * 0.7f;  // half height (slightly elongated)
+            
+            // Calculate leaf coordinate system
+            glm::vec3 right = leaf->tangent;
+            glm::vec3 up = leaf->normal;
+            glm::vec3 forward = glm::normalize(glm::cross(right, up));
+            
+            // 4 vertices in diamond shape
+            glm::vec3 v0 = leaf->position + up * hh;                    // top
+            glm::vec3 v1 = leaf->position + right * hw;                 // right
+            glm::vec3 v2 = leaf->position - up * hh;                    // bottom
+            glm::vec3 v3 = leaf->position - right * hw;                 // left
+            
+            leaf_vertices.push_back(v0);
+            leaf_vertices.push_back(v1);
+            leaf_vertices.push_back(v2);
+            leaf_vertices.push_back(v3);
+            
+            // Two triangular faces (front)
+            leaf_face_indices.push_back(base_idx + 0);
+            leaf_face_indices.push_back(base_idx + 1);
+            leaf_face_indices.push_back(base_idx + 2);
+            leaf_face_counts.push_back(3);
+            
+            leaf_face_indices.push_back(base_idx + 0);
+            leaf_face_indices.push_back(base_idx + 2);
+            leaf_face_indices.push_back(base_idx + 3);
+            leaf_face_counts.push_back(3);
+            
+            // Normals (all point in leaf normal direction)
+            for (int i = 0; i < 4; ++i) {
+                leaf_normals.push_back(forward);
+            }
+        }
+    }
+    
+    leaf_mesh->set_vertices(leaf_vertices);
+    leaf_mesh->set_face_vertex_counts(leaf_face_counts);
+    leaf_mesh->set_face_vertex_indices(leaf_face_indices);
+    leaf_mesh->set_normals(leaf_normals);
+    
+    params.set_output("Leaves", leaf_geom);
+    
     return true;
 }
 
