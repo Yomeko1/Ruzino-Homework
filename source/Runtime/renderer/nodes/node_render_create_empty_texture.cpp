@@ -23,6 +23,7 @@ NODE_EXECUTION_FUNCTION(create_empty_texture)
     output_desc.keepInitialState = true;
     output_desc.isUAV = true;
     output_desc.clearValue = nvrhi::Color{ 0, 0, 0, 1 };
+    output_desc.useClearValue = true;
     auto output = resource_allocator.create(output_desc);
 
     auto command_list = resource_allocator.create(CommandListDesc{});

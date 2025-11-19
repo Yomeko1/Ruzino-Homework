@@ -21,11 +21,21 @@ namespace RHI {
 
 std::unique_ptr<DeviceManager> device_manager = nullptr;
 std::map<std::string, nvrhi_image> rhi_images{};
+static int reference_count = 0;
+static std::weak_ptr<spdlog::logger> cached_logger;
 
 int init(bool with_window, bool use_dx12)
 {
+    // Cache the logger on first access
+    if (!cached_logger.lock()) {
+        cached_logger = spdlog::default_logger();
+    }
+    
     if (device_manager) {
-        spdlog::warn("Trying to initialize the RHI again");
+        reference_count++;
+        if (auto logger = cached_logger.lock()) {
+            logger->info("RHI already initialized, reference count: {}", reference_count);
+        }
         return 0;
     }
 
@@ -74,11 +84,18 @@ int init(bool with_window, bool use_dx12)
             manager.SetInformativeWindowTitle("Ruzino");
         };
 
+        if (ret == 0) {
+            reference_count = 1;
+            cached_logger = spdlog::default_logger();
+        }
         return ret;
     }
     else {
-        if (device_manager->CreateHeadlessDevice(params))
+        if (device_manager->CreateHeadlessDevice(params)) {
+            reference_count = 1;
+            cached_logger = spdlog::default_logger();
             return 0;
+        }
     }
     return 1;
 }
@@ -277,9 +294,27 @@ DeviceManager* internal::get_device_manager()
 
 int shutdown()
 {
+    if (!device_manager) {
+        if (auto logger = cached_logger.lock()) {
+            logger->warn("RHI is not initialized, cannot shutdown");
+        }
+        return -1;
+    }
+
+    reference_count--;
+    if (auto logger = cached_logger.lock()) {
+        logger->info("RHI shutdown called, reference count: {}", reference_count);
+    }
+
+    if (reference_count > 0) {
+        return 0;
+    }
+
     std::map<std::string, nvrhi_image>().swap(rhi_images);
     device_manager->Shutdown();
     device_manager.reset();
+    reference_count = 0;
+    cached_logger.reset();
     return device_manager == nullptr ? 0 : -1;
 }
 }  // namespace RHI

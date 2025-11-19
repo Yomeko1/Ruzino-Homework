@@ -48,9 +48,9 @@ SOFTWARE.
 
 #include <imgui.h>
 #include <nvrhi/nvrhi.h>
+#include <spdlog/spdlog.h>
 #include <stddef.h>
 
-#include <spdlog/spdlog.h>
 #include "RHI/ShaderFactory/shader.hpp"
 
 const char* vertex_shader_source = R"(
@@ -175,7 +175,7 @@ bool ImGui_NVRHI::init(
     this->renderer = renderer;
 
     resource_allocator_.set_device(renderer.Get());
-    
+
     m_commandList = renderer->createCommandList();
 
     m_commandList->open();
@@ -427,7 +427,7 @@ bool ImGui_NVRHI::render(nvrhi::IFramebuffer* framebuffer)
     m_commandList->clearTextureFloat(
         framebuffer->getDesc().colorAttachments[0].texture,
         {},
-        nvrhi::Color{ 0 });
+        nvrhi::Color{ 0.0f, 0.0f, 0.0f, 1.0f });
 
     if (!updateGeometry(m_commandList)) {
         return false;
@@ -447,9 +447,10 @@ bool ImGui_NVRHI::render(nvrhi::IFramebuffer* framebuffer)
 
     drawState.pipeline = getPSO(drawState.framebuffer);
 
-    drawState.viewport.viewports.push_back(nvrhi::Viewport(
-        io.DisplaySize.x * io.DisplayFramebufferScale.x,
-        io.DisplaySize.y * io.DisplayFramebufferScale.y));
+    drawState.viewport.viewports.push_back(
+        nvrhi::Viewport(
+            io.DisplaySize.x * io.DisplayFramebufferScale.x,
+            io.DisplaySize.y * io.DisplayFramebufferScale.y));
     drawState.viewport.scissorRects.resize(1);  // updated below
 
     nvrhi::VertexBufferBinding vbufBinding;

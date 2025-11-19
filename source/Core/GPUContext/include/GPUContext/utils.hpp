@@ -136,6 +136,8 @@ inline TextureHandle create_default_render_target(
             .setIsUAV(true)
             .setInitialState(nvrhi::ResourceStates::RenderTarget)
             .setKeepInitialState(true)
+            .setClearValue(nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f))
+            .setUseClearValue(true)
             .setIsRenderTarget(true);
     auto output_texture = resource_allocator.create(desc);
     return output_texture;

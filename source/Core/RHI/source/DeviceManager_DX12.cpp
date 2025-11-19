@@ -531,6 +531,9 @@ bool DeviceManager_DX12::CreateRenderTargets()
         textureDesc.isUAV = false;
         textureDesc.initialState = nvrhi::ResourceStates::Present;
         textureDesc.keepInitialState = true;
+        // Set clear value for swap chain buffer to avoid D3D12 performance warning
+        textureDesc.useClearValue = true;
+        textureDesc.clearValue = nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f);
 
         m_RhiSwapChainBuffers[n] = m_NvrhiDevice->createHandleForNativeTexture(
             nvrhi::ObjectTypes::D3D12_Resource,

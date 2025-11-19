@@ -11,9 +11,10 @@
 #include "hd_USTC_CG/render_global_payload.hpp"
 #include "nodes/core/node_exec.hpp"
 #include "nvrhi/nvrhi.h"
-#include "utils/view_cb.h"
 #include "utils/cam_to_view_contants.h"
 #include "utils/resource_cleaner.hpp"
+#include "utils/view_cb.h"
+
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 inline Hd_USTC_CG_Camera* get_free_camera(
@@ -217,6 +218,8 @@ inline TextureHandle create_default_render_target(
             .setIsUAV(true)
             .setInitialState(nvrhi::ResourceStates::RenderTarget)
             .setKeepInitialState(true)
+            .setClearValue(nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f))
+            .setUseClearValue(true)
             .setIsRenderTarget(true);
     auto output_texture = resource_allocator.create(desc);
     return output_texture;

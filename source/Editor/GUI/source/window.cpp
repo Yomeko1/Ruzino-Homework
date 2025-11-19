@@ -345,7 +345,12 @@ Window::~Window()
     auto manager = RHI::internal::get_device_manager();
 
     manager->RemoveRenderPass(imguiRenderPass.get());
+    
+    // Destroy imguiRenderPass first to release RHI resources
     imguiRenderPass.reset();
+    
+    // Then shutdown RHI (which no longer uses spdlog)
+    RHI::shutdown();
 }
 
 float Window::get_elapsed_time()
