@@ -87,21 +87,5 @@ int main()
         viewer_ptr->RefreshDocument();
     });
     
-    // Register callback to emit events when node tree changes
-    window.register_function_after_frame([](Window* window) {
-        // Emit event when nodes are modified
-        // This will be called after any node tree modifications
-        static bool first_frame = true;
-        if (first_frame) {
-            first_frame = false;
-            return;
-        }
-        
-        // You can emit this event whenever the graph is modified
-        // For now, we'll just emit it every frame for demo purposes
-        // In production, MaterialXNodeTreeWidget should emit this when graph changes
-        window->events().emit("materialx_graph_changed");
-    });
-    
     window.run();
 }

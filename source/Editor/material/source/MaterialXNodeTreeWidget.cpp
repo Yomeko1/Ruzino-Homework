@@ -12,6 +12,7 @@
 #include <nodes/core/node_link.hpp>
 
 #include "MCore/MaterialXNodeTree.hpp"
+#include "GUI/window.h"
 namespace mx = MaterialX;
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -2332,7 +2333,169 @@ std::string MaterialXNodeTreeWidget::GetWindowUniqueName()
 
 void MaterialXNodeTreeWidget::create_new_node(ImVec2 openPopupPosition)
 {
-    addNodePopup(true);
+    if (ImGui::BeginPopup("Create New Node")) {
+        // Remember the position where node should be created
+        static ImVec2 newNodePosition;
+        static bool positionRemembered = false;
+        
+        if (!positionRemembered) {
+            newNodePosition = openPopupPosition;
+            positionRemembered = true;
+        }
+
+        ImGui::Text("Add Node");
+        ImGui::Separator();
+        
+        static char input[32]{ "" };
+        if (create_new_node_search_cursor) {
+            ImGui::SetKeyboardFocusHere();
+            create_new_node_search_cursor = false;
+        }
+        ImGui::InputText("##input", input, sizeof(input));
+        std::string subs(input);
+
+        auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
+        const std::string NODEGRAPH_ENTRY = "Node Graph";
+        
+        bool nodeCreated = false;
+        Node* createdNode = nullptr;
+
+        // Filter nodedefs and add to menu if matches filter
+        for (auto& node_item : _nodesToAdd) {
+            if (subs.size() > 0) {
+                ImGui::SetNextWindowSizeConstraints(
+                    ImVec2(250.0f, 300.0f), ImVec2(-1.0f, 500.0f));
+                std::string nodeName = node_item.getName();
+
+                // Disallow creating nested nodegraphs
+                if (_isNodeGraph && node_item.getGroup() == NODEGRAPH_ENTRY) {
+                    continue;
+                }
+
+                // Allow spaces to be used to search for node names
+                std::string search = subs;
+                std::replace(search.begin(), search.end(), ' ', '_');
+
+                if (nodeName.find(search) != std::string::npos) {
+                    if (ImGui::MenuItem(getUserNodeDefName(nodeName).c_str()) ||
+                        (ImGui::IsItemFocused() &&
+                         ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+                        
+                        // Store node count before creation
+                        size_t nodeCountBefore = tree_->nodes.size();
+                        
+                        mtlx_tree->addNode(
+                            node_item.getCategory(),
+                            getUserNodeDefName(nodeName),
+                            node_item.getType());
+                        
+                        // Get the newly created node
+                        if (tree_->nodes.size() > nodeCountBefore) {
+                            createdNode = tree_->nodes.back().get();
+                            nodeCreated = true;
+                        }
+                        
+                        memset(input, '\0', sizeof(input));
+                        break;
+                    }
+                }
+            }
+            else {
+                ImGui::SetNextWindowSizeConstraints(
+                    ImVec2(100, 10), ImVec2(-1, 300));
+                if (ImGui::BeginMenu(node_item.getGroup().c_str())) {
+                    ImGui::SetWindowFontScale(_fontScale);
+                    std::string name = node_item.getName();
+                    std::string prefix = "ND_";
+                    if (name.compare(0, prefix.size(), prefix) == 0 &&
+                        name.compare(
+                            prefix.size(),
+                            std::string::npos,
+                            node_item.getCategory()) == 0) {
+                        if (ImGui::MenuItem(getUserNodeDefName(name).c_str()) ||
+                            (ImGui::IsItemFocused() &&
+                             ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+                            
+                            size_t nodeCountBefore = tree_->nodes.size();
+                            
+                            mtlx_tree->addNode(
+                                node_item.getCategory(),
+                                getUserNodeDefName(name),
+                                node_item.getType());
+                            
+                            if (tree_->nodes.size() > nodeCountBefore) {
+                                createdNode = tree_->nodes.back().get();
+                                nodeCreated = true;
+                            }
+                        }
+                    }
+                    else {
+                        if (ImGui::BeginMenu(node_item.getCategory().c_str())) {
+                            if (ImGui::MenuItem(
+                                    getUserNodeDefName(name).c_str()) ||
+                                (ImGui::IsItemFocused() &&
+                                 ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+                                
+                                size_t nodeCountBefore = tree_->nodes.size();
+                                
+                                mtlx_tree->addNode(
+                                    node_item.getCategory(),
+                                    getUserNodeDefName(name),
+                                    node_item.getType());
+                                
+                                if (tree_->nodes.size() > nodeCountBefore) {
+                                    createdNode = tree_->nodes.back().get();
+                                    nodeCreated = true;
+                                }
+                            }
+                            ImGui::EndMenu();
+                        }
+                    }
+
+                    ImGui::EndMenu();
+                }
+            }
+            
+            if (nodeCreated) {
+                break;
+            }
+        }
+        
+        // If a node was created, set its position and try to auto-connect
+        if (nodeCreated && createdNode) {
+            positionRemembered = false;
+            createNewNode = false;
+            tree_->SetDirty();
+
+            // Need to set editor context and Resume to set node position
+            ed::SetCurrentEditor(m_Editor);
+            ed::Resume();
+            ed::SetNodePosition(createdNode->ID, newNodePosition);
+            ed::Suspend();
+
+            // Auto-connect if there's a pin waiting to be connected
+            if (auto startPin = newNodeLinkPin) {
+                auto& pins = startPin->in_out == PinKind::Input
+                                 ? createdNode->get_outputs()
+                                 : createdNode->get_inputs();
+
+                for (auto& pin : pins) {
+                    if (tree_->can_create_link(startPin, pin)) {
+                        tree_->add_link(startPin->ID, pin->ID);
+                        break;
+                    }
+                }
+            }
+
+            newNodeLinkPin = nullptr;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+    else {
+        createNewNode = false;
+    }
 }
 
 MaterialXNodeTreeWidget::MaterialXNodeTreeWidget(const NodeWidgetSettings& desc)
@@ -2788,6 +2951,11 @@ void MaterialXNodeTreeWidget::execute_tree(Node* node)
     if (mtlx_tree->GetDirty()) {
         mtlx_tree->saveDocument("test.mtlx");
         mtlx_tree->SetDirty(false);
+        
+        // Emit event to notify document viewer that graph has changed
+        if (window) {
+            window->events().emit("materialx_graph_changed");
+        }
     }
 }
 

@@ -55,9 +55,6 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
     // Build UiNode nodegraph upon loading a document
     void buildUiBaseGraph(mx::DocumentPtr doc);
 
-    // Build UiNode node graph upon diving into a nodegraph node
-    void buildUiNodeGraph(const mx::NodeGraphPtr& nodeGraphs);
-
     void setUiNodeInfo(
         UiNodePtr node,
         const std::string& type,
@@ -79,16 +76,12 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
         SocketID endPinId,
         bool refresh_topology = true) override;
 
-    void removeEdge(int downNode, int upNode, UiPinPtr pin);
 
     void delete_link(
         LinkId linkid,
         bool refresh_topology = true,
         bool remove_from_group = true) override;
 
-    // bool edgeExists(UiEdge newEdge);
-
-    void addNodeGraphPins();
 
     mx::ElementPredicate getElementPredicate() const;
 
