@@ -103,7 +103,7 @@ UsdGeomCamera FindFirstCamera(const UsdStageRefPtr& stage)
 {
     for (const UsdPrim& prim : stage->Traverse()) {
         if (prim.IsA<UsdGeomCamera>()) {
-            spdlog::info("Found camera: %s", prim.GetPath().GetString().c_str());
+            spdlog::info("Found camera: {}", prim.GetPath().GetString());
             return UsdGeomCamera(prim);
         }
     }
@@ -294,9 +294,9 @@ int main(int argc, char* argv[])
     spdlog::set_pattern("%^[%T] %n: %v%$");
 
     spdlog::info("Starting headless render...");
-    spdlog::info("USD file: {}", settings.usd_file.c_str());
-    spdlog::info("JSON script: {}", settings.json_script.c_str());
-    spdlog::info("Output image: {}", settings.output_image.c_str());
+    spdlog::info("USD file: {}", settings.usd_file);
+    spdlog::info("JSON script: {}", settings.json_script);
+    spdlog::info("Output image: {}", settings.output_image);
     spdlog::info("Resolution: {}x{}", settings.width, settings.height);
     spdlog::info("SPP: {}", settings.spp);
 
@@ -365,10 +365,10 @@ int main(int argc, char* argv[])
 
         // Render the scene with multiple samples
         UsdPrim root = stage->get_usd_stage()->GetPseudoRoot();
-        spdlog::info("Starting render with %d samples...", settings.spp);
+        spdlog::info("Starting render with {} samples...", settings.spp);
 
         for (int sample = 0; sample < settings.spp; ++sample) {
-            spdlog::info("Rendering sample %d/%d", sample + 1, settings.spp);
+            spdlog::info("Rendering sample {}/{}", sample + 1, settings.spp);
             renderer->Render(root, render_params);
             renderer->StopRenderer();
         }
@@ -394,7 +394,7 @@ int main(int argc, char* argv[])
         }
 
         // Save the image
-        spdlog::info("Saving image to: %s", settings.output_image.c_str());
+        spdlog::info("Saving image to: {}", settings.output_image);
         if (!SaveImageToFile(
                 settings.output_image,
                 settings.width,

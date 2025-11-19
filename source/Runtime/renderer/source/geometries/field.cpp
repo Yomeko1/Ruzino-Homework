@@ -35,7 +35,7 @@ Hd_USTC_CG_Field::Hd_USTC_CG_Field(const SdfPath& id)
     : HdField(id),
       _isLoaded(false)
 {
-    spdlog::info("Creating field: %s", id.GetText());
+    spdlog::info("Creating field: {}", id.GetText());
 }
 
 Hd_USTC_CG_Field::~Hd_USTC_CG_Field()
@@ -57,7 +57,7 @@ void Hd_USTC_CG_Field::Sync(
 
     const SdfPath& id = GetId();
 
-    spdlog::info("Syncing field: %s", id.GetText());
+    spdlog::info("Syncing field: {}", id.GetText());
 
     // Get field file path
     if (*dirtyBits & HdField::DirtyParams) {
@@ -69,7 +69,7 @@ void Hd_USTC_CG_Field::Sync(
             if (_filePath.empty()) {
                 _filePath = assetPath.GetAssetPath();
             }
-            spdlog::info("Field file path: %s", _filePath.c_str());
+            spdlog::info("Field file path: {}", _filePath.c_str());
         }
 
         // Get field name
@@ -88,7 +88,7 @@ void Hd_USTC_CG_Field::Sync(
             _fieldName = "density";  // Default field name
         }
 
-        spdlog::info("Field name: %s", _fieldName.c_str());
+        spdlog::info("Field name: {}", _fieldName.c_str());
 
         // Mark as loaded (placeholder - actual loading would happen here)
         _isLoaded = true;

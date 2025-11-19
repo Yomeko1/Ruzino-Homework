@@ -24,9 +24,10 @@
 // #define __GNUC__
 #include "mesh.h"
 
+#include <spdlog/spdlog.h>
+
 #include "../instancer.h"
 #include "../renderParam.h"
-#include <spdlog/spdlog.h>
 #include "Scene/SceneTypes.slang"
 #include "material/material.h"
 #include "nvrhi/utils.h"
@@ -35,6 +36,7 @@
 #include "pxr/imaging/hd/instancer.h"
 #include "pxr/imaging/hd/meshUtil.h"
 #include "pxr/imaging/hd/smoothNormals.h"
+
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 class Hd_USTC_CG_RenderParam;
@@ -349,12 +351,20 @@ void Hd_USTC_CG_Mesh::updateTLAS(
 
     auto material_id = GetMaterialId();
 
-    spdlog::info("Material id: {}", material_id.GetText());
+    if (material_id.IsEmpty()) {
+        spdlog::info("Mesh {} has no material assigned. Using default material.", id.GetText());
+    }
+    else {
+        spdlog::info(
+            "Mesh {} has material {} assigned.",
+            id.GetText(),
+            material_id.GetText());
+    }
 
     Hd_USTC_CG_Material* material = (*render_param->material_map)[material_id];
 
     std::vector<GeometryInstanceData> instance_data_array(transforms.size());
-    
+
     for (int i = 0; i < transforms.size(); ++i) {
         GfMatrix4f mat = transform * GfMatrix4f(transforms[i]);
         GfMatrix4f mat_transposed = mat.GetTranspose();
@@ -381,9 +391,12 @@ void Hd_USTC_CG_Mesh::updateTLAS(
         else {
             instance_data_array[i].materialID = -1;
         }
-        memcpy(&instance_data_array[i].transform, mat.data(), sizeof(pxr::GfMatrix4f));
+        memcpy(
+            &instance_data_array[i].transform,
+            mat.data(),
+            sizeof(pxr::GfMatrix4f));
     }
-    
+
     instanceBuffer->write_data(instance_data_array.data());
     render_param->InstanceCollection->set_require_rebuild_tlas();
     rt_instanceBuffer->write_data(instances.data());
