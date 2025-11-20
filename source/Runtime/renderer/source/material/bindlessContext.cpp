@@ -313,6 +313,12 @@ void BindlessContext::emitResourceBindings(
                     "vd." + vertexdata_member->getName() +
                     " = vertexInfo.tangentW.xyz * vertexInfo.tangentW.w;\n";
             }
+            else if (vertexdata_member->getName() == HW::T_BITANGENT_WORLD) {
+                fetch_data +=
+                    "vd." + vertexdata_member->getName() +
+                    " = cross(vertexInfo.normalW, vertexInfo.tangentW.xyz) * "
+                    "vertexInfo.tangentW.w;\n";
+            }
             else {
                 if (vertexdata_member->getType() == Type::VECTOR2) {
                     fetch_data += "vd." + vertexdata_member->getName() +

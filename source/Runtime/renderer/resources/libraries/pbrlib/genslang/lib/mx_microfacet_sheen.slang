@@ -1,5 +1,10 @@
 __exported import pbrlib.genslang.lib.mx_microfacet;
 
+// Define directional albedo method if not already defined
+#ifndef DIRECTIONAL_ALBEDO_METHOD
+#define DIRECTIONAL_ALBEDO_METHOD 0
+#endif
+
 // http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 // Equation 2
 float mx_imageworks_sheen_NDF(float NdotH, float roughness)

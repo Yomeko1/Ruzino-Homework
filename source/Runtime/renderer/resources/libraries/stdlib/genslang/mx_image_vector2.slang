@@ -1,7 +1,7 @@
 import stdlib.genslang.lib.mx_transform_uv;
 
 void mx_image_vector2(
-    SamplerState texture_sampler,
+
     Texture2D texture,
     int layer,
     float2 defaultval,
@@ -17,5 +17,7 @@ void mx_image_vector2(
     out float2 result)
 {
     float2 uv = mx_transform_uv(texcoord, uv_scale, uv_offset);
-    result = texture.Sample(texture_sampler, uv).rg;
+    int samplerIndex = (uaddressmode * 3) + filtertype;
+    samplerIndex = clamp(samplerIndex, 0, 8);
+    result = texture.SampleLevel(samplers[samplerIndex], uv, 0.0).rg;
 }

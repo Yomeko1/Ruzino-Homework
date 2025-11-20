@@ -41,12 +41,11 @@ float3 mx_surface_transmission(
     float3 T_fresnel = float3(1.0) - F;
 
     // Compute microfacet distribution
-    float D = mx_ggx_NDF(normalize(float3(0.5, 0.5, 0.5)), alpha);
+    float D = mx_ggx_NDF(Ht, alpha);
 
     // Compute masking-shadowing function
     float avgAlpha = mx_average_alpha(alpha);
     float G = mx_ggx_smith_G2(NdotL, NdotV, avgAlpha);
-    float vndf_pdf = D * G * VdotH / NdotV;
 
     // Compute Jacobian for the transformation from half-angle to light
     // direction

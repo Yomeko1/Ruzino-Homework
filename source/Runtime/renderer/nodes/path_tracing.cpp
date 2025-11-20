@@ -62,7 +62,21 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
     auto raytrace_compiled = resource_allocator.create(program_desc);
     MARK_DESTROY_NVRHI_RESOURCE(raytrace_compiled);
-    CHECK_PROGRAM_ERROR(raytrace_compiled);
+    
+    // Force output error to console and log
+    if (!raytrace_compiled->get_error_string().empty()) {
+        std::string error_msg = raytrace_compiled->get_error_string();
+        printf("\n========== SHADER COMPILATION ERROR ==========\n");
+        printf("Failed to create path_tracing shader:\n%s\n", error_msg.c_str());
+        printf("==============================================\n\n");
+        std::cout << std::flush;
+        spdlog::error("Failed to create shader raytrace_compiled: {}", error_msg);
+        return false;
+    }
+    
+    printf("[PATH_TRACING] Shader compiled successfully, %zu materials, %zu callables\n", 
+           materials.size(), callable_shaders.size());
+    std::cout << std::flush;
     // Function content omitted
 
     auto m_CommandList = resource_allocator.create(CommandListDesc{});
@@ -137,6 +151,9 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     }
     
     uint32_t lightCount = static_cast<uint32_t>(valid_lights.size());
+    
+    printf("[PATH_TRACING] Total lights: %zu, Valid lights: %u\n", all_lights.size(), lightCount);
+    fflush(stdout);
 
     instance_collection->light_pool.compress();
     program_vars["lightBuffer"] =

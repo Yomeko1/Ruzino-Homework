@@ -15,7 +15,6 @@
 #include "utils/resource_cleaner.hpp"
 #include "utils/view_cb.h"
 
-
 USTC_CG_NAMESPACE_OPEN_SCOPE
 inline Hd_USTC_CG_Camera* get_free_camera(
     ExeParams& params,
@@ -280,7 +279,7 @@ inline auto get_size(ExeParams& params)
 
 #define CHECK_PROGRAM_ERROR(program)              \
     if (!program->get_error_string().empty()) {   \
-        spdlog::warn(                             \
+        spdlog::error(                            \
             "Failed to create shader {}: {}",     \
             #program,                             \
             program->get_error_string().c_str()); \

@@ -4,6 +4,11 @@
 __exported import stdlib.genslang.lib.mx_math;
 __exported import pbrlib.genslang.lib.mx_microfacet;
 
+// Define directional albedo method if not already defined
+#ifndef DIRECTIONAL_ALBEDO_METHOD
+#define DIRECTIONAL_ALBEDO_METHOD 0
+#endif
+
 // Fresnel model options.
 #define FRESNEL_MODEL_DIELECTRIC   0
 #define FRESNEL_MODEL_CONDUCTOR    1

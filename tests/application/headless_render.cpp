@@ -6,9 +6,10 @@
 #include <vector>
 
 // Framework includes
+#include <spdlog/spdlog.h>
+
 #include "GCore/GOP.h"
 #include "GCore/algorithms/intersection.h"
-#include <spdlog/spdlog.h>
 #include "RHI/rhi.hpp"
 #include "nodes/system/node_system.hpp"
 #include "stage/stage.hpp"
@@ -283,6 +284,10 @@ std::string LoadJSONScript(const std::string& filename)
 
 int main(int argc, char* argv[])
 {
+    // 禁止 abort 弹窗，改为直接退出
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    // 或者设置错误模式，避免 Windows 弹窗
+    _set_error_mode(_OUT_TO_STDERR);
     // Parse command line
     RenderSettings settings;
     if (!ParseCommandLine(argc, argv, settings)) {
@@ -372,6 +377,7 @@ int main(int argc, char* argv[])
             renderer->Render(root, render_params);
             renderer->StopRenderer();
         }
+        spdlog::set_level(spdlog::level::info);
 
         spdlog::info("Render complete.");
 

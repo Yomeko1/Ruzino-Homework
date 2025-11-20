@@ -274,7 +274,7 @@ HdRprim* Hd_USTC_CG_RenderDelegate::CreateRprim(
     }
     else if (typeId == HdPrimTypeTokens->volume) {
         auto volume = new Hd_USTC_CG_Volume(rprimId);
-        spdlog::info("Created volume: %s", rprimId.GetText());
+        spdlog::info("Created volume: {}", rprimId.GetText());
         return volume;
     }
     TF_CODING_ERROR(
@@ -304,9 +304,11 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateSprim(
     }
     else if (typeId == HdPrimTypeTokens->material) {
         auto material = new Hd_USTC_CG_MaterialX(sprimId);
+        spdlog::info("=== Created material: {} ===", sprimId.GetText());
         materials[sprimId] = material;
 
         assert(materials[sprimId] != nullptr);
+        spdlog::info("Material stored in map, total materials: {}", materials.size());
 
         return material;
     }
@@ -344,6 +346,10 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateSprim(
         auto light = new Hd_USTC_CG_Dome_Light(sprimId, typeId);
         lights.push_back(light);
         return light;
+    }
+    else if (typeId == TfToken("drawTarget") || typeId == TfToken("imageShader")) {
+        // MaterialX specific types - create a minimal fallback
+        return new HdExtComputation(sprimId);
     }
     else {
         TF_CODING_ERROR("Unknown Sprim Type %s", typeId.GetText());
@@ -396,6 +402,10 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateFallbackSprim(const TfToken& typeId)
     }
     else if (typeId == HdPrimTypeTokens->domeLight) {
         return new Hd_USTC_CG_Dome_Light(SdfPath::EmptyPath(), typeId);
+    }
+    else if (typeId == TfToken("drawTarget") || typeId == TfToken("imageShader")) {
+        // MaterialX specific types - create a minimal fallback
+        return new HdExtComputation(SdfPath::EmptyPath());
     }
     else {
         TF_CODING_ERROR("Unknown Sprim Type %s", typeId.GetText());
