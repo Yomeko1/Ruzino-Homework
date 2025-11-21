@@ -26,7 +26,9 @@ from pxr import Usd, UsdGeom, UsdShade, Sdf, UsdMtlx
 
 def find_all_materials():
     """Find all .mtlx files in the matx_library"""
-    assets_dir = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets"
+    # Calculate path relative to script location
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
     matx_library = os.path.join(assets_dir, "matx_library")
     
     materials = []
@@ -184,9 +186,12 @@ def render_scene(usd_file, output_image, width=1920, height=1080, samples=4):
     """
     Render a USD scene using headless_render.exe
     """
-    binary_dir = r"c:\Users\Pengfei\WorkSpace\Ruzino\Binaries\Debug"
+    # Calculate paths relative to script location
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    binary_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Binaries", "Debug"))
     render_exe = os.path.join(binary_dir, "headless_render.exe")
-    render_nodes = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\render_nodes_save.json"
+    assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+    render_nodes = os.path.join(assets_dir, "render_nodes_save.json")
     
     # Convert paths to relative paths from the binary directory
     # This matches the manual execution which uses relative paths
@@ -227,9 +232,12 @@ def render_scene(usd_file, output_image, width=1920, height=1080, samples=4):
         return False
 
 def main():
-    # Paths
-    shader_ball = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\shader_ball.usdc"
-    output_dir = r"c:\Users\Pengfei\WorkSpace\Ruzino\Binaries\Debug\material_tests"
+    # Calculate paths relative to script location
+    tests_dir = os.path.dirname(os.path.abspath(__file__))
+    assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+    binary_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Binaries", "Debug"))
+    shader_ball = os.path.join(assets_dir, "shader_ball.usdc")
+    output_dir = os.path.join(binary_dir, "material_tests")
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)

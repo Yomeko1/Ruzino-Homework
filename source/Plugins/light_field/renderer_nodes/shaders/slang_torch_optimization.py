@@ -4,10 +4,14 @@ import torch
 import numpy as np
 
 # Create a SlangPy device; it will look in the local folder for any Slang includes
+# Calculate shader path relative to this file
+script_dir = pathlib.Path(__file__).parent.absolute()
+shaders_path = script_dir.parent.parent.parent.parent / "Runtime" / "renderer" / "nodes" / "shaders" / "shaders"
+
 device = spy.create_device(
     include_paths=[
-        pathlib.Path(__file__).parent.absolute(),
-        "C:\\Users\\Pengfei\\WorkSpace\\Ruzino\\source\\Runtime\\renderer\\nodes\\shaders\\shaders",
+        script_dir,
+        str(shaders_path),
     ],
     enable_cuda_interop=True,
 )

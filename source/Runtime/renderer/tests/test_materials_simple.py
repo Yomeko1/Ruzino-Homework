@@ -16,8 +16,9 @@ print(f"Working directory: {os.getcwd()}")
 
 from pxr import Usd, UsdShade
 
-# Test opening the MaterialX file
-material_path = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\matx_library\Acryl_Plastic_1k_8b_kylYFM6\Acryl_Plastic.mtlx"
+# Test opening the MaterialX file - use relative path
+assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+material_path = os.path.join(assets_dir, "matx_library", "Acryl_Plastic_1k_8b_kylYFM6", "Acryl_Plastic.mtlx")
 print(f"\nOpening MaterialX file: {material_path}")
 
 try:

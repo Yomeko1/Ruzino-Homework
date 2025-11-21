@@ -20,8 +20,9 @@ os.chdir(binary_dir)
 
 from pxr import Usd, UsdShade, Sdf, UsdMtlx
 
-# Load a MaterialX file
-mtlx_path = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\matx_library\Acryl_Plastic_1k_8b_kylYFM6\Acryl_Plastic.mtlx"
+# Load a MaterialX file - use relative path
+assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+mtlx_path = os.path.join(assets_dir, "matx_library", "Acryl_Plastic_1k_8b_kylYFM6", "Acryl_Plastic.mtlx")
 print(f"\nLoading MaterialX file: {mtlx_path}")
 
 mtlx_stage = Usd.Stage.Open(mtlx_path)
@@ -42,7 +43,7 @@ if not material_prim:
     sys.exit(1)
 
 # Try creating a shader_ball with this material
-shader_ball_path = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\shader_ball.usdc"
+shader_ball_path = os.path.join(assets_dir, "shader_ball.usdc")
 print(f"\nLoading shader ball: {shader_ball_path}")
 
 stage = Usd.Stage.Open(shader_ball_path)
@@ -106,7 +107,7 @@ print(f"\nSaved test stage")
 
 # Try rendering with verbose output
 render_exe = os.path.join(binary_dir, "headless_render.exe")
-render_script = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\render_nodes_save.json"
+render_script = os.path.join(assets_dir, "render_nodes_save.json")
 output_image = os.path.join(binary_dir, "debug_mtlx_test.png")
 
 print(f"\n{'='*80}")

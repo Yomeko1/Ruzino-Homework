@@ -39,8 +39,9 @@ def print_prim_info(prim, indent=0):
         print_prim_info(child, indent + 1)
 
 def main():
-    # Path to shader_ball.usdc - use absolute path
-    usd_file = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\shader_ball.usdc"
+    # Path to shader_ball.usdc - use relative path
+    assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+    usd_file = os.path.join(assets_dir, "shader_ball.usdc")
     
     print(f"Reading USD file: {usd_file}\n")
     

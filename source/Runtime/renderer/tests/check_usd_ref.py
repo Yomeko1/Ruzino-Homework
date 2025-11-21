@@ -19,7 +19,8 @@ os.chdir(binary_dir)
 
 from pxr import Usd, UsdShade, Sdf
 
-usd_file = r"C:\Users\Pengfei\WorkSpace\Ruzino\Binaries\Debug\material_tests\shader_ball_Aluminum.usdc"
+# Calculate path relative to script location
+usd_file = os.path.join(binary_dir, "material_tests", "shader_ball_Aluminum.usdc")
 stage = Usd.Stage.Open(usd_file)
 
 material_prim = stage.GetPrimAtPath("/root/_materials/Aluminum")
@@ -35,7 +36,8 @@ for spec in prim_stack:
         print(f"    Refs: {spec.referenceList.prependedItems}")
 
 # Try to find what's actually in the mtlx file
-mtlx_file = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\matx_library\Aluminum_1k_8b_tAdaTTp\Aluminum.mtlx"
+assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+mtlx_file = os.path.join(assets_dir, "matx_library", "Aluminum_1k_8b_tAdaTTp", "Aluminum.mtlx")
 print(f"\nOpening MaterialX file directly...")
 mtlx_stage = Usd.Stage.Open(mtlx_file)
 print(f"Root prims in mtlx:")

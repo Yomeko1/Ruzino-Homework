@@ -14,7 +14,9 @@ os.chdir(binary_dir)
 
 from pxr import Usd, UsdLux
 
-shader_ball_path = r"c:\Users\Pengfei\WorkSpace\Ruzino\Assets\shader_ball.usdc"
+# Calculate path relative to script location
+assets_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Assets"))
+shader_ball_path = os.path.join(assets_dir, "shader_ball.usdc")
 stage = Usd.Stage.Open(shader_ball_path)
 
 print("\n=== Dome Lights ===")
