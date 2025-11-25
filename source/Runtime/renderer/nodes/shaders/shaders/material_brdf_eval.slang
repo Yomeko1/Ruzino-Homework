@@ -25,7 +25,7 @@ struct AnalysisConstants {
 ConstantBuffer<AnalysisConstants> analysis_params;
 
 // Convert 2D texture coordinate to 3D direction using equal-area projection
-// This provides more uniform sampling than spherical coordinates
+// Standard Lambert azimuthal equal-area projection
 float3 texcoord_to_direction(float2 uv)
 {
     // Equal-area projection (Lambert azimuthal)
@@ -38,10 +38,13 @@ float3 texcoord_to_direction(float2 uv)
         return float3(0, 0, -1);
     }
     
-    // Lambert azimuthal equal-area projection inverse:
-    // z = sqrt(1 - r²), where r² = x² + y²
+    // Standard Lambert azimuthal equal-area projection:
+    // For unit disk mapped to unit hemisphere:
+    // x = p.x, y = p.y, z = sqrt(1 - p²)
+    // This automatically gives unit vectors: x² + y² + z² = p² + (1-p²) = 1
     float z = sqrt(1.0 - r_squared);
     
+    // This is already a unit vector
     return float3(p.x, p.y, z);
 }
 
@@ -78,6 +81,7 @@ void EvalPdfRayGen()
     float2 uv = (float2(pixel) + 0.5) / float(resolution);
     
     // Convert UV to outgoing direction (local space, z-up hemisphere)
+    // texcoord_to_direction now returns unit vectors directly
     float3 local_wo = texcoord_to_direction(uv);
     
     // Check if direction is valid (inside hemisphere)

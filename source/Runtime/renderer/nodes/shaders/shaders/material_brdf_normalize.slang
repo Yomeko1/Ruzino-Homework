@@ -1,12 +1,14 @@
 // Normalize Sample Buffer to Texture
 // Converts atomic accumulation to normalized float texture
 
-RWStructuredBuffer<uint> sample_buffer;  // Input: [pdf_sum, count] pairs stored as uint (float bits)
+RWStructuredBuffer<uint> sample_buffer;  // Input: [value, count] pairs stored as uint (float bits)
 RWTexture2D<float4> sample_output;       // Output: normalized texture
 
 struct NormalizeConstants {
     uint resolution;
     uint num_samples;
+    uint min_samples_threshold;  // Minimum samples required (0 = no filtering)
+    uint _pad;
 };
 
 ConstantBuffer<NormalizeConstants> normalize_params;
@@ -24,14 +26,23 @@ void main(uint3 dispatchThreadID : SV_DispatchThreadID)
     uint pixel_index = pixel.y * resolution + pixel.x;
     
     // Read accumulated values (stored as uint, convert back to float)
-    float sample_count = asfloat(sample_buffer[pixel_index * 2 + 0]);
-    float total_samples_marker = asfloat(sample_buffer[pixel_index * 2 + 1]);
+    float value = asfloat(sample_buffer[pixel_index * 2 + 0]);
+    float count = asfloat(sample_buffer[pixel_index * 2 + 1]);
     
-    // Normalize to probability density: frequency / total_samples
-    // So sum of all pixels = 1.0
-    float normalized_frequency = sample_count / float(normalize_params.num_samples);
+    float output_value;
     
-    // Output normalized frequency (probability density)
-    // RGB = normalized frequency, A = raw count for debugging
-    sample_output[pixel] = float4(normalized_frequency, normalized_frequency, normalized_frequency, sample_count);
+    if (normalize_params.min_samples_threshold == 0) {
+        // Sample distribution mode: just copy raw values (normalization done in Python)
+        output_value = value;
+    } else {
+        // Importance test mode: compute average weight with threshold filtering
+        if (count >= float(normalize_params.min_samples_threshold)) {
+            output_value = value / count;
+        } else {
+            output_value = 0.0;  // Not enough samples
+        }
+    }
+    
+    // Output: RGB = value, A = count for debugging
+    sample_output[pixel] = float4(output_value, output_value, output_value, count);
 }

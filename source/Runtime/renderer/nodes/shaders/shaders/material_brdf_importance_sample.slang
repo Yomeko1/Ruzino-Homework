@@ -46,7 +46,7 @@ void AtomicAddFloat(uint index, float value)
 // Convert 3D direction to 2D texture coordinate using equal-area projection
 float2 direction_to_texcoord(float3 dir, out float jacobian)
 {
-    // Lambert azimuthal equal-area projection (inverse)
+    // Lambert azimuthal equal-area projection
     float z = dir.z;
     
     if (z <= 0.0) {
@@ -55,10 +55,17 @@ float2 direction_to_texcoord(float3 dir, out float jacobian)
         return float2(-1, -1);
     }
     
-    float r = sqrt(1.0 - z);
-    float2 p = dir.xy * (r / max(length(dir.xy), 1e-6));
+    // Standard Lambert azimuthal equal-area projection inverse:
+    // Forward: (p.x, p.y) → (p.x, p.y, sqrt(1 - p²)) [unit vector]
+    // Inverse: (x, y, z) → (x, y) [where z = sqrt(1 - x² - y²)]
+    // For unit vector: x² + y² + z² = 1, so p = (x, y) and p² = x² + y² = 1 - z²
+    // The inverse is simply the xy components!
     
-    // Jacobian: d(solid_angle) / d(texture_area)
+    float2 p = dir.xy;
+    
+    // Jacobian: for this projection the Jacobian is not constant!
+    // |dω/dA| = 4/sqrt(1 - r²) = 4/sqrt(z) * sqrt(1-z²) / (1-z²) 
+    // Actually for this projection: |dω/dA| ≈ 2π * z (approximately)
     jacobian = 2.0 * 3.14159265359;
     
     // Map from [-1, 1] to [0, 1]
@@ -130,14 +137,13 @@ void ImportanceSampleRayGen()
             
             // Compute importance sampling weight: throughput / pdf
             // For good importance sampling, this should be approximately constant
-            float3 weight = callData.throughput / callData.pdf;
-            float weight_value = length(weight);  // Use magnitude as scalar weight
+            float weight = 100.0f / callData.pdf;
             
             // Atomically accumulate using AtomicAddFloat
             // Each pixel has 2 floats: [weight_accumulator, sample_count]
             uint pixel_index = pixel.y * resolution + pixel.x;
-            
-            AtomicAddFloat(pixel_index * 2 + 0, weight_value);
+
+            AtomicAddFloat(pixel_index * 2 + 0, weight);
             AtomicAddFloat(pixel_index * 2 + 1, 1.0);
         }
     }

@@ -274,7 +274,11 @@ try:
     print(f"✓ PDF: mean={pdf_array[:,:,:3].mean():.6f}, max={pdf_array[:,:,:3].max():.6f}")
     
     sample_data = hydra.get_output_texture("PresentSample")
-    sample_array = np.array(sample_data, dtype=np.float32).reshape(RESOLUTION, RESOLUTION, 4)
+    sample_array_raw = np.array(sample_data, dtype=np.float32).reshape(RESOLUTION, RESOLUTION, 4)
+    # Normalize sample distribution in Python: divide by num_samples
+    # The GPU output is raw sample counts, we normalize here for probability density
+    sample_array = sample_array_raw.copy()
+    sample_array[:,:,:3] = sample_array_raw[:,:,:3] / NUM_SAMPLES
     print(f"✓ Sample Distribution: mean={sample_array[:,:,:3].mean():.6f}, max={sample_array[:,:,:3].max():.6f}")
     
     importance_data = hydra.get_output_texture("PresentImportance")

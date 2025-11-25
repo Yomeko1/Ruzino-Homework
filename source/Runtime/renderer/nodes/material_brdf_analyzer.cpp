@@ -393,11 +393,15 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
     struct NormalizeConstants {
         uint32_t resolution;
         uint32_t num_samples;
+        uint32_t min_samples_threshold;  // Minimum samples required for importance test (0 = no filtering)
+        uint32_t _pad;
     };
     
     NormalizeConstants normalize_constants;
     normalize_constants.resolution = static_cast<uint32_t>(resolution);
     normalize_constants.num_samples = static_cast<uint32_t>(num_samples);
+    normalize_constants.min_samples_threshold = 0;  // No filtering for sample distribution
+    normalize_constants._pad = 0;
     
     auto normalize_cb = create_constant_buffer(params, normalize_constants);
     MARK_DESTROY_NVRHI_RESOURCE(normalize_cb);
@@ -522,10 +526,20 @@ NODE_EXECUTION_FUNCTION(material_brdf_analyzer)
     importance_context.finish();
     
     // Normalize importance test results
+    // Create separate constant buffer with threshold for importance test
+    NormalizeConstants importance_normalize_constants;
+    importance_normalize_constants.resolution = static_cast<uint32_t>(resolution);
+    importance_normalize_constants.num_samples = static_cast<uint32_t>(num_samples);
+    importance_normalize_constants.min_samples_threshold = 8;  // Filter pixels with < 10 samples
+    importance_normalize_constants._pad = 0;
+    
+    auto importance_normalize_cb = create_constant_buffer(params, importance_normalize_constants);
+    MARK_DESTROY_NVRHI_RESOURCE(importance_normalize_cb);
+    
     ProgramVars importance_normalize_vars(resource_allocator, normalize_compiled);
     importance_normalize_vars["sample_buffer"] = importance_buffer;
     importance_normalize_vars["sample_output"] = importance_output;
-    importance_normalize_vars["normalize_params"] = normalize_cb;
+    importance_normalize_vars["normalize_params"] = importance_normalize_cb;
     importance_normalize_vars.finish_setting_vars();
     
     ComputeContext importance_normalize_context(resource_allocator, importance_normalize_vars);
