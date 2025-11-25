@@ -70,11 +70,12 @@ def should_run_test(exe_name: str, test_filter: Optional[str]) -> bool:
     return filter_base.lower() in test_base.lower()
 
 
-def run_pytest(test_dir: Path, test_filter: Optional[str] = None) -> Tuple[int, int, List[str]]:
+def run_pytest(test_dir: Path, test_filter: Optional[str] = None) -> Tuple[int, int, List[Tuple[str, str]]]:
     """Run pytest in the given directory.
     
     Returns:
-        Tuple of (passed, failed, failed_test_names)
+        Tuple of (passed, failed, failed_test_info)
+        where failed_test_info is a list of (test_name, output) tuples
     """
     python_tests = find_python_test_files(test_dir)
     
@@ -101,8 +102,10 @@ def run_pytest(test_dir: Path, test_filter: Optional[str] = None) -> Tuple[int, 
         try:
             result = subprocess.run(
                 ['pytest', str(test_file), '-v', '--tb=short'],
-                cwd=test_dir,
-                timeout=300  # 5 minute timeout per test file
+                cwd=test_dir,  # Run from test directory so relative imports work
+                timeout=300,  # 5 minute timeout per test file
+                capture_output=True,
+                text=True
             )
             
             if result.returncode == 0:
@@ -111,25 +114,28 @@ def run_pytest(test_dir: Path, test_filter: Optional[str] = None) -> Tuple[int, 
             else:
                 print(f"✗ FAILED: {test_file.name} (exit code: {result.returncode})")
                 failed += 1
-                failed_tests.append(f"{test_dir.name}/{test_file.name}")
+                output = result.stdout + result.stderr
+                failed_tests.append((f"{test_dir.name}/{test_file.name}", output))
                 
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             print(f"✗ TIMEOUT: {test_file.name}")
             failed += 1
-            failed_tests.append(f"{test_dir.name}/{test_file.name} (TIMEOUT)")
+            output = (e.stdout or b'').decode('utf-8', errors='ignore') + (e.stderr or b'').decode('utf-8', errors='ignore')
+            failed_tests.append((f"{test_dir.name}/{test_file.name}", f"TIMEOUT after 300s\n{output}"))
         except Exception as e:
             print(f"✗ ERROR: {test_file.name} - {str(e)}")
             failed += 1
-            failed_tests.append(f"{test_dir.name}/{test_file.name} (ERROR: {str(e)})")
+            failed_tests.append((f"{test_dir.name}/{test_file.name}", f"ERROR: {str(e)}"))
     
     return passed, failed, failed_tests
 
 
-def run_cpp_tests(test_dir: Path, binaries_dir: Path, test_filter: Optional[str] = None) -> Tuple[int, int, List[str]]:
+def run_cpp_tests(test_dir: Path, binaries_dir: Path, test_filter: Optional[str] = None) -> Tuple[int, int, List[Tuple[str, str]]]:
     """Run C++ test executables corresponding to cpp files in test_dir.
     
     Returns:
-        Tuple of (passed, failed, failed_test_names)
+        Tuple of (passed, failed, failed_test_info)
+        where failed_test_info is a list of (test_name, output) tuples
     """
     cpp_files = find_cpp_test_files(test_dir)
     
@@ -163,7 +169,9 @@ def run_cpp_tests(test_dir: Path, binaries_dir: Path, test_filter: Optional[str]
             result = subprocess.run(
                 [str(exe_path)],
                 cwd=binaries_dir,
-                timeout=300  # 5 minute timeout per test
+                timeout=300,  # 5 minute timeout per test
+                capture_output=True,
+                text=True
             )
             
             if result.returncode == 0:
@@ -172,16 +180,18 @@ def run_cpp_tests(test_dir: Path, binaries_dir: Path, test_filter: Optional[str]
             else:
                 print(f"✗ FAILED: {exe_name} (exit code: {result.returncode})")
                 failed += 1
-                failed_tests.append(f"{exe_name}")
+                output = result.stdout + result.stderr
+                failed_tests.append((exe_name, output))
                 
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             print(f"✗ TIMEOUT: {exe_name}")
             failed += 1
-            failed_tests.append(f"{exe_name} (TIMEOUT)")
+            output = (e.stdout or b'').decode('utf-8', errors='ignore') + (e.stderr or b'').decode('utf-8', errors='ignore')
+            failed_tests.append((exe_name, f"TIMEOUT after 300s\n{output}"))
         except Exception as e:
             print(f"✗ ERROR: {exe_name} - {str(e)}")
             failed += 1
-            failed_tests.append(f"{exe_name} (ERROR: {str(e)})")
+            failed_tests.append((exe_name, f"ERROR: {str(e)}"))
     
     return passed, failed, failed_tests
 
@@ -194,10 +204,10 @@ def main():
         test_filter = sys.argv[1]
         print(f"Running tests matching: {test_filter}")
     
-    # Setup paths - script is now in scripts/ directory, so go up one level to project root
-    script_dir = Path(__file__).parent.parent  # Go up from scripts/ to project root
-    source_dir = script_dir / 'source'
-    binaries_dir = script_dir / 'Binaries' / 'Release'
+    # Setup paths - script is in scripts/ directory, so go up one level to project root
+    project_root = Path(__file__).parent.parent  # Go up from scripts/ to project root
+    source_dir = project_root / 'source'
+    binaries_dir = project_root / 'Binaries' / 'Release'
     
     print(f"Starting test run...")
     print(f"Searching for tests in: {source_dir}")
@@ -215,7 +225,7 @@ def main():
     all_failed_tests = []
     
     for test_dir in test_dirs:
-        print(f"\nProcessing: {test_dir.relative_to(script_dir)}")
+        print(f"\nProcessing: {test_dir.relative_to(project_root)}")
         
         # Run Python tests
         pytest_passed, pytest_failed, pytest_failed_tests = run_pytest(test_dir, test_filter)
@@ -249,8 +259,17 @@ def main():
         print("\n" + "="*80)
         print("FAILED TESTS:")
         print("="*80)
-        for failed_test in all_failed_tests:
-            print(f"  ✗ {failed_test}")
+        for test_name, output in all_failed_tests:
+            print(f"\n  ✗ {test_name}")
+            print("-" * 80)
+            # Print last 50 lines of output to avoid overwhelming the summary
+            lines = output.strip().split('\n')
+            if len(lines) > 50:
+                print("  ... (output truncated, showing last 50 lines) ...\n")
+                lines = lines[-50:]
+            for line in lines:
+                print(f"    {line}")
+            print("-" * 80)
     
     print("="*80)
     

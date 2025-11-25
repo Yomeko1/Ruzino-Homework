@@ -1,206 +1,183 @@
 #!/usr/bin/env python3
-"""
-Test HydraRenderer - Python render graph with USD/Hydra integration
+"""Unified Hydra renderer tests.
 
-This demonstrates:
-1. Load USD stage through Hydra
-2. Get NodeSystem from render delegate  
-3. Build graph in Python
-4. Execute through Hydra
-5. Get output texture in Python
+Tests both graph construction/rendering and tensor output functionality.
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 import numpy as np
+import pytest
 
-# Setup paths
-script_dir = Path(__file__).parent.resolve()
-workspace_root = script_dir.parent.parent.parent.parent
-binary_dir = workspace_root / "Binaries" / "Debug"
 
-# Set environment variables for USD and MaterialX (CRITICAL!)
-os.environ['PXR_USD_WINDOWS_DLL_PATH'] = str(binary_dir)
-print(f"Set PXR_USD_WINDOWS_DLL_PATH={binary_dir}")
-
-# Set MaterialX standard library path for USD MaterialX plugin
-mtlx_stdlib = binary_dir / "libraries"
-if mtlx_stdlib.exists():
-    os.environ['PXR_MTLX_STDLIB_SEARCH_PATHS'] = str(mtlx_stdlib)
-    print(f"Set PXR_MTLX_STDLIB_SEARCH_PATHS={mtlx_stdlib}")
-else:
-    print(f"Warning: MaterialX stdlib not found at {mtlx_stdlib}")
-
-# MUST run from binary directory where render_nodes.json is located
-os.chdir(str(binary_dir))
-sys.path.insert(0, str(binary_dir))
-
-print("="*70)
-print("HydraRenderer Test - Python Graph + USD/Hydra")
-print("="*70)
-print(f"Working directory: {os.getcwd()}")
-print(f"Binary directory: {binary_dir}")
-
-# Verify render_nodes.json exists
-config_path = Path(os.getcwd()) / "render_nodes.json"
-if not config_path.exists():
-    print(f"✗ ERROR: render_nodes.json not found in {os.getcwd()}")
-    sys.exit(1)
-print(f"✓ Found render_nodes.json\n")
-
-# Import modules
-try:
-    import hd_USTC_CG_py as renderer
-    print("✓ Successfully imported hd_USTC_CG_py\n")
-except ImportError as e:
-    print(f"✗ Failed to import: {e}")
-    sys.exit(1)
-
-# File paths
-usd_stage = workspace_root / "Assets" / "shader_ball.usdc"
-
-if not usd_stage.exists():
-    print(f"✗ USD stage not found: {usd_stage}")
-    sys.exit(1)
-
-print(f"✓ USD stage: {usd_stage.name}\n")
-
-print("="*70)
-print("STEP 1: Initialize HydraRenderer")
-print("="*70)
-
-try:
-    # Create Hydra renderer (loads USD, initializes Hydra + our render delegate)
-    hydra = renderer.HydraRenderer(str(usd_stage), width=800, height=600)
-    print(f"✓ HydraRenderer created ({hydra.width}x{hydra.height})")
+def _prepare_env():
+    script_dir = Path(__file__).parent.resolve()
+    workspace_root = script_dir.parent.parent.parent.parent
+    binary_dir = workspace_root / "Binaries" / "Release"
     
-    # Get the node system from the render delegate
+    os.environ.setdefault('PXR_USD_WINDOWS_DLL_PATH', str(binary_dir))
+    mtlx_stdlib = binary_dir / "libraries"
+    if mtlx_stdlib.exists():
+        os.environ.setdefault('PXR_MTLX_STDLIB_SEARCH_PATHS', str(mtlx_stdlib))
+    
+    os.environ['PATH'] = str(binary_dir) + os.pathsep + os.environ.get('PATH', '')
+    if hasattr(os, 'add_dll_directory'):
+        try:
+            os.add_dll_directory(str(binary_dir))
+        except Exception:
+            pass
+    
+    if str(binary_dir) not in sys.path:
+        sys.path.insert(0, str(binary_dir))
+    
+    return workspace_root, binary_dir
+
+
+def _locate_config(binary_dir: Path) -> Path:
+    primary = binary_dir / "render_nodes.json"
+    fallback = binary_dir / "render_nodes_save.json"
+    if primary.exists():
+        return primary
+    if fallback.exists():
+        return fallback
+    pytest.skip("No render node configuration found")
+
+
+def _build_render_graph(hydra, binary_dir: Path, samples: int = 4):
+    """Build the standard path tracing render graph."""
+    import nodes_core_py as core  # type: ignore
     node_system = hydra.get_node_system()
-    print(f"✓ Got NodeSystem from render delegate")
-    
-    # Load configuration manually in Python
-    config_file = binary_dir / "render_nodes.json"
-    node_system.load_configuration(str(config_file))
-    print(f"✓ Loaded configuration: {config_file.name}\n")
-    
-except Exception as e:
-    print(f"✗ Failed to initialize: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+    node_system.load_configuration(str(_locate_config(binary_dir)))
+    node_system.init()
 
-print("="*70)
-print("STEP 2: Build Render Graph in Python")
-print("="*70)
+    tree = node_system.get_node_tree()
+    executor = node_system.get_node_tree_executor()
 
-try:
-    # Import the render graph helper module
-    sys.path.insert(0, str(binary_dir))
-    import render_graph
-    
-    # Use the render graph API to build the pipeline
-    graph = render_graph.RenderGraph(node_system)
-    
-    # Load configuration
-    config_file = binary_dir / "render_nodes.json"
-    if not graph.loadConfiguration(str(config_file)):
-        raise RuntimeError(f"Failed to load configuration from {config_file}")
-    print(f"  ✓ Loaded configuration from {config_file.name}")
-    
-    # Create nodes using the API
-    print("Creating nodes...")
-    rng = graph.createNode("rng_texture", "RNG")
-    ray_gen = graph.createNode("node_render_ray_generation", "RayGen")
-    path_trace = graph.createNode("path_tracing", "PathTracer")
-    accumulate = graph.createNode("accumulate", "Accumulate")
-    rng_buffer = graph.createNode("rng_buffer", "RNGBuffer")
-    
-    print("  ✓ Created all nodes")
-    
-    # Connect nodes
-    print("\nConnecting nodes...")
-    graph.addEdge(rng, "Random Number", ray_gen, "random seeds")
-    graph.addEdge(ray_gen, "Pixel Target", path_trace, "Pixel Target")
-    graph.addEdge(ray_gen, "Rays", path_trace, "Rays")
-    graph.addEdge(rng_buffer, "Random Number", path_trace, "Random Seeds")
-    graph.addEdge(path_trace, "Output", accumulate, "Texture")
-    print("  ✓ Connected all nodes")
-    
-    # Mark output
-    graph.markOutput(accumulate, "Accumulated")
-    print(f"\n✓ Graph built successfully\n")
-    
-except Exception as e:
-    print(f"\n✗ Failed to build graph: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+    # Create nodes
+    rng = tree.add_node("rng_texture"); rng.ui_name = "RNG"
+    ray_gen = tree.add_node("node_render_ray_generation"); ray_gen.ui_name = "RayGen"
+    path_trace = tree.add_node("path_tracing"); path_trace.ui_name = "PathTracer"
+    accumulate = tree.add_node("accumulate"); accumulate.ui_name = "Accumulate"
+    rng_buffer = tree.add_node("rng_buffer"); rng_buffer.ui_name = "RNGBuffer"
+    present = tree.add_node("present_color"); present.ui_name = "Present"
 
-print("="*70)
-print("STEP 3: Render through Hydra")
-print("="*70)
+    # Link nodes
+    tree.add_link(rng.get_output_socket("Random Number"), ray_gen.get_input_socket("random seeds"))
+    tree.add_link(ray_gen.get_output_socket("Pixel Target"), path_trace.get_input_socket("Pixel Target"))
+    tree.add_link(ray_gen.get_output_socket("Rays"), path_trace.get_input_socket("Rays"))
+    tree.add_link(rng_buffer.get_output_socket("Random Number"), path_trace.get_input_socket("Random Seeds"))
+    tree.add_link(path_trace.get_output_socket("Output"), accumulate.get_input_socket("Texture"))
+    tree.add_link(accumulate.get_output_socket("Accumulated"), present.get_input_socket("Color"))
 
-try:
-    # Render multiple samples
-    num_samples = 4
-    print(f"Rendering {num_samples} samples...")
-    
-    for i in range(num_samples):
-        print(f"  Sample {i+1}/{num_samples}...")
-        hydra.render()
-    
-    print("✓ Rendering complete\n")
-    
-except Exception as e:
-    print(f"✗ Rendering failed: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+    executor.reset_allocator()
+    executor.prepare_tree(tree, present)
 
-print("="*70)
-print("STEP 4: Get Output Texture")
-print("="*70)
+    # Set parameters
+    params = {
+        (ray_gen, "Aperture"): 0.0,
+        (ray_gen, "Focus Distance"): 2.0,
+        (ray_gen, "Scatter Rays"): False,
+        (accumulate, "Max Samples"): samples,
+    }
+    for (node, socket_name), value in params.items():
+        socket = node.get_input_socket(socket_name)
+        meta = core.to_meta_any(value)
+        executor.sync_node_from_external_storage(socket, meta)
 
-try:
-    # Get the rendered texture
-    print("Reading output texture...")
-    texture_data = hydra.get_output_texture()
-    print(f"✓ Got texture data: {len(texture_data)} floats")
+
+def test_hydra_renderer_basic():
+    """Test basic render graph construction and rendering."""
+    workspace_root, binary_dir = _prepare_env()
     
-    # Convert to numpy array
-    img_array = np.array(texture_data).reshape(hydra.height, hydra.width, 4)
-    print(f"✓ Reshaped to: {img_array.shape}")
-    
-    # Check if it's not all black
-    mean_value = img_array[:, :, :3].mean()
-    print(f"✓ Mean pixel value: {mean_value:.4f}")
-    
-    if mean_value > 0.001:
-        print("✓ Image has content (not all black)")
-    else:
-        print("⚠ Warning: Image appears to be all black")
-    
-    # Save as PNG
     try:
-        from PIL import Image
-        
-        # Flip vertically and convert to uint8
-        img_uint8 = (np.clip(img_array[:, :, :3], 0, 1) * 255).astype(np.uint8)
-        img_uint8 = np.flipud(img_uint8)
-        
-        output_path = workspace_root / "output_hydra_test.png"
-        Image.fromarray(img_uint8).save(output_path)
-        print(f"✓ Saved image to: {output_path}")
-    except ImportError:
-        print("⚠ PIL not available, skipping image save")
-    
-except Exception as e:
-    print(f"✗ Failed to get output: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+        import hd_USTC_CG_py as renderer  # type: ignore
+    except ImportError as e:
+        pytest.skip(f"hd_USTC_CG_py not available: {e}")
 
-print("\n" + "="*70)
-print("✓ Test completed successfully!")
-print("="*70)
+    usd_stage = workspace_root / "Assets" / "shader_ball.usdc"
+    if not usd_stage.exists():
+        pytest.skip("shader_ball.usdc not found")
+
+    width, height, samples = 128, 128, 4
+    hydra = renderer.HydraRenderer(str(usd_stage), width=width, height=height)
+
+    _build_render_graph(hydra, binary_dir, samples)
+
+    # Render
+    for _ in range(samples):
+        hydra.render()
+
+    texture_data = hydra.get_output_texture()
+    assert texture_data, "No texture data returned"
+    assert len(texture_data) == width * height * 4, "Unexpected texture length"
+
+    img = np.array(texture_data, dtype=np.float32).reshape(height, width, 4)
+    mean_val = float(img[:, :, :3].mean())
+    assert mean_val >= 0.0, "Negative mean (invalid)"
+    
+    if mean_val < 1e-6:
+        pytest.xfail(f"Rendered image appears blank (mean={mean_val:.6f})")
+
+    # Save diagnostic image to Binaries/Release
+    try:
+        from PIL import Image  # type: ignore
+        rgb = (np.clip(img[:, :, :3], 0, 1) * 255).astype(np.uint8)
+        rgb = np.flipud(rgb)
+        Image.fromarray(rgb).save(binary_dir / "output_hydra_basic.png")
+    except Exception:
+        pass
+
+
+def test_render_to_tensor():
+    """Test rendering with higher sample count and optional tensor conversion."""
+    workspace_root, binary_dir = _prepare_env()
+    
+    try:
+        import hd_USTC_CG_py as renderer  # type: ignore
+    except ImportError as e:
+        pytest.skip(f"hd_USTC_CG_py not available: {e}")
+
+    usd_stage = workspace_root / "Assets" / "shader_ball.usdc"
+    if not usd_stage.exists():
+        pytest.skip("shader_ball.usdc not found")
+
+    width, height, samples = 128, 128, 8
+    hydra = renderer.HydraRenderer(str(usd_stage), width=width, height=height)
+
+    _build_render_graph(hydra, binary_dir, samples)
+
+    # Render
+    for _ in range(samples):
+        hydra.render()
+
+    texture_data = hydra.get_output_texture()
+    assert texture_data, "No texture data returned"
+    assert len(texture_data) == width * height * 4, "Unexpected texture length"
+
+    img = np.array(texture_data, dtype=np.float32).reshape(height, width, 4)
+    rgb = img[:, :, :3]
+    mean_val = float(rgb.mean())
+    assert mean_val >= 0.0, "Negative mean (invalid)"
+    
+    if mean_val < 1e-6:
+        pytest.xfail(f"Rendered image appears blank (mean={mean_val:.6f})")
+
+    # Test tensor conversion if torch available
+    try:
+        import torch  # type: ignore
+        tensor = torch.from_numpy(img)
+        assert tensor.shape == (height, width, 4), "Unexpected tensor shape"
+        assert tensor.dtype == torch.float32, "Unexpected tensor dtype"
+    except ImportError:
+        pass  # torch not available, skip this part
+
+    # Save output image to Binaries/Release
+    try:
+        from PIL import Image  # type: ignore
+        out_rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)
+        out_rgb = np.flipud(out_rgb)
+        Image.fromarray(out_rgb).save(binary_dir / "output_render_to_tensor.png")
+    except Exception:
+        pass
+

@@ -148,7 +148,7 @@ if __name__ == "__main__":
     # Find binary directory and add to path
     binary_dir = Path.cwd()
     if not (binary_dir / "render_nodes.json").exists():
-        binary_dir = binary_dir / "Binaries" / "Debug"
+        binary_dir = binary_dir / "Binaries" / "Release"
     
     # Add binary dir to Python path for module imports
     sys.path.insert(0, str(binary_dir))
