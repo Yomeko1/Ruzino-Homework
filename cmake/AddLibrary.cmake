@@ -204,6 +204,9 @@ function(USTC_CG_ADD_LIB LIB_NAME)
         # Set folder for Python wrapper
         set_target_properties(${name}_py PROPERTIES FOLDER "Libraries/${name}")
 
+        # Apply the same compile definitions to Python bindings
+        target_compile_definitions(${name}_py PRIVATE ${USTC_CG_ADD_LIB_COMPILE_DEFS})
+
         # target_link_libraries(${name}_py PRIVATE Python3::Python)
         # target_link_libraries(nanobind-static PRIVATE Python3::Python)
         if(Python3_LIBRARY MATCHES "_d.lib$")
