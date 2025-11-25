@@ -121,7 +121,6 @@ void Hd_USTC_CG_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
                 pos, strlen(DATA_PLACEHOLDER), get_data_code);
         }
 
-#ifndef NDEBUG
         try {
             std::filesystem::create_directories("generated_shaders");
             std::ofstream out("generated_shaders/" + material_name + ".slang");
@@ -136,7 +135,6 @@ void Hd_USTC_CG_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
         catch (const std::exception& e) {
             TF_WARN("Failed to save generated shader: %s", e.what());
         }
-#endif
         final_shader_source = eval_shader_source + slang_source_code_main;
     }
     else {

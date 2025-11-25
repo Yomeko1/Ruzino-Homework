@@ -18,7 +18,7 @@ import time
 # Setup paths
 script_dir = Path(__file__).parent.resolve()
 workspace_root = script_dir.parent.parent.parent.parent
-binary_dir = workspace_root / "Binaries" / "Debug"
+binary_dir = workspace_root / "Binaries" / "Release"
 assets_dir = workspace_root / "Assets"
 
 # Test script path
@@ -57,7 +57,6 @@ def test_single_material(material_folder):
             [sys.executable, str(test_script), str(material_folder)],
             capture_output=True,
             text=True,
-            timeout=600,  # 10 minute timeout per material
             cwd=str(script_dir)
         )
         

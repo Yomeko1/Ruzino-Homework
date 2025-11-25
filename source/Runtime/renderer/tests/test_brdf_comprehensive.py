@@ -20,7 +20,7 @@ import math
 # Setup paths
 script_dir = Path(__file__).parent.resolve()
 workspace_root = script_dir.parent.parent.parent.parent
-binary_dir = workspace_root / "Binaries" / "Debug"
+binary_dir = workspace_root / "Binaries" / "Release"
 assets_dir = workspace_root / "Assets"
 
 # Set environment variables
