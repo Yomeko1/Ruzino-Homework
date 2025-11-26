@@ -125,21 +125,25 @@ void ImportanceSampleRayGen()
     float3 local_sampled =
         world_sampled;  // world = local in our coordinate system
 
-    // Check if sample is valid (above hemisphere)
-    if (local_sampled.z > 0.0 && callData.pdf > 1e-8) {
+    // Validate sample: must have valid PDF and be in upper hemisphere
+    // Invalid samples (pdf=0 or below hemisphere) are rejected and don't count
+    if (callData.pdf > 1e-8 && local_sampled.z > 0.0) {
         // Convert sampled direction to texture coordinate
         float jacobian;
         float2 uv = direction_to_texcoord(local_sampled, jacobian);
 
-        if (all(uv >= 0.0) && all(uv <= 1.0)) {
+        if (all(uv >= 0.0) && all(uv <= 1.0) && jacobian > 0.0) {
             // Convert to pixel coordinates
             uint2 pixel = uint2(uv * float(resolution));
             pixel = min(pixel, uint2(resolution - 1, resolution - 1));
 
             // Compute importance sampling weight: throughput / pdf
-            // For good importance sampling, this should be approximately
-            // constant
-            float weight = 100.0f / callData.pdf;
+            // Note: PDF is in solid angle, but we need PDF in texture space
+            // pdf_texture = pdf_solid_angle * jacobian
+            // So weight_texture = throughput / pdf_texture = throughput / (pdf * jacobian)
+            // We use a scaling factor for better visualization
+            float pdf_texture = callData.pdf * jacobian;
+            float weight = 100.0f / pdf_texture;
 
             // Atomically accumulate using AtomicAddFloat
             // Each pixel has 2 floats: [weight_accumulator, sample_count]

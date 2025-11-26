@@ -119,8 +119,9 @@ void SampleRayGen()
     float3 local_sampled =
         world_sampled;  // In our setup, world = local since normal is z-up
 
-    // Check if sample is valid (above hemisphere)
-    if (local_sampled.z > 0.0) {
+    // Validate sample: must have valid PDF and be in upper hemisphere
+    // Only accumulate valid samples - invalid samples don't count toward total
+    if (callData.pdf > 1e-8 && local_sampled.z > 0.0) {
         // Convert sampled direction to texture coordinate
         float jacobian;
         float2 uv = direction_to_texcoord(local_sampled, jacobian);
