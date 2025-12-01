@@ -42,24 +42,24 @@ namespace ax {
 namespace NodeEditor {
     namespace Detail {
 #if !defined(IMGUI_VERSION_NUM) || (IMGUI_VERSION_NUM < 18822)
-#define DECLARE_KEY_TESTER(Key)                             \
-    DECLARE_HAS_NESTED(Key, Key)                            \
-    struct KeyTester_##Key {                                \
-        template<typename T>                                \
-        static int Get(typename std::enable_if<             \
-                       has_nested_##Key<ImGuiKey_>::value,  \
-                       T>::type*)                           \
-        {                                                   \
-            return ImGui::GetKeyIndex(T::Key);              \
-        }                                                   \
-                                                            \
-        template<typename T>                                \
-        static int Get(typename std::enable_if<             \
-                       !has_nested_##Key<ImGuiKey_>::value, \
-                       T>::type*)                           \
-        {                                                   \
-            return -1;                                      \
-        }                                                   \
+#define DECLARE_KEY_TESTER(Key)                                               \
+    DECLARE_HAS_NESTED(Key, Key)                                              \
+    struct KeyTester_##Key {                                                  \
+        template<typename T>                                                  \
+        static int Get(                                                       \
+            typename std::enable_if<has_nested_##Key<ImGuiKey_>::value, T>::  \
+                type*)                                                        \
+        {                                                                     \
+            return ImGui::GetKeyIndex(T::Key);                                \
+        }                                                                     \
+                                                                              \
+        template<typename T>                                                  \
+        static int Get(                                                       \
+            typename std::enable_if<!has_nested_##Key<ImGuiKey_>::value, T>:: \
+                type*)                                                        \
+        {                                                                     \
+            return -1;                                                        \
+        }                                                                     \
     }
 
         DECLARE_KEY_TESTER(ImGuiKey_F);
@@ -1719,7 +1719,8 @@ void ed::EditorContext::End()
     if (HasSelectionChanged())
         MakeDirty(SaveReasonFlags::Selection);
 
-    if (m_Settings.m_IsDirty && !m_CurrentAction)
+    if (m_Settings.m_IsDirty && !m_CurrentAction &&
+        m_Settings.m_DirtyReason != SaveReasonFlags::Size)
         SaveSettings();
 
     m_DrawList = nullptr;

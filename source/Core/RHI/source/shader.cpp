@@ -50,9 +50,9 @@ const ShaderReflectionInfo& Program::get_reflection_info() const
 ProgramDesc& ProgramDesc::set_path(const std::string& path)
 {
     this->path = path;
-//#ifdef _DEBUG
+#ifdef _DEBUG
     update_last_write_time(path);
-//#endif
+#endif
     return *this;
 }
 
