@@ -324,6 +324,8 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateSprim(
     const TfToken& typeId,
     const SdfPath& sprimId)
 {
+    spdlog::info("CreateSprim called: type='{}', path='{}'", typeId.GetText(), sprimId.GetText());
+    
     if (typeId == HdPrimTypeTokens->camera) {
         auto camera = new Hd_USTC_CG_Camera(sprimId);
         cameras.push_back(camera);
@@ -379,6 +381,7 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateSprim(
     }
     else if (typeId == TfToken("drawTarget") || typeId == TfToken("imageShader")) {
         // MaterialX specific types - create a minimal fallback
+        spdlog::info("Creating Sprim of type: {}", typeId.GetText());
         return new HdExtComputation(sprimId);
     }
     else {

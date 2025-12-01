@@ -2,6 +2,7 @@
 
 #include <pxr/imaging/hdMtlx/hdMtlx.h>
 
+#include <algorithm>
 #include <fstream>
 
 #include "MaterialX/SlangShaderGenerator.h"
@@ -70,6 +71,15 @@ void Hd_USTC_CG_MaterialX::Sync(
         "MaterialX: MaterialPath = '{}', SurfTerminalPath = '{}'",
         materialPath.GetText(),
         surfTerminalPath.GetText());
+
+    if (!surfTerminal) {
+        spdlog::warn(
+            "MaterialX: No surface terminal found for material '{}'. "
+            "This material has no connected shader network.",
+            GetId().GetText());
+        *dirtyBits = HdChangeTracker::Clean;
+        return;
+    }
 
     HdMtlxTexturePrimvarData hdMtlxData;
 
@@ -368,10 +378,21 @@ void Hd_USTC_CG_MaterialX::MtlxGenerateShader(
     auto element = renderable[0];
 
     std::string elementName(element->getNamePath());
-    material_name = mx::createValidName(elementName);
+    
+    // Use material ID path to create unique names to avoid conflicts
+    // when multiple instances use the same MaterialX but different paths
+    std::string materialIdStr = GetId().GetString();
+    // Replace path separators with underscores to make valid shader name
+    std::replace(materialIdStr.begin(), materialIdStr.end(), '/', '_');
+    // Remove leading underscore
+    if (!materialIdStr.empty() && materialIdStr[0] == '_') {
+        materialIdStr = materialIdStr.substr(1);
+    }
+    material_name = mx::createValidName(materialIdStr);
 
     spdlog::info(
-        "MaterialX: Generating shader for material '{}'", material_name);
+        "MaterialX: Generating shader for material '{}' from element '{}'", 
+        material_name, elementName);
 
     ShaderGenerator& shader_generator_ =
         shader_gen_context_->getShaderGenerator();

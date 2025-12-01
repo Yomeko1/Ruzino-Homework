@@ -37,7 +37,6 @@
 #include "pxr/imaging/hd/meshUtil.h"
 #include "pxr/imaging/hd/smoothNormals.h"
 
-
 USTC_CG_NAMESPACE_OPEN_SCOPE
 class Hd_USTC_CG_RenderParam;
 using namespace pxr;
@@ -143,7 +142,6 @@ void Hd_USTC_CG_Mesh::_UpdatePrimvarSources(
         auto interp = static_cast<HdInterpolation>(i);
         primvars = GetPrimvarDescriptors(sceneDelegate, interp);
         for (const HdPrimvarDescriptor& pv : primvars) {
-
             if (HdChangeTracker::IsPrimvarDirty(dirtyBits, id, pv.name) &&
                 pv.name != HdTokens->points) {
                 _primvarSourceMap[pv.name] = {
@@ -319,8 +317,8 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
                                         ? InterpolationType::Vertex
                                         : InterpolationType::FaceVarying;
     mesh_desc.tangentInterpolation = tangents.size() == points.size()
-                                        ? InterpolationType::Vertex
-                                        : InterpolationType::FaceVarying;
+                                         ? InterpolationType::Vertex
+                                         : InterpolationType::FaceVarying;
 
     mesh_desc_buffer = render_param->InstanceCollection->mesh_pool.allocate(1);
     mesh_desc_buffer->write_data(&mesh_desc);
@@ -363,7 +361,9 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     auto material_id = GetMaterialId();
 
     if (material_id.IsEmpty()) {
-        spdlog::info("Mesh {} has no material assigned. Using default material.", id.GetText());
+        spdlog::info(
+            "Mesh {} has no material assigned. Using default material.",
+            id.GetText());
     }
     else {
         spdlog::info(
@@ -373,6 +373,12 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     }
 
     Hd_USTC_CG_Material* material = (*render_param->material_map)[material_id];
+    if (!material) {
+        spdlog::warn(
+            "Material {} not found for mesh {}. Using default material.",
+            material_id.GetText(),
+            id.GetText());
+    }
 
     std::vector<GeometryInstanceData> instance_data_array(transforms.size());
 
@@ -704,12 +710,14 @@ void Hd_USTC_CG_Mesh::Sync(
         }
 
         // Compute tangents if we have normals and texture coordinates
-        if (!normals.empty() && !points.empty() && !triangulatedIndices.empty()) {
+        if (!normals.empty() && !points.empty() &&
+            !triangulatedIndices.empty()) {
             // Get texture coordinates from primvar map
             VtVec2fArray texcoords;
             HdInterpolation texcoord_interp = HdInterpolationVertex;
             for (auto& pv : _primvarSourceMap) {
-                if (pv.first == pxr::TfToken("UVMap") || pv.first == pxr::TfToken("st")) {
+                if (pv.first == pxr::TfToken("UVMap") ||
+                    pv.first == pxr::TfToken("st")) {
                     texcoords = pv.second.data.Get<VtVec2fArray>();
                     texcoord_interp = pv.second.interpolation;
                     break;
@@ -718,16 +726,25 @@ void Hd_USTC_CG_Mesh::Sync(
 
             if (!texcoords.empty()) {
                 // Debug: log texcoord info
-                spdlog::info("Mesh {}: Computing tangents - points: {}, triangles: {}, texcoords: {}, interp: {}", 
-                    GetId().GetText(), points.size(), triangulatedIndices.size(), texcoords.size(),
-                    texcoord_interp == HdInterpolationFaceVarying ? "FaceVarying" : "Vertex");
-                
+                spdlog::info(
+                    "Mesh {}: Computing tangents - points: {}, triangles: {}, "
+                    "texcoords: {}, interp: {}",
+                    GetId().GetText(),
+                    points.size(),
+                    triangulatedIndices.size(),
+                    texcoords.size(),
+                    texcoord_interp == HdInterpolationFaceVarying
+                        ? "FaceVarying"
+                        : "Vertex");
+
                 // Compute tangents with same interpolation as texcoords
                 if (texcoord_interp == HdInterpolationFaceVarying) {
-                    // FaceVarying: one tangent per triangle vertex (no accumulation at UV seams)
+                    // FaceVarying: one tangent per triangle vertex (no
+                    // accumulation at UV seams)
                     tangents.resize(triangulatedIndices.size() * 3);
-                    
-                    for (size_t triIdx = 0; triIdx < triangulatedIndices.size(); triIdx++) {
+
+                    for (size_t triIdx = 0; triIdx < triangulatedIndices.size();
+                         triIdx++) {
                         uint32_t i0 = triangulatedIndices[triIdx][0];
                         uint32_t i1 = triangulatedIndices[triIdx][1];
                         uint32_t i2 = triangulatedIndices[triIdx][2];
@@ -746,7 +763,8 @@ void Hd_USTC_CG_Mesh::Sync(
                             n0 = normals[triIdx * 3 + 0];
                             n1 = normals[triIdx * 3 + 1];
                             n2 = normals[triIdx * 3 + 2];
-                        } else {
+                        }
+                        else {
                             // Vertex normals
                             n0 = normals[i0];
                             n1 = normals[i1];
@@ -758,14 +776,20 @@ void Hd_USTC_CG_Mesh::Sync(
                         GfVec2f deltaUV1 = uv1 - uv0;
                         GfVec2f deltaUV2 = uv2 - uv0;
 
-                        float det = deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0];
-                        
+                        float det = deltaUV1[0] * deltaUV2[1] -
+                                    deltaUV1[1] * deltaUV2[0];
+
                         GfVec3f tangent, bitangent;
                         if (std::abs(det) > 1e-10f) {
                             float r = 1.0f / det;
-                            tangent = (deltaPos1 * deltaUV2[1] - deltaPos2 * deltaUV1[1]) * r;
-                            bitangent = (deltaPos2 * deltaUV1[0] - deltaPos1 * deltaUV2[0]) * r;
-                        } else {
+                            tangent = (deltaPos1 * deltaUV2[1] -
+                                       deltaPos2 * deltaUV1[1]) *
+                                      r;
+                            bitangent = (deltaPos2 * deltaUV1[0] -
+                                         deltaPos1 * deltaUV2[0]) *
+                                        r;
+                        }
+                        else {
                             // Degenerate UV triangle - use arbitrary tangent
                             tangent = GfVec3f(1.0f, 0.0f, 0.0f);
                             bitangent = GfVec3f(0.0f, 1.0f, 0.0f);
@@ -773,49 +797,61 @@ void Hd_USTC_CG_Mesh::Sync(
 
                         // Process each triangle vertex independently
                         for (int vtxIdx = 0; vtxIdx < 3; vtxIdx++) {
-                            GfVec3f n = (vtxIdx == 0) ? n0 : (vtxIdx == 1) ? n1 : n2;
+                            GfVec3f n = (vtxIdx == 0)   ? n0
+                                        : (vtxIdx == 1) ? n1
+                                                        : n2;
                             n.Normalize();
-                            
+
                             // Gram-Schmidt orthogonalize
                             GfVec3f t = tangent - n * GfDot(n, tangent);
                             float tLen = t.GetLength();
-                            
+
                             if (tLen > 1e-6f) {
                                 t = t / tLen;
-                            } else {
-                                // Tangent parallel to normal - create perpendicular
+                            }
+                            else {
+                                // Tangent parallel to normal - create
+                                // perpendicular
                                 if (std::abs(n[0]) < 0.9f) {
                                     t = GfVec3f(1.0f, 0.0f, 0.0f);
-                                } else {
+                                }
+                                else {
                                     t = GfVec3f(0.0f, 1.0f, 0.0f);
                                 }
                                 t = t - n * GfDot(n, t);
                                 t.Normalize();
                             }
-                            
+
                             // Calculate handedness
                             GfVec3f calculatedBitangent = GfCross(n, t);
-                            float handedness = GfDot(calculatedBitangent, bitangent) >= 0.0f ? 1.0f : -1.0f;
-                            
-                            tangents[triIdx * 3 + vtxIdx] = GfVec4f(t[0], t[1], t[2], handedness);
+                            float handedness =
+                                GfDot(calculatedBitangent, bitangent) >= 0.0f
+                                    ? 1.0f
+                                    : -1.0f;
+
+                            tangents[triIdx * 3 + vtxIdx] =
+                                GfVec4f(t[0], t[1], t[2], handedness);
                         }
                     }
-                } else {
+                }
+                else {
                     // Vertex interpolation: accumulate per vertex
                     tangents.resize(points.size());
                     std::vector<GfVec3f> bitangents(points.size());
-                    
+
                     for (size_t i = 0; i < tangents.size(); i++) {
                         tangents[i] = GfVec4f(0.0f, 0.0f, 0.0f, 0.0f);
                         bitangents[i] = GfVec3f(0.0f, 0.0f, 0.0f);
                     }
 
-                    for (size_t triIdx = 0; triIdx < triangulatedIndices.size(); triIdx++) {
+                    for (size_t triIdx = 0; triIdx < triangulatedIndices.size();
+                         triIdx++) {
                         uint32_t i0 = triangulatedIndices[triIdx][0];
                         uint32_t i1 = triangulatedIndices[triIdx][1];
                         uint32_t i2 = triangulatedIndices[triIdx][2];
 
-                        if (texcoords.size() <= std::max({i0, i1, i2})) continue;
+                        if (texcoords.size() <= std::max({ i0, i1, i2 }))
+                            continue;
 
                         GfVec3f v0 = points[i0];
                         GfVec3f v1 = points[i1];
@@ -829,22 +865,40 @@ void Hd_USTC_CG_Mesh::Sync(
                         GfVec2f deltaUV1 = uv1 - uv0;
                         GfVec2f deltaUV2 = uv2 - uv0;
 
-                        float det = deltaUV1[0] * deltaUV2[1] - deltaUV1[1] * deltaUV2[0];
-                        if (std::abs(det) < 1e-10f) continue;
+                        float det = deltaUV1[0] * deltaUV2[1] -
+                                    deltaUV1[1] * deltaUV2[0];
+                        if (std::abs(det) < 1e-10f)
+                            continue;
 
                         float r = 1.0f / det;
-                        GfVec3f tangent = (deltaPos1 * deltaUV2[1] - deltaPos2 * deltaUV1[1]) * r;
-                        GfVec3f bitangent = (deltaPos2 * deltaUV1[0] - deltaPos1 * deltaUV2[0]) * r;
+                        GfVec3f tangent = (deltaPos1 * deltaUV2[1] -
+                                           deltaPos2 * deltaUV1[1]) *
+                                          r;
+                        GfVec3f bitangent = (deltaPos2 * deltaUV1[0] -
+                                             deltaPos1 * deltaUV2[0]) *
+                                            r;
 
                         // Weight by triangle area
                         GfVec3f edge1 = v1 - v0;
                         GfVec3f edge2 = v2 - v0;
                         float area = GfCross(edge1, edge2).GetLength() * 0.5f;
 
-                        tangents[i0] += GfVec4f(tangent[0] * area, tangent[1] * area, tangent[2] * area, 0.0f);
-                        tangents[i1] += GfVec4f(tangent[0] * area, tangent[1] * area, tangent[2] * area, 0.0f);
-                        tangents[i2] += GfVec4f(tangent[0] * area, tangent[1] * area, tangent[2] * area, 0.0f);
-                        
+                        tangents[i0] += GfVec4f(
+                            tangent[0] * area,
+                            tangent[1] * area,
+                            tangent[2] * area,
+                            0.0f);
+                        tangents[i1] += GfVec4f(
+                            tangent[0] * area,
+                            tangent[1] * area,
+                            tangent[2] * area,
+                            0.0f);
+                        tangents[i2] += GfVec4f(
+                            tangent[0] * area,
+                            tangent[1] * area,
+                            tangent[2] * area,
+                            0.0f);
+
                         bitangents[i0] += bitangent * area;
                         bitangents[i1] += bitangent * area;
                         bitangents[i2] += bitangent * area;
@@ -854,8 +908,9 @@ void Hd_USTC_CG_Mesh::Sync(
                     for (size_t i = 0; i < tangents.size(); i++) {
                         GfVec3f n = normals[i];
                         n.Normalize();
-                        
-                        GfVec3f t = GfVec3f(tangents[i][0], tangents[i][1], tangents[i][2]);
+
+                        GfVec3f t = GfVec3f(
+                            tangents[i][0], tangents[i][1], tangents[i][2]);
                         GfVec3f b = bitangents[i];
 
                         float tLen = t.GetLength();
@@ -865,23 +920,29 @@ void Hd_USTC_CG_Mesh::Sync(
                             float orthLen = t.GetLength();
                             if (orthLen > 1e-6f) {
                                 t = t / orthLen;
-                            } else {
+                            }
+                            else {
                                 if (std::abs(n[0]) < 0.9f) {
                                     t = GfVec3f(1.0f, 0.0f, 0.0f);
-                                } else {
+                                }
+                                else {
                                     t = GfVec3f(0.0f, 1.0f, 0.0f);
                                 }
                                 t = t - n * GfDot(n, t);
                                 t.Normalize();
                             }
-                            
+
                             GfVec3f calculatedBitangent = GfCross(n, t);
-                            float handedness = GfDot(calculatedBitangent, b) >= 0.0f ? 1.0f : -1.0f;
+                            float handedness =
+                                GfDot(calculatedBitangent, b) >= 0.0f ? 1.0f
+                                                                      : -1.0f;
                             tangents[i] = GfVec4f(t[0], t[1], t[2], handedness);
-                        } else {
+                        }
+                        else {
                             if (std::abs(n[0]) < 0.9f) {
                                 t = GfVec3f(1.0f, 0.0f, 0.0f);
-                            } else {
+                            }
+                            else {
                                 t = GfVec3f(0.0f, 1.0f, 0.0f);
                             }
                             t = t - n * GfDot(n, t);

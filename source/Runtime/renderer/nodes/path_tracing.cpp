@@ -48,6 +48,12 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     std::unordered_map<unsigned, std::string> callable_shaders;
 
     for (auto material : materials) {
+        if (material.second == nullptr) {
+            spdlog::warn(
+                "Null material found in path tracing node, {}",
+                material.first.GetText());
+            continue;
+        }
         auto location = material.second->GetMaterialLocation();
         if (location == -1) {
             continue;

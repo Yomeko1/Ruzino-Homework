@@ -211,7 +211,7 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
     return True
 
 
-def render_scene(usd_file, output_image, width=2000, height=2000, samples=512):
+def render_scene(usd_file, output_image, width=2000, height=2000, samples=2048):
     """Render a USD scene using headless_render.exe"""
     render_exe = binary_dir / "headless_render.exe"
     render_nodes = assets_dir / "render_nodes_save.json"
