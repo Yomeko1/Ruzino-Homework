@@ -18,14 +18,28 @@ struct RaygenStorage {
     float aperture = 0;
     float focus_distance = 2;
 
-    bool operator==(const RaygenStorage& rhs) const
-    {
-        return aperture == rhs.aperture && focus_distance == rhs.focus_distance;
-    }
+    PlanarViewConstants view_constants;
 
-    bool operator!=(const RaygenStorage& rhs) const
+    std::unique_ptr<ProgramVars> cached_program_vars;
+    std::unique_ptr<ComputeContext> cached_compute_context;
+
+    bool cached_scatter_rays = false;
+    ProgramHandle cached_program;
+
+    // Trantient data
+    nvrhi::BufferHandle ray_buffer;
+    nvrhi::BufferHandle pixel_target_buffer;
+
+    GfVec2i image_size = GfVec2i(-1, -1);
+
+    ResourceAllocator* rc = nullptr;
+
+    ~RaygenStorage()
     {
-        return !(*this == rhs);
+        if (cached_program) {
+            rc->destroy(cached_program);
+            cached_program = nullptr;
+        }
     }
 };
 
@@ -42,71 +56,116 @@ NODE_DECLARATION_FUNCTION(node_render_ray_generation)
 
 NODE_EXECUTION_FUNCTION(node_render_ray_generation)
 {
+    auto& g = params.get_global_payload<RenderGlobalPayload&>();
+    auto& storage = params.get_storage<RaygenStorage&>();
+    storage.rc = &resource_allocator;
+
+    bool scatter_rays = params.get_input<bool>("Scatter Rays");
+    if (scatter_rays != storage.cached_scatter_rays ||
+        !storage.cached_program) {
+        storage.cached_scatter_rays = scatter_rays;
+        g.reset_accumulation = true;
+
+        // Prepare the shader using reflection
+        ProgramDesc cs_program_desc;
+        cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
+        cs_program_desc.set_path("shaders/raygen.slang").set_entry_name("main");
+
+        std::vector<ShaderMacro> macro_defines;
+        if (params.get_input<bool>("Scatter Rays"))
+            macro_defines.push_back(ShaderMacro{ "SCATTER_RAYS", "1" });
+        else
+            macro_defines.push_back(ShaderMacro{ "SCATTER_RAYS", "0" });
+
+        cs_program_desc.define(macro_defines);
+
+        if (storage.cached_program)
+            resource_allocator.destroy(storage.cached_program);
+
+        storage.cached_program = resource_allocator.create(cs_program_desc);
+        CHECK_PROGRAM_ERROR(storage.cached_program);
+    }
+
     Hd_USTC_CG_Camera* free_camera = get_free_camera(params);
+    auto view_constants = camera_to_view_constants(free_camera);
+
+    bool view_changed = false;
+    if (storage.view_constants != view_constants) {
+        storage.view_constants = view_constants;
+        view_changed = true;
+    }
+
     auto image_size = free_camera->dataWindow.GetSize();
+
+    bool size_changed = false;
+    if (storage.image_size != image_size) {
+        storage.image_size = image_size;
+        size_changed = true;
+    }
 
     auto aperture = params.get_input<float>("Aperture");
     auto focus_distance = params.get_input<float>("Focus Distance");
 
-    if (params.get_storage<RaygenStorage>() !=
-        RaygenStorage{ aperture, focus_distance }) {
-        params.set_storage(RaygenStorage{ aperture, focus_distance });
-        global_payload.reset_accumulation = true;
+    bool camera_param_changed = false;
+    if (storage.aperture != aperture ||
+        storage.focus_distance != focus_distance) {
+        storage.aperture = aperture;
+        storage.focus_distance = focus_distance;
+        camera_param_changed = true;
     }
 
-    auto ray_buffer = create_buffer<RayInfo>(
-        params, image_size[0] * image_size[1], false, true);
+    bool any_change = view_changed || size_changed || camera_param_changed;
 
-    auto pixel_target_buffer = create_buffer<GfVec2i>(
-        params, image_size[0] * image_size[1], false, true);
+    if (any_change) {
+        g.reset_accumulation = true;
+    }
 
-    // Prepare the shader using reflection
-    ProgramDesc cs_program_desc;
-    cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
-    cs_program_desc.set_path("shaders/raygen.slang").set_entry_name("main");
+    if (size_changed || !storage.ray_buffer)
+        storage.ray_buffer = create_buffer<RayInfo>(
+            params, image_size[0] * image_size[1], false, true);
 
-    std::vector<ShaderMacro> macro_defines;
-    if (params.get_input<bool>("Scatter Rays"))
-        macro_defines.push_back(ShaderMacro{ "SCATTER_RAYS", "1" });
-    else
-        macro_defines.push_back(ShaderMacro{ "SCATTER_RAYS", "0" });
+    if (!storage.pixel_target_buffer)
+        storage.pixel_target_buffer = create_buffer<GfVec2i>(
+            params, image_size[0] * image_size[1], false, true);
 
-    cs_program_desc.define(macro_defines);
+    if (any_change) {
+        auto random_seeds =
+            params.get_input<nvrhi::TextureHandle>("random seeds");
+        auto constant_buffer = get_free_camera_planarview_cb(params);
+        MARK_DESTROY_NVRHI_RESOURCE(constant_buffer);
 
-    ProgramHandle cs_program = resource_allocator.create(cs_program_desc);
-    MARK_DESTROY_NVRHI_RESOURCE(cs_program);
-    CHECK_PROGRAM_ERROR(cs_program);
+        storage.cached_program_vars = std::make_unique<ProgramVars>(
+            resource_allocator, storage.cached_program);
 
-    auto random_seeds = params.get_input<nvrhi::TextureHandle>("random seeds");
-    auto constant_buffer = get_free_camera_planarview_cb(params);
-    MARK_DESTROY_NVRHI_RESOURCE(constant_buffer);
+        ProgramVars& program_vars = *storage.cached_program_vars;
+        program_vars["rays"] = storage.ray_buffer;
+        program_vars["random_seeds"] = random_seeds;
+        program_vars["pixel_targets"] = storage.pixel_target_buffer;
+        program_vars["viewConstant"] = constant_buffer;
 
-    ProgramVars program_vars(resource_allocator, cs_program);
-    program_vars["rays"] = ray_buffer;
-    program_vars["random_seeds"] = random_seeds;
-    program_vars["pixel_targets"] = pixel_target_buffer;
-    program_vars["viewConstant"] = constant_buffer;
+        CameraParameters camera_params;
+        camera_params.aperture = aperture;
+        camera_params.focusDistance = focus_distance;
 
-    CameraParameters camera_params;
-    camera_params.aperture = aperture;
-    camera_params.focusDistance = focus_distance;
+        auto camera_param_cb = create_constant_buffer(params, camera_params);
+        MARK_DESTROY_NVRHI_RESOURCE(camera_param_cb);
 
-    auto camera_param_cb = create_constant_buffer(params, camera_params);
-    MARK_DESTROY_NVRHI_RESOURCE(camera_param_cb);
+        program_vars["cameraParams"] = camera_param_cb;
 
-    program_vars["cameraParams"] = camera_param_cb;
+        program_vars.finish_setting_vars();
 
-    program_vars.finish_setting_vars();
+        storage.cached_compute_context =
+            std::make_unique<ComputeContext>(resource_allocator, program_vars);
+        ComputeContext& context = *storage.cached_compute_context;
+        context.finish_setting_pso();
+    }
+    storage.cached_compute_context->begin();
+    storage.cached_compute_context->dispatch(
+        {}, *storage.cached_program_vars, image_size[0], 32, image_size[1], 32);
+    storage.cached_compute_context->finish();
 
-    ComputeContext context(resource_allocator, program_vars);
-    context.finish_setting_pso();
-
-    context.begin();
-    context.dispatch({}, program_vars, image_size[0], 32, image_size[1], 32);
-    context.finish();
-
-    params.set_output("Rays", ray_buffer);
-    params.set_output("Pixel Target", pixel_target_buffer);
+    params.set_output("Rays", storage.ray_buffer);
+    params.set_output("Pixel Target", storage.pixel_target_buffer);
     return true;
 }
 

@@ -194,7 +194,6 @@ inline void copy_from_texture(
     command_list->copyTexture(texture, {}, source, {});
     command_list->close();
     device->executeCommandList(command_list);
-    device->waitForIdle();
 }
 #if USTC_CG_WITH_OPENUSD
 nvrhi::TextureHandle load_ogl_texture(
