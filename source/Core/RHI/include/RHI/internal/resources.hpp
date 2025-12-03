@@ -96,7 +96,7 @@ struct RHI_API ProgramDesc {
     nvrhi::ShaderType shaderType;
     bool nvapi_support = false;
 
-    bool shader_updated();
+    bool check_shader_updated() const;
 
    private:
     void update_last_write_time(const std::string& path);

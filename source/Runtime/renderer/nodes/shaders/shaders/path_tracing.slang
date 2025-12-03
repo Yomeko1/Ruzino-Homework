@@ -314,7 +314,7 @@ void ClosestHit(
     in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Check if maximum depth is reached
-    if (payload.depth >= 30) {
+    if (payload.depth >= 12) {
         payload.throughput = float3(1, 0, 0);
         payload.color = float3(0, 0, 0);
         payload.terminated = true;
@@ -388,25 +388,6 @@ void ClosestHit(
     evalData.vertexInfo = vertex;
 
     CallShader(fetchData.shader_type_id, evalData);
-
-    // This commented part works for the correct id, but with callable it's
-    // wrong!
-    // // Read parameters from buffer
-    // MaterialParams params_blob =
-    //     materialParamsBuffer[fetchData.material_params_index];
-    // PackedStandardSurfaceMaterialParams params;
-
-    // // Copy data from buffer (assuming MaterialParams can be reinterpreted)
-    // // In practice, you might need proper unpacking
-    // params = reinterpret<PackedStandardSurfaceMaterialParams>(params_blob);
-
-    // payload.color = params.base_color;  // Temporary assignment
-    // payload.terminated = true;
-    // return;
-
-    // payload.color = evalData.throughput;
-    // payload.terminated = true;
-    // return;
 
     float pdf = evalData.pdf;
 

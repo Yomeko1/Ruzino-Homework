@@ -396,7 +396,8 @@ class ResourceAllocator {
 #endif
     }
 
-    static constexpr size_t CACHE_CAPACITY = 8u << 30u;  // 1 GiB
+    static constexpr size_t CACHE_CAPACITY =
+        std::numeric_limits<unsigned>::max();
 
     template<typename T>
     struct Hasher {

@@ -132,7 +132,7 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
         }
 
         // global_payload.resource_allocator.gc();
-        // global_payload.resource_allocator.gc();
+        global_payload.resource_allocator.gc();
 
         global_payload.lens_system = render_param->lens_system;
 

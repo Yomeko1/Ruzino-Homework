@@ -85,6 +85,12 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     auto& storage = params.get_storage<PathTracingStorage&>();
     bool size_changed = (storage.old_size != size);
     storage.old_size = size;
+
+    if (storage.path_tracing_program &&
+        storage.path_tracing_program->get_desc().check_shader_updated()) {
+        mat_dirty = true;
+    }
+
     if (geom_dirty || mat_dirty || light_dirty || size_changed)
         spdlog::info(
             "Path Tracing Node: geom_dirty={}, mat_dirty={}, light_dirty={}, "

@@ -124,11 +124,17 @@ NODE_EXECUTION_FUNCTION(node_render_ray_generation)
         storage.ray_buffer = create_buffer<RayInfo>(
             params, image_size[0] * image_size[1], false, true);
 
-    if (!storage.pixel_target_buffer)
+    if (size_changed || !storage.pixel_target_buffer)
         storage.pixel_target_buffer = create_buffer<GfVec2i>(
             params, image_size[0] * image_size[1], false, true);
 
     if (any_change) {
+        spdlog::info(
+            "Ray Generation Node: view changed: {}, size changed: {}, camera "
+            "param changed: {}",
+            view_changed,
+            size_changed,
+            camera_param_changed);
         auto random_seeds =
             params.get_input<nvrhi::TextureHandle>("random seeds");
         auto constant_buffer = get_free_camera_planarview_cb(params);

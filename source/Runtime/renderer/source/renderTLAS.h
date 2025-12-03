@@ -19,12 +19,12 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
     explicit Hd_USTC_CG_RenderInstanceCollection();
     ~Hd_USTC_CG_RenderInstanceCollection();
 
-    nvrhi::rt::IAccelStruct *get_tlas();
-    DescriptorTableManager *get_buffer_descriptor_table() const
+    nvrhi::rt::IAccelStruct* get_tlas();
+    DescriptorTableManager* get_buffer_descriptor_table() const
     {
         return bindlessData.bufferDescriptorTableManager.get();
     }
-    DescriptorTableManager *get_texture_descriptor_table() const
+    DescriptorTableManager* get_texture_descriptor_table() const
     {
         return bindlessData.textureDescriptorTableManager.get();
     }
@@ -79,6 +79,17 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
     uint32_t get_geometry_version() const
     {
         return geometry_version;
+    }
+
+    // track light changes
+    uint32_t light_version = 0;
+    void mark_lights_dirty()
+    {
+        light_version++;
+    }
+    uint32_t get_light_version() const
+    {
+        return light_version;
     }
 
    private:

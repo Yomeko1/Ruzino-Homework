@@ -50,9 +50,7 @@ const ShaderReflectionInfo& Program::get_reflection_info() const
 ProgramDesc& ProgramDesc::set_path(const std::string& path)
 {
     this->path = path;
-#ifdef _DEBUG
     update_last_write_time(path);
-#endif
     return *this;
 }
 
@@ -73,14 +71,19 @@ ProgramDesc& ProgramDesc::set_entry_name(const std::string& entry_name)
 }
 namespace fs = std::filesystem;
 
-bool ProgramDesc::shader_updated()
+bool ProgramDesc::check_shader_updated() const
 {
     auto full_path =
         std::filesystem::path(ShaderFactory::shader_search_path) / path;
     if (fs::exists(full_path)) {
         auto possibly_newer_lastWriteTime = fs::last_write_time(full_path);
-        if (possibly_newer_lastWriteTime.time_since_epoch().count() >
-            lastWriteTime) {
+        auto current_time = possibly_newer_lastWriteTime.time_since_epoch().count();
+        
+        if (lastWriteTime == 0) {
+            return false;
+        }
+        
+        if (current_time > lastWriteTime) {
             return true;
         }
         return false;
@@ -102,7 +105,7 @@ void ProgramDesc::update_last_write_time(const std::string& path)
         }
     }
     else {
-        lastWriteTime = {};
+        lastWriteTime = 0;
     }
 }
 

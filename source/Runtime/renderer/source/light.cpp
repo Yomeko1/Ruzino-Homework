@@ -14,7 +14,6 @@
 #include "pxr/usdImaging/usdImaging/tokens.h"
 #include "renderParam.h"
 
-
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
 void Hd_USTC_CG_Light::Sync(
@@ -30,6 +29,9 @@ void Hd_USTC_CG_Light::Sync(
     if (!TF_VERIFY(sceneDelegate != nullptr)) {
         return;
     }
+
+    auto render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+    render_param->InstanceCollection->mark_lights_dirty();
 
     const SdfPath& id = GetId();
 

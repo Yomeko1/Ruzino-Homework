@@ -43,6 +43,8 @@ class HD_USTC_CG_API Hd_USTC_CG_Light : public HdLight {
         return light_buffer;
     }
 
+    
+
    protected:
     // Stores the internal light type of this light.
     TfToken _lightType;
