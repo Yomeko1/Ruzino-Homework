@@ -385,10 +385,8 @@ int main(int argc, char* argv[])
                     mtlx_system->get_node_tree());
                 mtlx_tree_temp->saveDocument(mx::FilePath(mtlx_path.string()));
 
-                // Construct the MaterialX prim path:
-                // /MaterialX/Materials/<material_name>
-                std::string mtlx_material_path_str =
-                    "/MaterialX/Materials/" + material_name;
+                // MaterialX materials are at root level in the document
+                std::string mtlx_material_path_str = "/" + material_name;
 
                 // Add reference to the MaterialX file (clear existing first if
                 // any)
@@ -406,6 +404,19 @@ int main(int argc, char* argv[])
 
                 // Save stage to persist the reference
                 stage->get_usd_stage()->Save();
+
+                // CRITICAL FIX: USD doesn't automatically recompose after
+                // adding references We need to force it by calling Reload()
+                // which recomposes all affected prims This is the ONLY way to
+                // ensure the MaterialX reference is expanded immediately
+                stage->get_usd_stage()->Unload(material_path);
+                stage->get_usd_stage()->Load(material_path);
+
+                // Get fresh prim handle after reload
+                material_prim =
+                    stage->get_usd_stage()->GetPrimAtPath(material_path);
+
+                spdlog::info("Reloaded stage to expand MaterialX reference");
             }
 
             // Launch MaterialX editor widget
@@ -462,7 +473,7 @@ int main(int argc, char* argv[])
                 return;
             }
 
-            std::string surface_shader_path_str;
+            std::string surface_shader_name;
 
             for (auto material_node : mtlx_doc->getMaterialNodes()) {
                 // Find the surface shader output
@@ -472,43 +483,103 @@ int main(int argc, char* argv[])
                     auto connected_node =
                         surfaceshader_input->getConnectedNode();
                     if (connected_node) {
-                        surface_shader_path_str = material_path.GetString() +
-                                                  "/" +
-                                                  connected_node->getName();
+                        surface_shader_name = connected_node->getName();
                     }
                 }
                 break;  // Use the first material found
             }
 
             // Connect surface output if the shader exists
-            if (!surface_shader_path_str.empty()) {
-                pxr::UsdShadeMaterial usd_material(material_prim);
+            if (!surface_shader_name.empty()) {
+                // STEP 1: Ensure MaterialX layer is loaded into USD's registry
+                auto mtlx_layer = pxr::SdfLayer::FindOrOpen(mtlx_path.string());
+                if (!mtlx_layer) {
+                    spdlog::error(
+                        "Failed to open MaterialX layer: {}",
+                        mtlx_path.string());
+                    stage->get_usd_stage()->Save();
+                    return;
+                }
 
-                // Find the shader prim
-                for (auto child : material_prim.GetChildren()) {
-                    if (child.IsA<pxr::UsdShadeShader>()) {
-                        pxr::UsdShadeShader shader(child);
-                        auto surface_output =
-                            shader.GetOutput(pxr::TfToken("surface"));
+                spdlog::info("MaterialX layer loaded: {}", mtlx_path.string());
 
-                        if (surface_output) {
-                            // Create or get the material's surface output
-                            auto material_surface =
-                                usd_material.CreateSurfaceOutput();
-                            material_surface.ConnectToSource(surface_output);
+                // STEP 2: Create the connection in the root layer
+                auto root_layer = stage->get_usd_stage()->GetRootLayer();
 
-                            spdlog::info(
-                                "Connected surface output: {}",
-                                surface_shader_path_str);
-                        }
-                        break;
+                // Construct paths
+                pxr::SdfPath shader_path = material_path.AppendChild(
+                    pxr::TfToken(surface_shader_name));
+                pxr::SdfPath shader_surface_output_path =
+                    shader_path.AppendProperty(pxr::TfToken("outputs:surface"));
+
+                // Create the material prim spec if it doesn't exist in root
+                // layer
+                auto material_prim_spec =
+                    root_layer->GetPrimAtPath(material_path);
+                if (!material_prim_spec) {
+                    material_prim_spec =
+                        pxr::SdfCreatePrimInLayer(root_layer, material_path);
+                }
+
+                // Create or update outputs:surface attribute
+                pxr::TfToken outputs_surface_token("outputs:surface");
+                auto existing_attr = material_prim_spec->GetAttributes().get(
+                    outputs_surface_token);
+
+                if (existing_attr) {
+                    auto conn_list = existing_attr->GetConnectionPathList();
+                    conn_list.ClearEdits();
+                    conn_list.GetExplicitItems().clear();
+                    conn_list.GetExplicitItems().push_back(
+                        shader_surface_output_path);
+
+                    spdlog::info(
+                        "Updated surface connection: {} -> {}",
+                        material_path.GetString() + ".outputs:surface",
+                        shader_surface_output_path.GetString());
+                }
+                else {
+                    auto surface_output_attr = pxr::SdfAttributeSpec::New(
+                        material_prim_spec,
+                        outputs_surface_token,
+                        pxr::SdfValueTypeNames->Token);
+
+                    if (surface_output_attr) {
+                        auto conn_list =
+                            surface_output_attr->GetConnectionPathList();
+                        conn_list.GetExplicitItems().push_back(
+                            shader_surface_output_path);
+
+                        spdlog::info(
+                            "Created surface connection: {} -> {}",
+                            material_path.GetString() + ".outputs:surface",
+                            shader_surface_output_path.GetString());
                     }
                 }
-            }
 
-            // Save the USD stage
-            stage->get_usd_stage()->Save();
-            spdlog::info("USD stage saved after MaterialX graph change");
+                // STEP 3: Force stage to recompose by temporarily removing and
+                // re-adding the reference This is the most reliable way to
+                // ensure USD expands the reference
+                auto references = material_prim.GetReferences();
+
+                // Simply clear and re-add with the known reference info
+                std::string ref_asset_path = mtlx_path.string();
+                std::string ref_prim_path_str =
+                    "/MaterialX/Materials/" + material_name;
+
+                // Clear and re-add the reference to force recomposition
+                references.ClearReferences();
+                references.AddReference(
+                    pxr::SdfReference(
+                        ref_asset_path, pxr::SdfPath(ref_prim_path_str)));
+
+                spdlog::info(
+                    "Forced reference recomposition for material: {} -> {}",
+                    material_path.GetString(),
+                    ref_asset_path + ref_prim_path_str);
+                stage->get_usd_stage()->Save();
+                stage->get_usd_stage()->Reload();
+            }
         });
     // Subscribe to document viewer events
     window->events().subscribe(
