@@ -52,6 +52,9 @@ struct PathTracingStorage {
     // Dome light custom shader state
     std::string dome_light_shader_path;
     bool has_dome_light_shader = false;
+    
+    // Custom shader materials: map from material_location to eval_callable_index
+    std::unordered_map<unsigned, unsigned> custom_shader_eval_indices;
 
     ~PathTracingStorage()
     {
@@ -184,6 +187,10 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         auto& materials = global_payload.get_materials();
 
         storage.callable_shaders.clear();
+        storage.custom_shader_eval_indices.clear();
+        
+        // Track next available eval callable index (after standard ones: 0,1,2)
+        int next_eval_index = 3;
 
         for (auto material : materials) {
             if (material.second == nullptr) {
@@ -198,12 +205,46 @@ NODE_EXECUTION_FUNCTION(path_tracing)
                 continue;
             }
 
-            program_desc.add_source_code(
-                material.second->GetShader(shader_factory));
+            // Check if this is a custom shader material
+            if (material.second->HasValidShader()) {
+                // This is a custom eval callable - add it directly
+                std::string shader_source = material.second->GetShader(shader_factory);
+                program_desc.add_source_code(shader_source);
+                
+                // Store the eval index for this material
+                storage.custom_shader_eval_indices[location] = next_eval_index;
+                storage.callable_shaders[location] = material.second->GetMaterialName();
+                
+                spdlog::info(
+                    "Material '{}': Custom eval shader at index {}",
+                    material.first.GetText(),
+                    next_eval_index);
+                
+                // Generate a simple fetch callable wrapper that just sets shader_type_id
+                std::string fetch_wrapper = R"(
+import callable_data;
+import Scene.BindlessMaterial;
 
-            auto callable = material.second->GetShader(shader_factory);
-            storage.callable_shaders[location] =
-                material.second->GetMaterialName();
+[shader("callable")]
+void fetch_)" + material.second->GetMaterialName() + R"((inout FetchCallableData data)
+{
+    // Custom shader material - no data to fetch, just set shader_type_id
+    data.shader_type_id = )" + std::to_string(next_eval_index) + R"(;
+}
+)";
+                program_desc.add_source_code(fetch_wrapper);
+                
+                next_eval_index++;
+            }
+            else {
+                // Regular MaterialX material - use fetch+eval pattern
+                program_desc.add_source_code(
+                    material.second->GetShader(shader_factory));
+
+                auto callable = material.second->GetShader(shader_factory);
+                storage.callable_shaders[location] =
+                    material.second->GetMaterialName();
+            }
         }
 
         if (storage.path_tracing_program) {
@@ -307,10 +348,13 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
         PathTracingConstants constants;
         constants.lightCount = lightCount;
-        constants.domeLightCallableIndex =
-            storage.has_dome_light_shader ? 3 : 0;
-        constants.materialFetchCallableBaseIndex =
-            storage.has_dome_light_shader ? 4 : 3;
+        
+        // Calculate indices based on custom shader materials
+        int num_custom_evals = storage.custom_shader_eval_indices.size();
+        constants.domeLightCallableIndex = 
+            storage.has_dome_light_shader ? (3 + num_custom_evals) : 0;
+        constants.materialFetchCallableBaseIndex = 
+            3 + num_custom_evals + (storage.has_dome_light_shader ? 1 : 0);
         constants._padding = 0;
 
         if (storage.pathTracingConstantsBuffer)
@@ -357,23 +401,41 @@ NODE_EXECUTION_FUNCTION(path_tracing)
             "eval_preview_surface", 1, nullptr);  // shader_type_id = 1
         context.announce_callable("eval_fallback", 2, nullptr);
 
-        // Register dome light custom callable at index 3 if present
+        // Register custom shader eval callables starting from index 3
+        int next_eval_index = 3;
+        for (auto& entry : storage.custom_shader_eval_indices) {
+            unsigned material_location = entry.first;
+            unsigned eval_index = entry.second;
+            std::string callable_name = "eval_" + storage.callable_shaders[material_location];
+            context.announce_callable(callable_name, eval_index, nullptr);
+            spdlog::info(
+                "Registered custom eval callable '{}' at index {}",
+                callable_name,
+                eval_index);
+        }
+
+        // Register dome light custom callable after custom material evals
         if (storage.has_dome_light_shader) {
             // Extract callable name from shader path
             std::filesystem::path shader_path(storage.dome_light_shader_path);
             std::string callable_name = shader_path.stem().string();
-            context.announce_callable(callable_name, 3, nullptr);
+            int dome_index = next_eval_index + storage.custom_shader_eval_indices.size();
+            context.announce_callable(callable_name, dome_index, nullptr);
             spdlog::info(
-                "Registered dome light callable '{}' at index 3",
-                callable_name);
+                "Registered dome light callable '{}' at index {}",
+                callable_name,
+                dome_index);
         }
 
-        // Register per-material data fetch callables starting from index 4 (or
-        // 3 if no dome shader)
-        int base_index = storage.has_dome_light_shader ? 4 : 3;
+        // Register per-material data fetch callables
+        int base_fetch_index = next_eval_index + storage.custom_shader_eval_indices.size() +
+                               (storage.has_dome_light_shader ? 1 : 0);
         for (auto& callable : storage.callable_shaders) {
+            std::string fetch_name = storage.custom_shader_eval_indices.count(callable.first) > 0
+                ? "fetch_" + callable.second  // Custom shader fetch wrapper
+                : callable.second;  // MaterialX fetch callable
             context.announce_callable(
-                callable.second, base_index + callable.first, nullptr);
+                fetch_name, base_fetch_index + callable.first, nullptr);
         }
 
         context.finish_announcing_shader_names();

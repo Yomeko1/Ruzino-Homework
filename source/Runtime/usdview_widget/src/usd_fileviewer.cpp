@@ -790,16 +790,31 @@ void UsdFileViewer::EditValue()
                         {
                             std::string value = v.Get<std::string>();
 
-                            // Special handling for shader_path attribute - show
-                            // as dropdown
+                            // Special handling for shader_path attribute - show as dropdown
+                            // Works for both dome lights and materials
                             if (attrName == "shader_path") {
-                                // Scan for available dome light shaders
+                                // Scan for available shaders based on prim type
                                 std::vector<std::string> shaderFiles;
                                 shaderFiles.push_back("");  // Empty option
 
-                                std::filesystem::path shaderDir =
-                                    "../../source/Runtime/renderer/nodes/"
-                                    "shaders/shaders/callables";
+                                // Get executable path and construct shader directory path
+                                std::filesystem::path executable_path;
+#ifdef _WIN32
+                                char p[MAX_PATH];
+                                GetModuleFileNameA(NULL, p, MAX_PATH);
+                                executable_path = std::filesystem::path(p).parent_path();
+#else
+                                char p[PATH_MAX];
+                                ssize_t count = readlink("/proc/self/exe", p, PATH_MAX);
+                                if (count != -1) {
+                                    p[count] = '\0';
+                                    executable_path = std::filesystem::path(p).parent_path();
+                                }
+#endif
+                                std::filesystem::path shaderDir = executable_path / 
+                                    "../../source/Runtime/renderer/nodes/shaders/shaders/callables";
+                                shaderDir = shaderDir.lexically_normal();
+                                
                                 if (std::filesystem::exists(shaderDir)) {
                                     try {
                                         for (const auto& entry : std::
@@ -810,11 +825,24 @@ void UsdFileViewer::EditValue()
                                                     entry.path()
                                                         .filename()
                                                         .string();
-                                                if (filename.find(
-                                                        "eval_dome_light") !=
-                                                        std::string::npos &&
-                                                    entry.path().extension() ==
-                                                        ".slang") {
+                                                
+                                                // For dome lights, filter for dome light shaders
+                                                // For materials, filter for material eval shaders (including custom ones)
+                                                bool isDomeLightShader = filename.find("eval_dome_light") != std::string::npos;
+                                                bool isMaterialShader = (filename.find("eval_") != std::string::npos || 
+                                                                        filename.find("custom_") != std::string::npos) && 
+                                                                       filename.find("dome_light") == std::string::npos &&
+                                                                       filename != "eval_fallback.slang" &&
+                                                                       filename != "eval_standard_surface.slang" &&
+                                                                       filename != "eval_preview_surface.slang";
+                                                
+                                                // Check if this prim is a dome light
+                                                bool isPrimDomeLight = prim.GetTypeName() == "DomeLight";
+                                                
+                                                // Show appropriate shaders based on prim type
+                                                if (entry.path().extension() == ".slang" &&
+                                                    ((isPrimDomeLight && isDomeLightShader) ||
+                                                     (!isPrimDomeLight && isMaterialShader))) {
                                                     // Store relative path
                                                     shaderFiles.push_back(
                                                         "shaders/callables/" +
@@ -837,8 +865,7 @@ void UsdFileViewer::EditValue()
                                     }
                                 }
 
-                                // If current value is not in list and not
-                                // empty, add it
+                                // If current value is not in list and not empty, add it
                                 if (currentIdx == 0 && !value.empty()) {
                                     shaderFiles.push_back(value + " (custom)");
                                     currentIdx = shaderFiles.size() - 1;
@@ -860,8 +887,7 @@ void UsdFileViewer::EditValue()
                                                    : shaderFiles[i].c_str();
                                         if (ImGui::Selectable(
                                                 label, isSelected)) {
-                                            // Remove " (custom)" suffix if
-                                            // present
+                                            // Remove " (custom)" suffix if present
                                             std::string selectedPath =
                                                 shaderFiles[i];
                                             size_t customPos =

@@ -48,6 +48,16 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
     {
     }
 
+    // Accessor for shader path (for custom callable shaders)
+    [[nodiscard]] const std::string& GetShaderPath() const
+    {
+        return shader_path;
+    }
+    [[nodiscard]] bool HasValidShader() const
+    {
+        return has_valid_shader;
+    }
+
    protected:
     HdMaterialNetwork2 surfaceNetwork;
 
@@ -87,6 +97,10 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
     static std::mutex material_data_handle_mutex;
     
     uint32_t shader_generation = 0;  // Incremented when shader is regenerated
+    
+    // Path to custom callable shader file
+    std::string shader_path;
+    bool has_valid_shader = false;  // True only if shader_path points to a valid file
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

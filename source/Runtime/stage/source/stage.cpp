@@ -175,7 +175,16 @@ pxr::UsdPrim Stage::add_prim(const pxr::SdfPath& path)
 
 pxr::UsdShadeMaterial Stage::create_material(const pxr::SdfPath& path)
 {
-    return create_prim<pxr::UsdShadeMaterial>(path, "material");
+    auto material = create_prim<pxr::UsdShadeMaterial>(path, "material");
+    
+    // Add custom shader_path attribute for material callable shader
+    auto shader_path_attr = material.GetPrim().CreateAttribute(
+        pxr::TfToken("shader_path"),
+        pxr::SdfValueTypeNames->String,
+        false);
+    shader_path_attr.Set(std::string(""));  // Empty by default
+    
+    return material;
 }
 
 pxr::UsdGeomSphere Stage::create_sphere(const pxr::SdfPath& path) const

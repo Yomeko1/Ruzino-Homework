@@ -333,6 +333,10 @@ HdSprim* Hd_USTC_CG_RenderDelegate::CreateSprim(
         return new HdExtComputation(sprimId);
     }
     else if (typeId == HdPrimTypeTokens->material) {
+        // Check if this is a shader-based material by looking for shader_path
+        // Note: At creation time we don't have access to sceneDelegate,
+        // so we'll create MaterialX by default and let Sync handle shader detection
+        // For now, we'll just create MaterialX which can fall back to shader if needed
         auto material = new Hd_USTC_CG_MaterialX(sprimId);
         spdlog::info("=== Created material: {} ===", sprimId.GetText());
         materials[sprimId] = material;
