@@ -23,7 +23,7 @@ struct PathTracingConstants {
     uint lightCount;
     uint domeLightCallableIndex;  // Only valid when USE_DOME_LIGHT_CALLABLE
     uint materialFetchCallableBaseIndex;
-    uint _padding;  // Align to 16 bytes
+    uint opacityTestCallableIndex;  // Index for opacity test callable
 };
 
 ConstantBuffer<PathTracingConstants> ptConstants;
@@ -38,7 +38,15 @@ struct RayPayload {
 };
 
 struct ShadowPayload {
-    bool isVisible;  // Whether light is visible or occluded
+    bool isVisible;       // Whether light is visible or occluded
+    uint materialID;      // Material ID for opacity testing
+    uint instanceID;      // Instance ID for opacity testing
+    uint primID;          // Primitive ID for opacity testing
+    float3 hitPos;        // Hit position for continuation rays
+    float3 rayDir;        // Ray direction for continuation
+    float rayTMax;        // Maximum ray distance
+    uint recursionDepth;  // Current recursion depth for opacity testing
+    uint seed;
 };
 
 struct LightSample {
@@ -137,9 +145,12 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
+            shadowPayload.rayTMax = lightDistance - 0.0001;
+            shadowPayload.recursionDepth = 0;
+            shadowPayload.seed = seed;
             TraceRay(
                 SceneBVH,
-                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
                 0xFF,
                 1,
                 0,
@@ -174,9 +185,13 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
+            shadowPayload.rayTMax = lightDistance - 0.0001;
+            shadowPayload.recursionDepth = 0;
+            shadowPayload.seed = seed;
+
             TraceRay(
                 SceneBVH,
-                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
                 0xFF,
                 1,
                 0,
@@ -207,9 +222,12 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
+            shadowPayload.rayTMax = lightDistance;
+            shadowPayload.recursionDepth = 0;
+            shadowPayload.seed = seed;
             TraceRay(
                 SceneBVH,
-                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
                 0xFF,
                 1,
                 0,
@@ -249,9 +267,12 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
+            shadowPayload.rayTMax = lightDistance - 0.0001;
+            shadowPayload.recursionDepth = 0;
+            shadowPayload.seed = seed;
             TraceRay(
                 SceneBVH,
-                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
                 0xFF,
                 1,
                 0,
@@ -294,9 +315,12 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
+            shadowPayload.rayTMax = max(0.0, lightDistance - 0.0001);
+            shadowPayload.recursionDepth = 0;
+            shadowPayload.seed = seed;
             TraceRay(
                 SceneBVH,
-                RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
                 0xFF,
                 1,
                 0,
@@ -325,7 +349,7 @@ void ClosestHit(
     in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Check if maximum depth is reached
-    if (payload.depth >= 30) {
+    if (payload.depth >= 12) {
         payload.throughput = Spectrum(float3(1, 0, 0));
         payload.color = Spectrum(0.0);
         payload.terminated = true;
@@ -592,6 +616,89 @@ void ShadowHit(
     inout ShadowPayload payload,
     in BuiltInTriangleIntersectionAttributes attribs)
 {
+    // Limit recursion depth to prevent infinite loops
+    const uint MAX_SHADOW_RECURSION = 8;
+    if (payload.recursionDepth >= MAX_SHADOW_RECURSION) {
+        payload.isVisible = false;
+        return;
+    }
+
+    uint instance_id = InstanceID();
+    uint prim_id = PrimitiveIndex();
+
+    // Get vertex information
+    VertexInfo vertex =
+        get_interpolated_vertex(instance_id, prim_id, attribs.barycentrics);
+
+    // Get material ID
+    var material_id = instanceDescBuffer[instance_id].materialID;
+    if (vertex.subsetMaterialID != -1) {
+        material_id = vertex.subsetMaterialID;
+    }
+
+    var material_header = materialHeaderBuffer[material_id];
+
+    // Step 1: Fetch material parameters
+    FetchCallableData fetchData;
+    fetchData.vertexInfo = vertex;
+    fetchData.materialBlobID = material_header.material_blob_id;
+    fetchData.material_params_index = 0;
+
+    CallShader(
+        ptConstants.materialFetchCallableBaseIndex +
+            material_header.material_type_id,
+        fetchData);
+
+    // Step 2: Check if this is a UsdPreviewSurface material (shader_type_id ==
+    // 1)
+    if (fetchData.shader_type_id == 1) {
+        // Test opacity using callable
+        OpacityTestCallableData opacityData;
+        opacityData.materialBlobID = material_header.material_blob_id;
+        opacityData.material_params_index = fetchData.material_params_index;
+        opacityData.isOpaque = true;
+        opacityData.vertexInfo = vertex;
+        opacityData.seed = payload.seed;
+
+        // Call opacity test callable
+        CallShader(ptConstants.opacityTestCallableIndex, opacityData);
+
+        payload.seed = opacityData.seed;
+
+        if (!opacityData.isOpaque) {
+            // Material is transparent, continue tracing shadow ray
+            float3 rayOrigin = vertex.posW + WorldRayDirection() * 0.001;
+            float remainingDist = payload.rayTMax - RayTCurrent();
+
+            if (remainingDist > 0.0001) {
+                RayDesc continuationRay;
+                continuationRay.Origin = rayOrigin;
+                continuationRay.Direction = WorldRayDirection();
+                continuationRay.TMin = 0.001;
+                continuationRay.TMax = remainingDist;
+
+                ShadowPayload continuationPayload;
+                continuationPayload.isVisible = true;
+                continuationPayload.rayTMax = remainingDist;
+                continuationPayload.recursionDepth = payload.recursionDepth + 1;
+                continuationPayload.seed = payload.seed;
+
+                TraceRay(
+                    SceneBVH,
+                    RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
+                    0xFF,
+                    1,  // Shadow hit group index
+                    0,
+                    1,  // Shadow miss shader index
+                    continuationRay,
+                    continuationPayload);
+                payload.seed = continuationPayload.seed;
+                payload.isVisible = continuationPayload.isVisible;
+                return;
+            }
+        }
+    }
+    // If we reach here, the surface is opaque or not a preview surface
     payload.isVisible = false;
 }
 

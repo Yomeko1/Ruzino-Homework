@@ -29,3 +29,11 @@ struct DomeLightCallableData {
     int textureIndex;        // Bindless texture index
     uint seed;               // Random seed for sampling
 };
+
+struct OpacityTestCallableData {
+    uint materialBlobID;
+    uint material_params_index; // Index into material parameters buffer
+    bool isOpaque;              // Output: whether the surface is opaque
+    VertexInfo vertexInfo;  // Vertex information for texture sampling if needed
+    uint seed;
+};

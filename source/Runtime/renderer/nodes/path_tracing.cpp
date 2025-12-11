@@ -190,6 +190,9 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         program_desc.add_path("shaders/callables/eval_fallback.slang");
         program_desc.add_path("shaders/callables/eval_standard_surface.slang");
         program_desc.add_path("shaders/callables/eval_preview_surface.slang");
+        
+        // Add opacity test callable for shadow rays
+        program_desc.add_path("shaders/callables/opacity_test_preview_surface.slang");
 
         // Add dome light custom shader if it exists
         if (found_dome_shader) {
@@ -374,7 +377,7 @@ void fetch_)" + material.second->GetMaterialName() + R"((inout FetchCallableData
             uint32_t lightCount;
             uint32_t domeLightCallableIndex;
             uint32_t materialFetchCallableBaseIndex;
-            uint32_t _padding;
+            uint32_t opacityTestCallableIndex;
         };
 
         PathTracingConstants constants;
@@ -382,11 +385,17 @@ void fetch_)" + material.second->GetMaterialName() + R"((inout FetchCallableData
         
         // Calculate indices based on custom shader materials
         int num_custom_evals = storage.custom_shader_eval_indices.size();
+        
+        // Opacity test callable comes right after custom material evals (index 3 + num_custom_evals)
+        constants.opacityTestCallableIndex = 3 + num_custom_evals;
+        
+        // Dome light callable comes after opacity test (index 3 + num_custom_evals + 1)
         constants.domeLightCallableIndex = 
-            storage.has_dome_light_shader ? (3 + num_custom_evals) : 0;
+            storage.has_dome_light_shader ? (3 + num_custom_evals + 1) : 0;
+        
+        // Material fetch callables come after opacity test and dome light
         constants.materialFetchCallableBaseIndex = 
-            3 + num_custom_evals + (storage.has_dome_light_shader ? 1 : 0);
-        constants._padding = 0;
+            3 + num_custom_evals + 1 + (storage.has_dome_light_shader ? 1 : 0);
 
         if (storage.pathTracingConstantsBuffer)
             resource_allocator.destroy(storage.pathTracingConstantsBuffer);
@@ -445,12 +454,17 @@ void fetch_)" + material.second->GetMaterialName() + R"((inout FetchCallableData
                 eval_index);
         }
 
-        // Register dome light custom callable after custom material evals
+        // Register opacity test callable after custom material evals
+        int opacity_test_index = next_eval_index + storage.custom_shader_eval_indices.size();
+        context.announce_callable("opacity_test_preview_surface", opacity_test_index, nullptr);
+        spdlog::info("Registered opacity test callable at index {}", opacity_test_index);
+
+        // Register dome light custom callable after opacity test
         if (storage.has_dome_light_shader) {
             // Extract callable name from shader path
             std::filesystem::path shader_path(storage.dome_light_shader_path);
             std::string callable_name = shader_path.stem().string();
-            int dome_index = next_eval_index + storage.custom_shader_eval_indices.size();
+            int dome_index = opacity_test_index + 1;
             context.announce_callable(callable_name, dome_index, nullptr);
             spdlog::info(
                 "Registered dome light callable '{}' at index {}",
@@ -459,7 +473,7 @@ void fetch_)" + material.second->GetMaterialName() + R"((inout FetchCallableData
         }
 
         // Register per-material data fetch callables
-        int base_fetch_index = next_eval_index + storage.custom_shader_eval_indices.size() +
+        int base_fetch_index = next_eval_index + storage.custom_shader_eval_indices.size() + 1 +
                                (storage.has_dome_light_shader ? 1 : 0);
         for (auto& callable : storage.callable_shaders) {
             std::string fetch_name = storage.custom_shader_eval_indices.count(callable.first) > 0
