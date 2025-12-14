@@ -59,6 +59,24 @@ UsdGeomCamera GetCamera(
     const UsdStageRefPtr& stage,
     const std::string& camera_path)
 {
+    // First, collect all available cameras
+    std::vector<std::string> available_cameras;
+    for (const UsdPrim& prim : stage->Traverse()) {
+        if (prim.IsA<UsdGeomCamera>()) {
+            available_cameras.push_back(prim.GetPath().GetString());
+        }
+    }
+    
+    // Print available cameras
+    if (available_cameras.empty()) {
+        spdlog::warn("No cameras found in the scene");
+    } else {
+        spdlog::info("Available cameras in scene:");
+        for (const auto& cam_path : available_cameras) {
+            spdlog::info("  - {}", cam_path);
+        }
+    }
+    
     // If camera_path is specified, try to use it
     if (!camera_path.empty()) {
         SdfPath path(camera_path);
@@ -76,12 +94,13 @@ UsdGeomCamera GetCamera(
     }
 
     // Fall back to first camera
-    for (const UsdPrim& prim : stage->Traverse()) {
-        if (prim.IsA<UsdGeomCamera>()) {
-            spdlog::info("Found camera: {}", prim.GetPath().GetString());
-            return UsdGeomCamera(prim);
-        }
+    if (!available_cameras.empty()) {
+        SdfPath path(available_cameras[0]);
+        UsdPrim prim = stage->GetPrimAtPath(path);
+        spdlog::info("Using camera: {}", available_cameras[0]);
+        return UsdGeomCamera(prim);
     }
+    
     return UsdGeomCamera();
 }
 

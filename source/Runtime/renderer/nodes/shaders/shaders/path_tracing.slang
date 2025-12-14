@@ -210,7 +210,7 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
     }
     else if (light.type == uint(LightType::Distant)) {
         lightDir = -light.dirW;
-        lightDistance = 1e6;
+        lightDistance = 1e5;
 
         float NdotL = max(0.0, dot(hitNormal, lightDir));
         if (NdotL > 0.0) {
@@ -400,7 +400,7 @@ void ClosestHit(
     var material_header = materialHeaderBuffer[material_id];
 
     // Sample a light source for direct lighting
-    LightSample lightSample = sampleLights(vertex.posW, vertex.normalW, seed);
+    LightSample lightSample = sampleLights(vertex.posW, vertex.faceNormalW, seed);
 
     // Step 1: Call material data fetch callable to populate parameters
     FetchCallableData fetchData;
@@ -448,14 +448,17 @@ void ClosestHit(
     // Add direct lighting contribution: light_intensity * BRDF * NdotL / PDF
     if (lightSample.valid) {
         Spectrum directContrib =
-            div(mul(Spectrum(lightSample.intensity), evalData.color),
+            div(mul(Spectrum(
+                        lightSample.intensity *
+                        max(0.0, dot(vertex.normalW, lightSample.direction))),
+                    evalData.color),
                 lightSample.pdf);
         payload.color =
             add(payload.color, mul(payload.throughput, directContrib));
     }
 
     float3 ray_dir = evalData.sampledDir;
-    bool isTransmission = dot(ray_dir, vertex.normalW) < 0.0;
+    bool isTransmission = dot(ray_dir, vertex.faceNormalW) < 0.0;
 
     // Validate throughput before continuing
     if (any(isnan(evalData.throughput.toFloat3()))) {
@@ -495,10 +498,10 @@ void ClosestHit(
         // For transmission, offset against the normal; for reflection, offset
         // with the normal
         float3 offset_normal =
-            isTransmission ? -vertex.normalW : vertex.normalW;
+            isTransmission ? -vertex.faceNormalW : vertex.faceNormalW;
 
         // Additional offset along ray direction to avoid grazing angle issues
-        float3 ray_offset = offset_normal * 1e-4f;
+        float3 ray_offset = offset_normal * 1e-3f;
 
         nextRay.Origin = vertex.posW + ray_offset;
         nextRay.Direction = ray_dir;
@@ -665,16 +668,18 @@ void ShadowHit(
     // Simple stochastic opacity test
     float opacity_threshold = random_float(payload.seed);
 
+    var normal = vertex.faceNormalW;
+
     if (opacity < 0.25) {
         // Material is transparent, continue tracing shadow ray
-        float3 rayOrigin = vertex.posW + WorldRayDirection() * 0.0001;
+        float3 rayOrigin = vertex.posW + normal * 0.001;
         float remainingDist = payload.rayTMax - RayTCurrent();
 
-        if (remainingDist > 0.0001) {
+        if (remainingDist > 0.001) {
             RayDesc continuationRay;
             continuationRay.Origin = rayOrigin;
             continuationRay.Direction = WorldRayDirection();
-            continuationRay.TMin = 0.0001;
+            continuationRay.TMin = 0.001;
             continuationRay.TMax = remainingDist;
 
             ShadowPayload continuationPayload;

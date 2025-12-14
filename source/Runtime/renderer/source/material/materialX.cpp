@@ -433,40 +433,22 @@ void Hd_USTC_CG_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
                             search_start = semicolon + 1;
                         }
 
-                        if (separator_pos == std::string::npos) {
-                            // No separator - opacity is direct parameter
-                            size_t opacity_line_end =
-                                data_func_body.find(";", opacity_assignment);
-                            std::string opacity_line = data_func_body.substr(
-                                opacity_assignment,
-                                opacity_line_end - opacity_assignment);
-                            size_t eq_pos = opacity_line.find("= ");
-                            std::string opacity_expr =
-                                opacity_line.substr(eq_pos + 2);
-                            opacity_computation =
-                                "    float opacity_value = " + opacity_expr +
-                                ";\n";
-                        }
-                        else {
-                            // Found separator - extract computation code
-                            size_t opacity_line_end =
-                                data_func_body.find(";", opacity_assignment);
-                            std::string opacity_line = data_func_body.substr(
-                                opacity_assignment,
-                                opacity_line_end - opacity_assignment);
-                            size_t eq_pos = opacity_line.find("= ");
-                            std::string opacity_var =
-                                opacity_line.substr(eq_pos + 2);
-
-                            size_t computation_end =
-                                data_func_body.rfind("\n", opacity_assignment);
-                            opacity_computation = data_func_body.substr(
-                                separator_pos, computation_end - separator_pos);
-
-                            opacity_computation +=
-                                "\n    float opacity_value = " + opacity_var +
-                                ";\n";
-                        }
+                        // Extract just the opacity assignment line
+                        size_t opacity_line_end =
+                            data_func_body.find(";", opacity_assignment);
+                        std::string opacity_line = data_func_body.substr(
+                            opacity_assignment,
+                            opacity_line_end - opacity_assignment);
+                        size_t eq_pos = opacity_line.find("= ");
+                        std::string opacity_expr =
+                            opacity_line.substr(eq_pos + 2);
+                        
+                        // For UsdPreviewSurface, opacity value is already computed
+                        // in the texture sampling section (if from texture) or is a direct parameter
+                        // We just need to extract the final value
+                        opacity_computation =
+                            "    float opacity_value = " + opacity_expr +
+                            ";\n";
                     }
                     else {
                         opacity_computation =
