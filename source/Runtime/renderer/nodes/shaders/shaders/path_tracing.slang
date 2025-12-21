@@ -627,7 +627,7 @@ void ShadowHit(
     // payload.isVisible = false;
     // return;
     // Limit recursion depth to prevent infinite loops
-    const uint MAX_SHADOW_OPACITY = 2;
+    const uint MAX_SHADOW_OPACITY = 4;
     if (payload.recursionDepth >= MAX_SHADOW_OPACITY) {
         payload.isVisible = false;
         return;
@@ -637,8 +637,8 @@ void ShadowHit(
     uint prim_id = PrimitiveIndex();
 
     // Get vertex information
-    VertexInfo vertex =
-        get_interpolated_vertex(instance_id, prim_id, attribs.barycentrics);
+    VertexInfo vertex = get_interpolated_vertex_simple(
+        instance_id, prim_id, attribs.barycentrics);
 
     // Get material ID
     var material_id = instanceDescBuffer[instance_id].materialID;
@@ -669,11 +669,9 @@ void ShadowHit(
     // Simple stochastic opacity test
     float opacity_threshold = random_float(payload.seed);
 
-    var normal = vertex.faceNormalW;
-
     if (opacity < 0.25) {
         // Material is transparent, continue tracing shadow ray
-        float3 rayOrigin = vertex.posW + normal * 0.001;
+        float3 rayOrigin = vertex.posW;
         float remainingDist = payload.rayTMax - RayTCurrent();
 
         if (remainingDist > 0.001) {

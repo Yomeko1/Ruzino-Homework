@@ -126,10 +126,14 @@ NODE_EXECUTION_FUNCTION(accumulate)
         storage.cached_compute_context->finish_setting_pso();
     }
 
+    // Update the constant buffer using CPU mapping
+    auto ptr = resource_allocator.device->mapBuffer(
+        storage.cached_spp_cb, nvrhi::CpuAccessMode::Write);
+    memcpy(ptr, &storage.current_spp, sizeof(int));
+    resource_allocator.device->unmapBuffer(storage.cached_spp_cb);
+
     // Execute compute shader using cached context
     storage.cached_compute_context->begin();
-    storage.cached_compute_context->write_buffer(
-        storage.cached_spp_cb, &storage.current_spp, sizeof(int));
     storage.cached_compute_context->dispatch(
         {}, *storage.cached_program_vars, image_size[0], 32, image_size[1], 32);
     storage.cached_compute_context->finish();
