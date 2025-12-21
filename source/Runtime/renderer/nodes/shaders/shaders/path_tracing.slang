@@ -44,7 +44,7 @@ void RayGen()
     Spectrum output_color = Spectrum(0.0);
 
     const int spp = 1;
-    const int max_depth = 6;
+    const int max_depth = 16;
 
     ray.TMax = 50000.0;
 
@@ -65,6 +65,19 @@ void RayGen()
             // Trace ray to get geometry information
             TraceRay(
                 SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, current_ray, payload);
+
+#ifdef ENABLE_SER
+            // SER: Reorder after TraceRay - hit/miss is THE most important
+            // criterion Bit 31: hit(1) vs miss(0) - highest priority to
+            // eliminate divergence Bits 16-19: depth (secondary priority) Bits
+            // 0-15: material ID (for hit) or 0 (for miss)
+            uint reorderHint =
+                (payload.hit ? (1u << 31) : 0u) |  // Hit/miss flag
+                ((depth & 0xF) << 16) |            // Depth
+                (payload.hit ? (payload.materialID & 0xFFFF)
+                             : 0u);  // Material ID if hit
+            ReorderThread(reorderHint, 32);
+#endif
 
             // Check if ray missed
             if (!payload.hit) {

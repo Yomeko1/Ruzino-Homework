@@ -5,11 +5,13 @@
 #ifdef _WIN32
 #include <codecvt>
 #endif
+#include <spdlog/spdlog.h>
+
 #include <filesystem>
 #include <fstream>
 
-#include <spdlog/spdlog.h>
 #include "slang.h"
+
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
@@ -96,7 +98,8 @@ SlangResult SlangShaderCompiler::addCPPHeaderInclude(
 SlangResult SlangShaderCompiler::addHLSLHeaderInclude(
     SlangCompileRequest* slangRequest)
 {
-    auto hlsl_path = find_root(".") / "usd/hd_USTC_CG_GL/resources/nvapi/";
+    auto hlsl_path =
+        find_root(".") / "source/Runtime/renderer/resources/nvapi/";
 
     auto hlsl_path_name = "-I" + hlsl_path.generic_string();
 

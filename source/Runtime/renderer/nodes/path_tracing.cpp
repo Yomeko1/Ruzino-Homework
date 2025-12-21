@@ -168,6 +168,10 @@ NODE_EXECUTION_FUNCTION(path_tracing)
         program_desc.set_path("shaders/path_tracing.slang");
         program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
         program_desc.nvapi_support = true;
+        
+        // Enable Shader Execution Reordering (SER) support via Slang
+        program_desc.define("ENABLE_SER", "1");
+        spdlog::info("Enabling Shader Execution Reordering (SER) via Slang");
 
         // Define macro for spectrum type
         if (use_sampled_spectrum) {

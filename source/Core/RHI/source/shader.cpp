@@ -716,7 +716,8 @@ void ShaderFactory::SlangCompile(
     Slang::ComPtr<ISlangSharedLibrary>& ppSharedLirary,
     std::string& error_string,
     SlangCompileTarget target,
-    Slang::ComPtr<slang::IComponentType>* linkedProgram1) const
+    Slang::ComPtr<slang::IComponentType>* linkedProgram1,
+    bool nvapi_support) const
 {
     auto stage = ConvertShaderTypeToSlangStage(shaderType);
 
@@ -765,6 +766,16 @@ void ShaderFactory::SlangCompile(
     std::vector<std::string> searchPaths = { shader_search_path };
     searchPaths.push_back("./");
     searchPaths.push_back(shader_search_path + "/shaders/");
+    
+    // Add NVAPI include path for Shader Execution Reordering (SER)
+    if (nvapi_support) {
+        // Build absolute path to nvapi directory
+        // shader_search_path is like: C:/Users/.../Ruzino/source/Runtime/renderer/nodes
+        // We need: C:/Users/.../Ruzino/source/Runtime/renderer/resources/nvapi
+        std::filesystem::path nvapi_path = std::filesystem::path(shader_search_path).parent_path() / "resources" / "nvapi";
+        searchPaths.push_back(nvapi_path.string());
+    }
+    
     for (auto& search_path : search_paths) {
         searchPaths.push_back(search_path);
     }
@@ -956,7 +967,8 @@ ProgramHandle ShaderFactory::createProgram(const ProgramDesc& desc) const
         ret->library,
         ret->error_string,
         target,
-        std::addressof(ret->linkedProgram));
+        std::addressof(ret->linkedProgram),
+        desc.nvapi_support);
 
     // Save to cache if compilation was successful
     if (ret->blob && ret->error_string.empty()) {

@@ -4,6 +4,8 @@ Go to Ruzino/build and run:
 ninja.exe
 ```
 
+But if there are only shader changes, rebuilding is not needed.
+
 ## Test Instructions
 Run the following command in Ruzino/Binaries/Release:
 ```

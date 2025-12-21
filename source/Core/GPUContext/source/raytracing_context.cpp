@@ -267,6 +267,10 @@ void RaytracingContext::finish_announcing_shader_names()
     pipeline_desc.globalBindingLayouts = vars_.get_binding_layout();
     pipeline_desc.maxRecursionDepth = 31;
     pipeline_desc.maxAttributeSize = 4 * sizeof(float);
+    
+    // NVAPI extensions UAV slot for Shader Execution Reordering (SER)
+    // This tells D3D12 to reserve u127 in the root signature for NVAPI
+    pipeline_desc.hlslExtensionsUAV = 127;
 
     pipeline_desc.shaders = { { "Raygen", ray_generation_shader, nullptr } };
 

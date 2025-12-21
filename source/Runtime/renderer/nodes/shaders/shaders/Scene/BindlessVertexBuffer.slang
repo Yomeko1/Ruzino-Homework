@@ -8,18 +8,12 @@ ByteAddressBuffer t_BindlessBuffers[] : register(t0, space1);
 StructuredBuffer<GeometryInstanceData> instanceDescBuffer;
 StructuredBuffer<MeshDesc> meshDescBuffer;
 
-StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
+// Load vertex without barrier - barrier should be called once before loading multiple vertices
+StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id, ByteAddressBuffer vertex_buffer)
 {
     var vb_offset = mesh_data.vbOffset;
     var normal_offset = mesh_data.normalOffset;
-    var bindlessIndex = mesh_data.bindlessIndex;
 
-    // Add memory barrier before accessing non-uniform resource
-    // This is critical for AMD GPU cache coherency
-    DeviceMemoryBarrier();
-
-    ByteAddressBuffer vertex_buffer =
-        t_BindlessBuffers[NonUniformResourceIndex(bindlessIndex)];
     var id = vertex_id;
     if (mesh_data.ibOffset > 0) {
         vertex_id = vertex_buffer.Load(mesh_data.ibOffset + vertex_id * 4);
@@ -78,12 +72,14 @@ VertexInfo get_interpolated_vertex(
     uint primitive_id,
     float2 baricentric2)
 {
-    // Ensure memory coherency for AMD GPUs when accessing structured buffers
-    // DeviceMemoryBarrier is valid in ray tracing shaders
-    DeviceMemoryBarrier();
-
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
+
+    // Single barrier before accessing non-uniform buffer resource
+    DeviceMemoryBarrier();
+    
+    ByteAddressBuffer vertex_buffer =
+        t_BindlessBuffers[NonUniformResourceIndex(mesh.bindlessIndex)];
 
     uint i0 = primitive_id * 3;
     uint i1 = primitive_id * 3 + 1;
@@ -91,9 +87,10 @@ VertexInfo get_interpolated_vertex(
 
     StaticVertexData v[3];
 
-    v[0] = load_vertex(mesh, i0);
-    v[1] = load_vertex(mesh, i1);
-    v[2] = load_vertex(mesh, i2);
+    // Load all 3 vertices with shared buffer reference
+    v[0] = load_vertex(mesh, i0, vertex_buffer);
+    v[1] = load_vertex(mesh, i1, vertex_buffer);
+    v[2] = load_vertex(mesh, i2, vertex_buffer);
 
     float4x4 worldMat = transpose(instance.transform);
     float3x3 worldInvTransposeMat = transpose(inverse(float3x3(worldMat)));
@@ -108,18 +105,9 @@ VertexInfo get_interpolated_vertex(
     return data;
 }
 
-StaticVertexData load_vertex_simple(MeshDesc mesh_data, uint vertex_id)
+// Simple version - load vertex without barrier
+StaticVertexData load_vertex_simple(MeshDesc mesh_data, uint vertex_id, ByteAddressBuffer vertex_buffer)
 {
-    var vb_offset = mesh_data.vbOffset;
-    var normal_offset = mesh_data.normalOffset;
-    var bindlessIndex = mesh_data.bindlessIndex;
-
-    // Add memory barrier before accessing non-uniform resource
-    // This is critical for AMD GPU cache coherency
-    DeviceMemoryBarrier();
-
-    ByteAddressBuffer vertex_buffer =
-        t_BindlessBuffers[NonUniformResourceIndex(bindlessIndex)];
     var id = vertex_id;
     if (mesh_data.ibOffset > 0) {
         vertex_id = vertex_buffer.Load(mesh_data.ibOffset + vertex_id * 4);
@@ -158,12 +146,14 @@ VertexInfo get_interpolated_vertex_simple(
     uint primitive_id,
     float2 baricentric2)
 {
-    // Ensure memory coherency for AMD GPUs when accessing structured buffers
-    // DeviceMemoryBarrier is valid in ray tracing shaders
-    DeviceMemoryBarrier();
-
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
+
+    // Single barrier before accessing non-uniform buffer resource
+    DeviceMemoryBarrier();
+    
+    ByteAddressBuffer vertex_buffer =
+        t_BindlessBuffers[NonUniformResourceIndex(mesh.bindlessIndex)];
 
     uint i0 = primitive_id * 3;
     uint i1 = primitive_id * 3 + 1;
@@ -171,9 +161,10 @@ VertexInfo get_interpolated_vertex_simple(
 
     StaticVertexData v[3];
 
-    v[0] = load_vertex_simple(mesh, i0);
-    v[1] = load_vertex_simple(mesh, i1);
-    v[2] = load_vertex_simple(mesh, i2);
+    // Load all 3 vertices with shared buffer reference
+    v[0] = load_vertex_simple(mesh, i0, vertex_buffer);
+    v[1] = load_vertex_simple(mesh, i1, vertex_buffer);
+    v[2] = load_vertex_simple(mesh, i2, vertex_buffer);
 
     float4x4 worldMat = transpose(instance.transform);
     float3x3 worldInvTransposeMat = transpose(inverse(float3x3(worldMat)));

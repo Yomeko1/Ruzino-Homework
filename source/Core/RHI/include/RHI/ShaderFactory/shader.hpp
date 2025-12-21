@@ -92,7 +92,8 @@ class RHI_API ShaderFactory {
         Slang::ComPtr<ISlangSharedLibrary>& ppSharedLirary,
         std::string& error_string,
         SlangCompileTarget target,
-        Slang::ComPtr<slang::IComponentType>* linkedProgram1 = nullptr
+        Slang::ComPtr<slang::IComponentType>* linkedProgram1 = nullptr,
+        bool nvapi_support = false
 
     ) const;
 
