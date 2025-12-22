@@ -313,7 +313,6 @@ int main(int argc, char* argv[])
     // Register Python Console widget in menu
     auto python_console_factory =
         std::make_unique<PythonConsoleWidgetFactory>();
-    window->register_widget(python_console_factory->Create({}));
     window->register_openable_widget(
         std::move(python_console_factory), { "Tools", "Python Console" });
 
