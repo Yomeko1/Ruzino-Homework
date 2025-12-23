@@ -361,7 +361,21 @@ NODE_EXECUTION_FUNCTION(gpu_sph)
     device->waitForIdle();
     resource_allocator.destroy(upload_cmd);
 
-    // Step 1: Update density from pair interactions
+    // Step 1: Initialize density with self-contribution
+    {
+        ProgramVars vars(resource_allocator, storage.init_density_program);
+        vars["sph_constants"] = sph_cb.Get();
+        vars["rho"] = storage.rho.Get();
+        vars.finish_setting_vars();
+
+        ComputeContext ctx(resource_allocator, vars);
+        ctx.finish_setting_pso();
+        ctx.begin();
+        ctx.dispatch({}, vars, num_particles, 32);
+        ctx.finish();
+    }
+
+    // Step 2: Update density from pair interactions
     {
         ProgramVars vars(resource_allocator, storage.density_program);
         vars["sph_constants"] = sph_cb.Get();
@@ -374,20 +388,6 @@ NODE_EXECUTION_FUNCTION(gpu_sph)
         ctx.finish_setting_pso();
         ctx.begin();
         ctx.dispatch({}, vars, pair_count, 32);
-        ctx.finish();
-    }
-
-    // Step 2: Initialize density with self-contribution
-    {
-        ProgramVars vars(resource_allocator, storage.init_density_program);
-        vars["sph_constants"] = sph_cb.Get();
-        vars["rho"] = storage.rho.Get();
-        vars.finish_setting_vars();
-
-        ComputeContext ctx(resource_allocator, vars);
-        ctx.finish_setting_pso();
-        ctx.begin();
-        ctx.dispatch({}, vars, num_particles, 32);
         ctx.finish();
     }
 

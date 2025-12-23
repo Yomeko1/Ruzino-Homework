@@ -40,12 +40,8 @@ NODE_EXECUTION_FUNCTION(instance_on_points)
     bool has_normals = !points_normals.empty() &&
                        points_normals.size() == points_vertices.size();
 
-    if (!has_normals) {
-        spdlog::warn(
-            "Points do not have normals or size mismatch; instances will not "
-            "be oriented.");
-    }
-
+    instancer->set_has_rotations_enabled(has_normals);
+    
     for (size_t i = 0; i < points_vertices.size(); ++i) {
         auto& point = points_vertices[i];
 
@@ -84,7 +80,8 @@ NODE_EXECUTION_FUNCTION(instance_on_points)
         }
 
         // Build transform matrix: T * R (translate after rotate)
-        // Object rotates at origin to align Z-axis with normal, then translates to point
+        // Object rotates at origin to align Z-axis with normal, then translates
+        // to point
         glm::mat4 instance = glm::translate(glm::mat4(1.0f), point) * rotation;
 
         instancer->add_instance(instance);
