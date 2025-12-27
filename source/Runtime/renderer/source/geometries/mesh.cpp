@@ -433,8 +433,8 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     }
 
     instanceBuffer->write_data(instance_data_array.data());
-    render_param->InstanceCollection->set_require_rebuild_tlas();
     rt_instanceBuffer->write_data(instances.data());
+    render_param->InstanceCollection->set_require_rebuild_tlas();
 
     draw_indirect =
         render_param->InstanceCollection->draw_indirect_pool.allocate(1);

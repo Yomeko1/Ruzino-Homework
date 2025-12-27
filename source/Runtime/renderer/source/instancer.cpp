@@ -36,7 +36,9 @@
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
 
-Hd_USTC_CG_Instancer::Hd_USTC_CG_Instancer(HdSceneDelegate* delegate, SdfPath const& id)
+Hd_USTC_CG_Instancer::Hd_USTC_CG_Instancer(
+    HdSceneDelegate* delegate,
+    SdfPath const& id)
     : HdInstancer(delegate, id)
 {
 }
@@ -62,7 +64,9 @@ void Hd_USTC_CG_Instancer::Sync(
     }
 }
 
-void Hd_USTC_CG_Instancer::_SyncPrimvars(HdSceneDelegate* delegate, HdDirtyBits dirtyBits)
+void Hd_USTC_CG_Instancer::_SyncPrimvars(
+    HdSceneDelegate* delegate,
+    HdDirtyBits dirtyBits)
 {
     HD_TRACE_FUNCTION();
     HF_MALLOC_TAG_FUNCTION();
@@ -101,8 +105,10 @@ VtMatrix4fArray Hd_USTC_CG_Instancer::ComputeInstanceTransforms(
     // }
     // If any transform isn't provided, it's assumed to be the identity.
 
-    GfMatrix4f instancerTransform = GfMatrix4f(GetDelegate()->GetInstancerTransform(GetId()));
-    VtIntArray instanceIndices = GetDelegate()->GetInstanceIndices(GetId(), prototypeId);
+    GfMatrix4f instancerTransform =
+        GfMatrix4f(GetDelegate()->GetInstancerTransform(GetId()));
+    VtIntArray instanceIndices =
+        GetDelegate()->GetInstanceIndices(GetId(), prototypeId);
 
     VtMatrix4fArray transforms(instanceIndices.size());
     for (size_t i = 0; i < instanceIndices.size(); ++i) {
@@ -111,9 +117,9 @@ VtMatrix4fArray Hd_USTC_CG_Instancer::ComputeInstanceTransforms(
 
     // "hydra:instanceTranslations" holds a translation vector for each index.
     if (_primvarMap.count(HdInstancerTokens->instanceTranslations) > 0) {
-        const GfVec3f* translations = 
-            static_cast<const GfVec3f*>(_primvarMap[HdInstancerTokens->instanceTranslations]->GetData());
-        
+        const GfVec3f* translations = static_cast<const GfVec3f*>(
+            _primvarMap[HdInstancerTokens->instanceTranslations]->GetData());
+
         for (size_t i = 0; i < instanceIndices.size(); ++i) {
             int index = instanceIndices[i];
             GfMatrix4f translateMat(1);
@@ -125,19 +131,20 @@ VtMatrix4fArray Hd_USTC_CG_Instancer::ComputeInstanceTransforms(
     // "hydra:instanceRotations" holds a quaternion in <real, i, j, k>
     // format for each index.
     if (_primvarMap.count(HdInstancerTokens->instanceRotations) > 0) {
-        const GfQuath* rotations = 
-            static_cast<const GfQuath*>(_primvarMap[HdInstancerTokens->instanceRotations]->GetData());
-        
+        const GfQuath* rotations = static_cast<const GfQuath*>(
+            _primvarMap[HdInstancerTokens->instanceRotations]->GetData());
+
         for (size_t i = 0; i < instanceIndices.size(); ++i) {
             int index = instanceIndices[i];
             const GfQuath& quatHalf = rotations[index];
-            
+
             // Convert half precision to float quaternion
-            GfQuatf quat(quatHalf.GetReal(), 
-                        quatHalf.GetImaginary()[0],
-                        quatHalf.GetImaginary()[1], 
-                        quatHalf.GetImaginary()[2]);
-            
+            GfQuatf quat(
+                quatHalf.GetReal(),
+                quatHalf.GetImaginary()[0],
+                quatHalf.GetImaginary()[1],
+                quatHalf.GetImaginary()[2]);
+
             GfMatrix4f rotateMat(1);
             rotateMat.SetRotate(quat);
             transforms[i] = rotateMat * transforms[i];
@@ -146,9 +153,9 @@ VtMatrix4fArray Hd_USTC_CG_Instancer::ComputeInstanceTransforms(
 
     // "hydra:instanceScales" holds an axis-aligned scale vector for each index.
     if (_primvarMap.count(HdInstancerTokens->instanceScales) > 0) {
-        const GfVec3f* scales = 
-            static_cast<const GfVec3f*>(_primvarMap[HdInstancerTokens->instanceScales]->GetData());
-        
+        const GfVec3f* scales = static_cast<const GfVec3f*>(
+            _primvarMap[HdInstancerTokens->instanceScales]->GetData());
+
         for (size_t i = 0; i < instanceIndices.size(); ++i) {
             int index = instanceIndices[i];
             GfMatrix4f scaleMat(1);
@@ -159,12 +166,13 @@ VtMatrix4fArray Hd_USTC_CG_Instancer::ComputeInstanceTransforms(
 
     // "hydra:instanceTransforms" holds a 4x4 transform matrix for each index.
     if (_primvarMap.count(HdInstancerTokens->instanceTransforms) > 0) {
-        const GfMatrix4d* instanceTransforms = 
-            static_cast<const GfMatrix4d*>(_primvarMap[HdInstancerTokens->instanceTransforms]->GetData());
-        
+        const GfMatrix4d* instanceTransforms = static_cast<const GfMatrix4d*>(
+            _primvarMap[HdInstancerTokens->instanceTransforms]->GetData());
+
         for (size_t i = 0; i < instanceIndices.size(); ++i) {
             int index = instanceIndices[i];
-            transforms[i] = GfMatrix4f(instanceTransforms[index]) * transforms[i];
+            transforms[i] =
+                GfMatrix4f(instanceTransforms[index]) * transforms[i];
         }
     }
 
@@ -183,13 +191,15 @@ VtMatrix4fArray Hd_USTC_CG_Instancer::ComputeInstanceTransforms(
     // foreach (parentXf : parentTransforms, xf : transforms) {
     //     parentXf * xf
     // }
-    VtMatrix4fArray parentTransforms = static_cast<Hd_USTC_CG_Instancer*>(parentInstancer)
-                                           ->ComputeInstanceTransforms(GetId());
+    VtMatrix4fArray parentTransforms =
+        static_cast<Hd_USTC_CG_Instancer*>(parentInstancer)
+            ->ComputeInstanceTransforms(GetId());
 
     VtMatrix4fArray final(parentTransforms.size() * transforms.size());
     for (size_t i = 0; i < parentTransforms.size(); ++i) {
         for (size_t j = 0; j < transforms.size(); ++j) {
-            final[i * transforms.size() + j] = transforms[j] * parentTransforms[i];
+            final[i * transforms.size() + j] =
+                transforms[j] * parentTransforms[i];
         }
     }
     return final;
