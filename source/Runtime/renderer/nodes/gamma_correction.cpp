@@ -3,7 +3,7 @@
 #include "render_node_base.h"
 
 NODE_DEF_OPEN_SCOPE
-struct Storage {
+struct GammaCorrectionStorage {
     constexpr static bool has_storage = false;
 
     GfVec2i image_size = GfVec2i(-1, -1);
@@ -18,7 +18,7 @@ struct Storage {
 
     ResourceAllocator* rc = nullptr;
 
-    ~Storage()
+    ~GammaCorrectionStorage()
     {
         if (rc && cached_program) {
             rc->destroy(cached_program);
@@ -37,7 +37,7 @@ NODE_DECLARATION_FUNCTION(gamma_correction)
 
 NODE_EXECUTION_FUNCTION(gamma_correction)
 {
-    auto& storage = params.get_storage<Storage&>();
+    auto& storage = params.get_storage<GammaCorrectionStorage&>();
     storage.rc = &resource_allocator;
 
     auto texture = params.get_input<nvrhi::TextureHandle>("Texture");
