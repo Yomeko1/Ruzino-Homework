@@ -66,6 +66,13 @@ void GPUSceneAssember::fill_instances(
         return;
     }
 
+    spdlog::info(
+        "GPUSceneAssember::fill_instances: instanceCount={}, geometryID={}, "
+        "materialID={}",
+        instance_indices.size(),
+        geometry_id,
+        material_id);
+
     auto program_desc =
         ProgramDesc()
             .add_path(GPU_ASSEMBLER_SHADER_DIR "instancer.slang")
@@ -90,6 +97,7 @@ void GPUSceneAssember::fill_instances(
 
     ProgramHandle filler_program =
         get_instance().sa_resource_allocator.create(program_desc);
+    
     MARK_DESTROY_NVRHI_RESOURCE(filler_program);
 
     ProgramVars filler_program_vars(

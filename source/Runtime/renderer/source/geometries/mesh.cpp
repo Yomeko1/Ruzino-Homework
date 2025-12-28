@@ -480,9 +480,6 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     args.startInstanceLocation = instanceBuffer->index();
 
     draw_indirect->write_data(&args);
-    nvrhi::DrawIndirectArguments dbg_args;
-
-    draw_indirect->read_data(&dbg_args);
 }
 
 void Hd_USTC_CG_Mesh::_InitRepr(
