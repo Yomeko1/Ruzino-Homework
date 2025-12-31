@@ -2,6 +2,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -533,8 +534,17 @@ int main(int argc, char* argv[])
         printf("Samples per pixel: %d\n", spp);
         fflush(stdout);
 
+        // Track async save operations
+        std::future<void> previous_save_task;
+        bool has_previous_task = false;
+
         // Render loop for each frame
         for (int frame = 0; frame < frames_to_render; ++frame) {
+            // Wait for previous frame's save to complete before starting new frame
+            if (has_previous_task) {
+                previous_save_task.wait();
+            }
+
             // Frame progress header
             if (is_sequence) {
                 printf("\n========== Frame %d/%d ==========\n", 
@@ -675,23 +685,37 @@ int main(int argc, char* argv[])
             std::string frame_output = GenerateSequenceFilename(
                 output_image, frame, frames_to_render);
 
-            // Save the image
-            auto save_start = std::chrono::high_resolution_clock::now();
-            printf("Saving image to: %s\n", frame_output.c_str());
+            // Save the image asynchronously
+            printf("Queuing save for: %s\n", frame_output.c_str());
             fflush(stdout);
 
-            if (!SaveImageToFile(frame_output, width, height, texture_data)) {
-                throw std::runtime_error("Failed to save image to " + frame_output);
-            }
+            // Launch async save task (capture by value to avoid data races)
+            previous_save_task = std::async(std::launch::async, 
+                [frame_output, width, height, texture_data]() {
+                    auto save_start = std::chrono::high_resolution_clock::now();
+                    
+                    if (!SaveImageToFile(frame_output, width, height, texture_data)) {
+                        fprintf(stderr, "Error: Failed to save image to %s\n", frame_output.c_str());
+                    }
+                    
+                    auto save_end = std::chrono::high_resolution_clock::now();
+                    auto save_duration =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            save_end - save_start)
+                            .count();
+                    
+                    printf("[Async] Saved %s in %.2fs\n", 
+                           frame_output.c_str(), save_duration / 1000.0);
+                    fflush(stdout);
+                });
+            has_previous_task = true;
+        }
 
-            auto save_end = std::chrono::high_resolution_clock::now();
-            auto save_duration =
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    save_end - save_start)
-                    .count();
-
-            printf("Image saved in %.2fs\n", save_duration / 1000.0);
+        // Wait for the last save task to complete
+        if (has_previous_task) {
+            printf("\nWaiting for final image save to complete...\n");
             fflush(stdout);
+            previous_save_task.wait();
         }
 
         if (is_sequence) {
