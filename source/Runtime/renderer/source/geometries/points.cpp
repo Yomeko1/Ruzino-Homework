@@ -93,16 +93,11 @@ void Hd_USTC_CG_Points::create_gpu_resources(
         points.size() * 3 * sizeof(float),
         position_buffer_offset);
 
-    // Write radii (from widths - divide by 2 since width is diameter)
-    std::vector<float> radii(widths.size());
-    for (size_t i = 0; i < widths.size(); ++i) {
-        radii[i] = widths[i] * 0.5f;  // Convert width to radius
-    }
-
+    // Write radii (widths are already radii, no conversion needed)
     copy_commandlist->writeBuffer(
         vertexBuffer,
-        radii.data(),
-        radii.size() * sizeof(float),
+        widths.data(),
+        widths.size() * sizeof(float),
         radius_buffer_offset);
 
     copy_commandlist->close();
