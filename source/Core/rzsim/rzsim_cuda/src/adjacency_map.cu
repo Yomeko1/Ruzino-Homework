@@ -93,7 +93,8 @@ __global__ void fill_adjacency_kernel(
     }
 }
 
-cuda::CUDALinearBufferHandle compute_adjacency_map_gpu(
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+compute_adjacency_map_gpu(
     cuda::CUDALinearBufferHandle vertices,
     cuda::CUDALinearBufferHandle faceVertexCounts,
     cuda::CUDALinearBufferHandle faceVertexIndices)
@@ -192,7 +193,22 @@ cuda::CUDALinearBufferHandle compute_adjacency_map_gpu(
         face_count);
     cudaDeviceSynchronize();
 
-    return result_buffer;
+    // Create offset buffer for random access
+    cuda::CUDALinearBufferDesc offset_desc;
+    offset_desc.element_count = vertex_count;
+    offset_desc.element_size = sizeof(unsigned);
+
+    auto offset_buffer = cuda::create_cuda_linear_buffer(offset_desc);
+    auto offset_ptr = (unsigned*)offset_buffer->get_device_ptr();
+
+    // Copy offsets from device vector to buffer
+    cudaMemcpy(offset_ptr,
+               thrust::raw_pointer_cast(offsets.data()),
+               vertex_count * sizeof(unsigned),
+               cudaMemcpyDeviceToDevice);
+    cudaDeviceSynchronize();
+
+    return std::make_tuple(result_buffer, offset_buffer);
 }
 
 }  // namespace rzsim_cuda

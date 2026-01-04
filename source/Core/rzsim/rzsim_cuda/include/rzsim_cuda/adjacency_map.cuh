@@ -10,11 +10,16 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 namespace rzsim_cuda {
 
 // Pure CUDA implementation that doesn't depend on geometry library
-// Returns device pointer (void*) and size through out parameter
-RZSIM_CUDA_API cuda::CUDALinearBufferHandle compute_adjacency_map_gpu(
-    cuda::CUDALinearBufferHandle vertices,
-    cuda::CUDALinearBufferHandle faceVertexCounts,
-    cuda::CUDALinearBufferHandle faceVertexIndices);
+// Returns two buffers:
+// 1. adjacency_list: [count_v0, neighbor1, neighbor2, ... | count_v1, neighbor1, neighbor2, ... | ...]
+// 2. offset_buffer: offset_buffer[vertex_id] = starting position of vertex_id in adjacency_list
+//    (enables random access: vertex_id's neighbors are at adjacency_list[offset_buffer[vertex_id]+1 ... +count])
+RZSIM_CUDA_API
+    std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+    compute_adjacency_map_gpu(
+        cuda::CUDALinearBufferHandle vertices,
+        cuda::CUDALinearBufferHandle faceVertexCounts,
+        cuda::CUDALinearBufferHandle faceVertexIndices);
 
 }  // namespace rzsim_cuda
 
