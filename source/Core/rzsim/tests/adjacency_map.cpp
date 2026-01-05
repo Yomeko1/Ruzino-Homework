@@ -859,6 +859,11 @@ TEST(VolumeAdjacency, TetgenLargeMesh)
     std::cout << "Full OVM validation successful for " << num_tets << " tetrahedra\n";
 }
 
+TEST(VolumeAdjacency, KnownVolumeMesh)
+{
+    
+}
+
 int main(int argc, char** argv)
 {
     Ruzino::cuda::cuda_init();

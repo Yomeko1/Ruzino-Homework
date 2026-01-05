@@ -33,15 +33,17 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
         tet_params.conforming_delaunay = conforming;
         tet_params.quiet = true;
 
-        Geometry output_geometry = geom_algorithm::tetrahedralize(geometry, tet_params);
-        
+        Geometry output_geometry =
+            geom_algorithm::tetrahedralize(geometry, tet_params);
+
         // Calculate normals for visualization
         auto output_mesh = output_geometry.get_component<MeshComponent>();
         if (output_mesh) {
             const auto& output_points = output_mesh->get_vertices();
             const auto& output_indices = output_mesh->get_face_vertex_indices();
-            const auto& output_face_counts = output_mesh->get_face_vertex_counts();
-            
+            const auto& output_face_counts =
+                output_mesh->get_face_vertex_counts();
+
             std::vector<glm::vec3> normals;
             normals.reserve(output_indices.size());
 
@@ -58,11 +60,12 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
                 glm::vec3 edge1 = v1 - v0;
                 glm::vec3 edge2 = v2 - v0;
                 glm::vec3 normal = glm::cross(edge2, edge1);
-                
+
                 float length = glm::length(normal);
                 if (length > 1e-8f) {
                     normal = normal / length;
-                } else {
+                }
+                else {
                     normal = glm::vec3(0.0f, 1.0f, 0.0f);
                 }
 
@@ -70,14 +73,15 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
                 normals.push_back(normal);
                 normals.push_back(normal);
             }
-            
+
             output_mesh->set_normals(normals);
         }
-        
+
         params.set_output("Tetrahedral Mesh", std::move(output_geometry));
     }
     catch (const std::exception& e) {
         params.set_error((std::string("TetGen error: ") + e.what()).c_str());
+        spdlog::error("TetGen error: {}", e.what());
         return false;
     }
 

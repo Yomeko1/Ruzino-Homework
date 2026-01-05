@@ -21,6 +21,7 @@ target_compile_definitions(hd_RUZINO PRIVATE HOST_CODE=1)
 target_compile_definitions(hd_RUZINO PRIVATE GPU_ASSEMBLER_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/source/shaders/")
 target_compile_definitions(hd_RUZINO PUBLIC RUZINO_BACKEND_NVRHI)
 target_compile_definitions(hd_RUZINO_py PRIVATE NOMINMAX)
+target_link_libraries(hd_RUZINO_py PRIVATE shaders_interface)
 target_include_directories(hd_RUZINO PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/shaders)
 target_include_directories(hd_RUZINO PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
