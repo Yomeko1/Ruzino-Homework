@@ -1,6 +1,9 @@
 #include <GCore/Components/MeshComponent.h>
 #include <GCore/GOP.h>
 #include <GCore/util_openmesh_bind.h>
+#include <GCore/create_geom.h>
+#include <GCore/algorithms/tetgen_algorithm.h>
+#include <GCore/util_openmesh_bind.h>
 #include <gtest/gtest.h>
 #include <rzsim/rzsim.h>
 
@@ -206,6 +209,27 @@ TEST(SurfaceAdjacency, TriangleFan)
 // Volume Mesh Tests (Tetrahedra)
 // ============================================================================
 
+// Check if two triangles are the same (allow any cyclic permutation, including reverse)
+// E.g., (1,2,3), (2,3,1), (3,1,2), (3,2,1), (2,1,3), (1,3,2) all represent the same triangle
+bool triangles_match_oriented(
+    unsigned a0, unsigned a1, unsigned a2,
+    unsigned b0, unsigned b1, unsigned b2)
+{
+    // Check all cyclic permutations (CCW)
+    if ((a0 == b0 && a1 == b1 && a2 == b2) ||
+        (a0 == b1 && a1 == b2 && a2 == b0) ||
+        (a0 == b2 && a1 == b0 && a2 == b1))
+        return true;
+    
+    // Check reverse cyclic permutations (CW)
+    if ((a0 == b0 && a1 == b2 && a2 == b1) ||
+        (a0 == b1 && a1 == b0 && a2 == b2) ||
+        (a0 == b2 && a1 == b1 && a2 == b0))
+        return true;
+    
+    return false;
+}
+
 // Helper to verify volume adjacency structure
 void verify_volume_adjacency(
     const std::vector<unsigned>& adjacency_data,
@@ -234,18 +258,19 @@ void verify_volume_adjacency(
             actual_triplets.push_back({ a, b, c });
         }
 
-        // Verify all expected triplets exist
+        // Verify all expected triplets exist (allowing cyclic permutations)
         for (const auto& expected_triplet : expected_triplets[v]) {
             bool found = false;
+            auto [exp_a, exp_b, exp_c] = expected_triplet;
             for (const auto& actual_triplet : actual_triplets) {
-                if (actual_triplet == expected_triplet) {
+                auto [act_a, act_b, act_c] = actual_triplet;
+                if (triangles_match_oriented(exp_a, exp_b, exp_c, act_a, act_b, act_c)) {
                     found = true;
                     break;
                 }
             }
-            auto [a, b, c] = expected_triplet;
             EXPECT_TRUE(found) << "Vertex " << v << " missing face triplet ("
-                               << a << ", " << b << ", " << c << ")";
+                               << exp_a << ", " << exp_b << ", " << exp_c << ")";
         }
     }
 }
@@ -374,17 +399,6 @@ TEST(VolumeAdjacency, TwoTetrahedra)
 // ============================================================================
 // OpenVolumeMesh Validation Tests
 // ============================================================================
-
-// Check if two triangles are the same with same orientation (cyclic permutation)
-bool triangles_match_oriented(
-    unsigned a0, unsigned a1, unsigned a2,
-    unsigned b0, unsigned b1, unsigned b2)
-{
-    // Check all cyclic permutations with same orientation
-    return (a0 == b0 && a1 == b1 && a2 == b2) ||
-           (a0 == b1 && a1 == b2 && a2 == b0) ||
-           (a0 == b2 && a1 == b0 && a2 == b1);
-}
 
 // Compare our adjacency results with OpenVolumeMesh
 void verify_against_openvolulemesh(const Geometry& mesh)
@@ -615,6 +629,132 @@ TEST(VolumeAdjacency, PrismWithThreeTets)
     meshComp->set_face_vertex_indices(faceVertexIndices);
 
     verify_against_openvolulemesh(mesh);
+}
+
+// ============================================================================
+// TetGen-based Volume Mesh Tests
+// ============================================================================
+
+TEST(VolumeAdjacency, TetgenCube)
+{
+    // Create a cube and tetrahedralize it
+    Geometry cube = create_cube(2.0f, 2.0f, 2.0f);
+    
+    // Triangulate first (cube has quad faces)
+    auto omesh = operand_to_openmesh(&cube);
+    omesh->triangulate();
+    Geometry triangulated_cube = *openmesh_to_operand(omesh.get());
+    
+    geom_algorithm::TetgenParams params;
+    params.max_volume = 0.5f;
+    params.quality_ratio = 2.0f;
+    
+    Geometry tet_mesh = geom_algorithm::tetrahedralize(triangulated_cube, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+    
+    // Count tetrahedra (each tet has 4 faces)
+    int num_faces = mesh_comp->get_face_vertex_counts().size();
+    int num_tets = num_faces / 4;
+    
+    std::cout << "\n=== TetGen Cube ===\n";
+    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    
+    EXPECT_GT(num_tets, 10) << "Should generate at least 10 tetrahedra";
+    EXPECT_LT(num_tets, 2000) << "Should not generate excessive tetrahedra";
+    
+    // Verify with OpenVolumeMesh
+    verify_against_openvolulemesh(tet_mesh);
+}
+
+TEST(VolumeAdjacency, TetgenIcoSphere)
+{
+    // Create an icosphere and tetrahedralize it
+    Geometry sphere = create_ico_sphere(1, 1.0f);
+    
+    geom_algorithm::TetgenParams params;
+    params.max_volume = 0.3f;
+    params.quality_ratio = 2.0f;
+    
+    Geometry tet_mesh = geom_algorithm::tetrahedralize(sphere, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+    
+    int num_faces = mesh_comp->get_face_vertex_counts().size();
+    int num_tets = num_faces / 4;
+    
+    std::cout << "\n=== TetGen IcoSphere ===\n";
+    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    
+    EXPECT_GT(num_tets, 20) << "Should generate reasonable number of tetrahedra";
+    EXPECT_LT(num_tets, 3000) << "Should not generate excessive tetrahedra";
+    
+    // Verify with OpenVolumeMesh
+    verify_against_openvolulemesh(tet_mesh);
+}
+
+TEST(VolumeAdjacency, TetgenUVSphere)
+{
+    // Create a UV sphere and tetrahedralize it
+    Geometry sphere = create_uv_sphere(8, 6, 1.5f);
+    
+    // Triangulate first (UV sphere has quad faces)
+    auto omesh = operand_to_openmesh(&sphere);
+    omesh->triangulate();
+    Geometry triangulated_sphere = *openmesh_to_operand(omesh.get());
+    
+    geom_algorithm::TetgenParams params;
+    params.max_volume = 0.4f;
+    params.quality_ratio = 2.0f;
+    
+    Geometry tet_mesh = geom_algorithm::tetrahedralize(triangulated_sphere, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+    
+    int num_faces = mesh_comp->get_face_vertex_counts().size();
+    int num_tets = num_faces / 4;
+    
+    std::cout << "\n=== TetGen UV Sphere ===\n";
+    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    
+    EXPECT_GT(num_tets, 50) << "Should generate substantial tetrahedra";
+    EXPECT_LT(num_tets, 5000) << "Should not generate excessive tetrahedra";
+    
+    // Verify with OpenVolumeMesh
+    verify_against_openvolulemesh(tet_mesh);
+}
+
+TEST(VolumeAdjacency, TetgenLargeMesh)
+{
+    // Create a larger mesh to test performance with hundreds of tets
+    Geometry sphere = create_uv_sphere(16, 12, 2.0f);
+    
+    // Triangulate first (UV sphere has quad faces)
+    auto omesh = operand_to_openmesh(&sphere);
+    omesh->triangulate();
+    Geometry triangulated_sphere = *openmesh_to_operand(omesh.get());
+    
+    geom_algorithm::TetgenParams params;
+    params.max_volume = 0.15f;  // Smaller volume for more tets
+    params.quality_ratio = 2.0f;
+    
+    Geometry tet_mesh = geom_algorithm::tetrahedralize(triangulated_sphere, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+    
+    int num_faces = mesh_comp->get_face_vertex_counts().size();
+    int num_tets = num_faces / 4;
+    
+    std::cout << "\n=== TetGen Large Mesh ===\n";
+    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    
+    EXPECT_GT(num_tets, 200) << "Should generate hundreds of tetrahedra";
+    EXPECT_LT(num_tets, 10000) << "Should not generate excessive tetrahedra";
+    
+    // Verify with OpenVolumeMesh (full validation even for large mesh)
+    verify_against_openvolulemesh(tet_mesh);
+    
+    std::cout << "Full OVM validation successful for " << num_tets << " tetrahedra\n";
 }
 
 int main(int argc, char** argv)

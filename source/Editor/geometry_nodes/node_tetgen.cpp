@@ -1,8 +1,8 @@
 
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/GOP.h"
+#include "GCore/algorithms/tetgen_algorithm.h"
 #include "nodes/core/def/node_def.hpp"
-#include "tetgen.h"
 
 NODE_DEF_OPEN_SCOPE
 
@@ -23,208 +23,56 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
     float max_volume = params.get_input<float>("Max Volume");
     bool refine = params.get_input<bool>("Refine");
     bool conforming = params.get_input<bool>("Conforming Delaunay");
-    geometry.apply_transform();
-    auto mesh_component = geometry.get_component<MeshComponent>();
-    if (!mesh_component) {
-        params.set_error("No mesh component found in input geometry");
-        return false;
-    }
-
-    // Get mesh data
-    const auto& vertices = mesh_component->get_vertices();
-    const auto& indices = mesh_component->get_face_vertex_indices();
-    const auto& face_counts = mesh_component->get_face_vertex_counts();
-
-    if (vertices.empty() || indices.empty()) {
-        params.set_error("Input mesh is empty");
-        return false;
-    }
-
-    // Prepare TetGen input
-    tetgenio input, output;
-    tetgenbehavior behavior;
-
-    // Set up points
-    input.numberofpoints = vertices.size();
-    input.pointlist = new REAL[input.numberofpoints * 3];
-
-    for (size_t i = 0; i < vertices.size(); ++i) {
-        input.pointlist[i * 3] = vertices[i][0];
-        input.pointlist[i * 3 + 1] = vertices[i][1];
-        input.pointlist[i * 3 + 2] = vertices[i][2];
-    }
-
-    // Set up facets (only triangles supported for now)
-    input.numberoffacets = 0;
-    for (size_t i = 0; i < face_counts.size(); ++i) {
-        if (face_counts[i] == 3) {
-            input.numberoffacets++;
-        }
-        else if (face_counts[i] != 3) {
-            params.set_error(
-                "TetGen only supports triangular faces. Please triangulate the "
-                "mesh first.");
-            delete[] input.pointlist;
-            return false;
-        }
-    }
-
-    input.facetlist = new tetgenio::facet[input.numberoffacets];
-    input.facetmarkerlist = new int[input.numberoffacets];
-
-    size_t face_idx = 0;
-    size_t vertex_offset = 0;
-
-    for (size_t i = 0; i < face_counts.size(); ++i) {
-        if (face_counts[i] == 3) {
-            tetgenio::facet& f = input.facetlist[face_idx];
-            f.numberofpolygons = 1;
-            f.polygonlist = new tetgenio::polygon[1];
-            f.numberofholes = 0;
-            f.holelist = nullptr;
-
-            tetgenio::polygon& p = f.polygonlist[0];
-            p.numberofvertices = 3;
-            p.vertexlist = new int[3];
-
-            p.vertexlist[0] = indices[vertex_offset];
-            p.vertexlist[1] = indices[vertex_offset + 1];
-            p.vertexlist[2] = indices[vertex_offset + 2];
-
-            input.facetmarkerlist[face_idx] = 1;
-            face_idx++;
-        }
-        vertex_offset += face_counts[i];
-    }
-
-    // Set TetGen behavior
-    behavior.plc = 1;  // Piecewise Linear Complex
-    behavior.quality = refine ? 1 : 0;
-    behavior.minratio = quality_ratio;
-    behavior.fixedvolume = 1;
-    behavior.maxvolume = max_volume;
-    behavior.quiet = 1;  // Suppress output
-    behavior.facesout = 1;  // Output boundary faces
-
-    if (conforming) {
-        behavior.cdt = 1;  // Conforming Delaunay
-    }
 
     try {
-        // Run TetGen
-        tetrahedralize(&behavior, &input, &output);
+        // Use algorithm layer
+        geom_algorithm::TetgenParams tet_params;
+        tet_params.quality_ratio = quality_ratio;
+        tet_params.max_volume = max_volume;
+        tet_params.refine = refine;
+        tet_params.conforming_delaunay = conforming;
+        tet_params.quiet = true;
 
-        if (output.numberoftetrahedra == 0) {
-            params.set_error("TetGen failed to generate tetrahedra");
-            return false;
-        }
-
-        // Create output geometry
-        Geometry output_geometry;
-        std::shared_ptr<MeshComponent> output_mesh =
-            std::make_shared<MeshComponent>(&output_geometry);
-        output_geometry.attach_component(output_mesh);
-
-        // Convert output points
-        std::vector<glm::vec3> output_points;
-        output_points.reserve(output.numberofpoints);
-
-        for (int i = 0; i < output.numberofpoints; ++i) {
-            output_points.push_back(glm::vec3(
-                output.pointlist[i * 3],
-                output.pointlist[i * 3 + 1],
-                output.pointlist[i * 3 + 2]));
-        }
-
-        // Use TetGen's boundary face output instead of generating all tetrahedra faces
-        std::vector<int> output_indices;
-        std::vector<int> output_face_counts;
-
-        if (output.numberoftrifaces > 0 && output.trifacelist != nullptr) {
-            // Use the boundary triangles from TetGen
-            output_indices.reserve(output.numberoftrifaces * 3);
-            output_face_counts.reserve(output.numberoftrifaces);
-
-            for (int i = 0; i < output.numberoftrifaces; ++i) {
-                output_face_counts.push_back(3);
-                output_indices.push_back(output.trifacelist[i * 3]);
-                output_indices.push_back(output.trifacelist[i * 3 + 1]);
-                output_indices.push_back(output.trifacelist[i * 3 + 2]);
-            }
-        }
-        else {
-            // Fallback: extract all tetrahedra faces (may contain duplicates)
-            // Each tetrahedron has 4 triangular faces
-            output_indices.reserve(output.numberoftetrahedra * 12);
-            output_face_counts.reserve(output.numberoftetrahedra * 4);
-
-            for (int i = 0; i < output.numberoftetrahedra; ++i) {
-                int* tet = &output.tetrahedronlist[i * 4];
-
-                // Face 0: vertices 1, 0, 2 (counter-clockwise when viewed from outside)
-                output_face_counts.push_back(3);
-                output_indices.push_back(tet[1]);
-                output_indices.push_back(tet[0]);
-                output_indices.push_back(tet[2]);
-
-                // Face 1: vertices 0, 1, 3
-                output_face_counts.push_back(3);
-                output_indices.push_back(tet[0]);
-                output_indices.push_back(tet[1]);
-                output_indices.push_back(tet[3]);
-
-                // Face 2: vertices 2, 3, 1
-                output_face_counts.push_back(3);
-                output_indices.push_back(tet[2]);
-                output_indices.push_back(tet[3]);
-                output_indices.push_back(tet[1]);
-
-                // Face 3: vertices 3, 2, 0
-                output_face_counts.push_back(3);
-                output_indices.push_back(tet[3]);
-                output_indices.push_back(tet[2]);
-                output_indices.push_back(tet[0]);
-            }
-        }
-
-        // Calculate normals for the faces
-        // For face-varying normals, we need one normal per face vertex (per index)
-        std::vector<glm::vec3> normals;
-        normals.reserve(output_indices.size());
-
-        for (size_t i = 0; i < output_face_counts.size(); ++i) {
-            size_t idx_start = i * 3;
-            int i0 = output_indices[idx_start];
-            int i1 = output_indices[idx_start + 1];
-            int i2 = output_indices[idx_start + 2];
-
-            glm::vec3 v0 = output_points[i0];
-            glm::vec3 v1 = output_points[i1];
-            glm::vec3 v2 = output_points[i2];
-
-            glm::vec3 edge1 = v1 - v0;
-            glm::vec3 edge2 = v2 - v0;
-            glm::vec3 normal = glm::cross(edge2, edge1);  // Reversed cross product order
+        Geometry output_geometry = geom_algorithm::tetrahedralize(geometry, tet_params);
+        
+        // Calculate normals for visualization
+        auto output_mesh = output_geometry.get_component<MeshComponent>();
+        if (output_mesh) {
+            const auto& output_points = output_mesh->get_vertices();
+            const auto& output_indices = output_mesh->get_face_vertex_indices();
+            const auto& output_face_counts = output_mesh->get_face_vertex_counts();
             
-            // Check for degenerate triangles
-            float length = glm::length(normal);
-            if (length > 1e-8f) {
-                normal = normal / length;
-            } else {
-                normal = glm::vec3(0.0f, 1.0f, 0.0f); // default normal
+            std::vector<glm::vec3> normals;
+            normals.reserve(output_indices.size());
+
+            for (size_t i = 0; i < output_face_counts.size(); ++i) {
+                size_t idx_start = i * 3;
+                int i0 = output_indices[idx_start];
+                int i1 = output_indices[idx_start + 1];
+                int i2 = output_indices[idx_start + 2];
+
+                glm::vec3 v0 = output_points[i0];
+                glm::vec3 v1 = output_points[i1];
+                glm::vec3 v2 = output_points[i2];
+
+                glm::vec3 edge1 = v1 - v0;
+                glm::vec3 edge2 = v2 - v0;
+                glm::vec3 normal = glm::cross(edge2, edge1);
+                
+                float length = glm::length(normal);
+                if (length > 1e-8f) {
+                    normal = normal / length;
+                } else {
+                    normal = glm::vec3(0.0f, 1.0f, 0.0f);
+                }
+
+                normals.push_back(normal);
+                normals.push_back(normal);
+                normals.push_back(normal);
             }
-
-            // Add the same normal for all three vertices of this face (face-varying)
-            normals.push_back(normal);
-            normals.push_back(normal);
-            normals.push_back(normal);
+            
+            output_mesh->set_normals(normals);
         }
-
-        // Set mesh data
-        output_mesh->set_vertices(output_points);
-        output_mesh->set_face_vertex_indices(output_indices);
-        output_mesh->set_face_vertex_counts(output_face_counts);
-        output_mesh->set_normals(normals);
         
         params.set_output("Tetrahedral Mesh", std::move(output_geometry));
     }
