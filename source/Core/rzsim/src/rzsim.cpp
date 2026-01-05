@@ -6,30 +6,49 @@
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
+// Surface mesh adjacency (for triangles)
 std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
-get_adjcency_map_gpu(const Geometry& g)
+get_surface_adjacency_gpu(const Geometry& g)
 {
     auto mesh = g.get_component<MeshComponent>();
-
     auto vertices = mesh->get_vertices();
-    auto faceVertexCounts = mesh->get_face_vertex_counts();
     auto faceVertexIndices = mesh->get_face_vertex_indices();
-
-    // Convert geometry to cuda buffer
+    
     auto vertex_buffer = cuda::create_cuda_linear_buffer(vertices);
-    auto face_counts_buffer = cuda::create_cuda_linear_buffer(faceVertexCounts);
-    auto face_indices_buffer =
-        cuda::create_cuda_linear_buffer(faceVertexIndices);
-
-    // Call the pure CUDA implementation - returns both buffers
-    return rzsim_cuda::compute_adjacency_map_gpu(
-        vertex_buffer, face_counts_buffer, face_indices_buffer);
+    auto triangle_buffer = cuda::create_cuda_linear_buffer(faceVertexIndices);
+    
+    return rzsim_cuda::compute_surface_adjacency_gpu(vertex_buffer, triangle_buffer);
 }
 
 std::tuple<std::vector<unsigned>, std::vector<unsigned>>
-get_adjcency_map(const Geometry& g)
+get_surface_adjacency(const Geometry& g)
 {
-    auto [adjacency_buffer, offset_buffer] = get_adjcency_map_gpu(g);
+    auto [adjacency_buffer, offset_buffer] = get_surface_adjacency_gpu(g);
+    
+    auto adjacency_cpu = adjacency_buffer->get_host_vector<unsigned>();
+    auto offset_cpu = offset_buffer->get_host_vector<unsigned>();
+    
+    return std::make_tuple(adjacency_cpu, offset_cpu);
+}
+
+// Volume mesh adjacency (for tetrahedra)
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+get_volume_adjacency_gpu(const Geometry& g)
+{
+    auto mesh = g.get_component<MeshComponent>();
+    auto vertices = mesh->get_vertices();
+    auto faceVertexIndices = mesh->get_face_vertex_indices();
+    
+    auto vertex_buffer = cuda::create_cuda_linear_buffer(vertices);
+    auto tet_buffer = cuda::create_cuda_linear_buffer(faceVertexIndices);
+    
+    return rzsim_cuda::compute_volume_adjacency_gpu(vertex_buffer, tet_buffer);
+}
+
+std::tuple<std::vector<unsigned>, std::vector<unsigned>>
+get_volume_adjacency(const Geometry& g)
+{
+    auto [adjacency_buffer, offset_buffer] = get_volume_adjacency_gpu(g);
     
     auto adjacency_cpu = adjacency_buffer->get_host_vector<unsigned>();
     auto offset_cpu = offset_buffer->get_host_vector<unsigned>();

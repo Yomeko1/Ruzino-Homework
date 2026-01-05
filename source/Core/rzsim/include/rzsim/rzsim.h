@@ -11,25 +11,22 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 // Forward declarations
 class Geometry;
 
-// Add your API functions here
-
-// Legacy interface - returns only adjacency list
+// Surface mesh adjacency (triangles)
+// For each vertex, stores pairs of opposite edge vertices
+// Format: [count, a1,b1, a2,b2, ...]
 RZSIM_API std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
-get_adjcency_map_gpu(const Geometry& g);
+get_surface_adjacency_gpu(const Geometry& g);
 
 RZSIM_API std::tuple<std::vector<unsigned>, std::vector<unsigned>>
-get_adjcency_map(const Geometry& g);
+get_surface_adjacency(const Geometry& g);
 
-// New interface - returns both adjacency list and offset buffer
-// adjacency_buffer: [count_v0, neighbor1, neighbor2, ... | count_v1, neighbor1,
-// neighbor2, ... | ...] offset_buffer: offset_buffer[vertex_id] points to
-// vertex_id's data in adjacency_buffer
-// struct AdjacencyMapResult {
-//     cuda::CUDALinearBufferHandle adjacency_list;
-//     cuda::CUDALinearBufferHandle offset_buffer;
-// };
+// Volume mesh adjacency (tetrahedra)
+// For each vertex, stores triplets of opposite face vertices
+// Format: [count, a1,b1,c1, a2,b2,c2, ...]
+RZSIM_API std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+get_volume_adjacency_gpu(const Geometry& g);
 
-// RZSIM_API AdjacencyMapResult
-// get_adjcency_map_with_offsets_gpu(const Geometry& g);
+RZSIM_API std::tuple<std::vector<unsigned>, std::vector<unsigned>>
+get_volume_adjacency(const Geometry& g);
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
