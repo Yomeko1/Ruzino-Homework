@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <set>
 
+#include "Eigen/src/IterativeLinearSolvers/ConjugateGradient.h"
 #include "Eigen/src/SparseCore/SparseMatrix.h"
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/Components/PointsComponent.h"
@@ -12,7 +13,6 @@
 #include "nodes/core/def/node_def.hpp"
 #include "nodes/core/io/json.hpp"
 #include "spdlog/spdlog.h"
-
 
 NODE_DEF_OPEN_SCOPE
 
@@ -89,7 +89,8 @@ static double compute_energy(
     double dt)
 {
     // Inertial energy: 0.5 * M * ||x - x_tilde||^2
-    double E_inertial = 0.5 * (M_diag.asDiagonal() * (x_curr - x_tilde)).dot(x_curr - x_tilde);
+    double E_inertial =
+        0.5 * (M_diag.asDiagonal() * (x_curr - x_tilde)).dot(x_curr - x_tilde);
 
     // Spring energy
     double E_spring = 0.0;
@@ -109,7 +110,8 @@ static double compute_energy(
     }
 
     // External force potential: -f_ext^T * x
-    // For gravity, this is: -m*g*z, which increases (becomes less negative) as object rises
+    // For gravity, this is: -m*g*z, which increases (becomes less negative) as
+    // object rises
     double E_ext = -f_ext.dot(x_curr);
 
     return E_inertial + dt * dt * E_spring + dt * dt * E_ext;
@@ -277,7 +279,7 @@ static bool solve_newton(
             num_particles);
 
         // Solve for Newton direction
-        Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+        Eigen::ConjugateGradient<Eigen::SparseMatrix<double>> solver;
         solver.setMaxIterations(300);
         solver.setTolerance(1e-8);
         solver.compute(H);
@@ -302,19 +304,40 @@ static bool solve_newton(
 
         // Energy-based line search (like CUDA version)
         double E_current = compute_energy(
-            x_new, x_tilde, M_diag, f_ext, springs, rest_lengths, spring_stiffness, dt);
-        
+            x_new,
+            x_tilde,
+            M_diag,
+            f_ext,
+            springs,
+            rest_lengths,
+            spring_stiffness,
+            dt);
+
         double alpha = 1.0;
         Eigen::VectorXd x_candidate = x_new + alpha * p;
         double E_candidate = compute_energy(
-            x_candidate, x_tilde, M_diag, f_ext, springs, rest_lengths, spring_stiffness, dt);
+            x_candidate,
+            x_tilde,
+            M_diag,
+            f_ext,
+            springs,
+            rest_lengths,
+            spring_stiffness,
+            dt);
 
         int ls_iter = 0;
         while (E_candidate > E_current && alpha > 1e-8 && ls_iter < 20) {
             alpha *= 0.5;
             x_candidate = x_new + alpha * p;
             E_candidate = compute_energy(
-                x_candidate, x_tilde, M_diag, f_ext, springs, rest_lengths, spring_stiffness, dt);
+                x_candidate,
+                x_tilde,
+                M_diag,
+                f_ext,
+                springs,
+                rest_lengths,
+                spring_stiffness,
+                dt);
             ls_iter++;
         }
 
@@ -473,36 +496,28 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         spdlog::warn("Newton solver failed to converge");
     }
 
+    // Update velocity BEFORE collision handling: v = (x_new - x_n) / dt
+    // This captures the velocity based on Newton's solution
+    v = (x_new - x_n) / dt;
+
+    // Apply damping to velocity
+    v *= damping;
+
     // Handle ground collision
     int num_collisions = 0;
     for (int i = 0; i < num_particles; ++i) {
-        if (x_new(i * 3 + 2) < 0.0) {
-            // Store penetration depth for proper collision response
-            double penetration = -x_new(i * 3 + 2);
+        if (x_new(i * 3 + 2) < 0.0) {  // Penetrating ground
+            // Project position to ground
             x_new(i * 3 + 2) = 0.0;
-            num_collisions++;
-        }
-    }
 
-    // Update velocity: v = (x_new - x_n) / dt (implicit Euler)
-    v = (x_new - x_n) / dt;
-
-    // Apply damping to NEW velocity
-    v *= damping;
-
-    // Apply restitution only to particles that were penetrating
-    for (int i = 0; i < num_particles; ++i) {
-        if (x_new(i * 3 + 2) <= 1e-6) {  // On or very close to ground
+            // Apply collision response to velocity
             if (v(i * 3 + 2) < 0.0) {  // Moving downward
                 v(i * 3 + 2) = -v(i * 3 + 2) * restitution;
-                
-                // Only apply friction if restitution < 1 (inelastic collision)
-                if (restitution < 0.999) {
-                    double friction = 0.8;
-                    v(i * 3 + 0) *= friction;
-                    v(i * 3 + 1) *= friction;
-                }
+                double friction = 0.8;
+                v(i * 3 + 0) *= friction;
+                v(i * 3 + 1) *= friction;
             }
+            num_collisions++;
         }
     }
 
