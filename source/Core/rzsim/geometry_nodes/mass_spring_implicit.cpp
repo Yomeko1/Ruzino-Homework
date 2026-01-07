@@ -253,6 +253,10 @@ static bool solve_newton(
             spring_stiffness,
             dt);
 
+        for (int i = 0; i < std::min(10ll, grad.size()); i++) {
+            spdlog::info("  grad[{}] = {:.6e}", i, grad[i]);
+        }
+
         double grad_inf_norm = grad.lpNorm<Eigen::Infinity>();
 
         if (!std::isfinite(grad_inf_norm)) {
@@ -279,6 +283,15 @@ static bool solve_newton(
             spring_stiffness,
             dt,
             num_particles);
+
+        spdlog::info("Hessian non-zeros: {}", H.nonZeros());
+        // print first 10 non-zero entries of H
+        for (int k = 0; k < std::min(10ll, H.nonZeros()); k++) {
+            int row = H.outerIndexPtr()[k];
+            int col = H.innerIndexPtr()[k];
+            double val = H.valuePtr()[k];
+            spdlog::info("  H[{}, {}] = {:.6e}", row, col, val);
+        }
 
         // Solve for Newton direction
         Eigen::ConjugateGradient<Eigen::SparseMatrix<double>> solver;
