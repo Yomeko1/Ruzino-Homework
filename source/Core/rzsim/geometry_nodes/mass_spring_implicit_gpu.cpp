@@ -179,8 +179,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     d_x_new->assign_host_vector(x_tilde_host);
 
     spdlog::info(
-        "[GPU] Starting Newton iterations, max_iter={}",
-        max_iterations);
+        "[GPU] Starting Newton iterations, max_iter={}", max_iterations);
 
     bool converged = false;
     float initial_grad_norm = 0.0f;
@@ -205,8 +204,8 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             d_gradients);
 
         // Check gradient norm for convergence (computed on GPU)
-        float grad_norm = rzsim_cuda::compute_vector_norm_gpu(
-            d_gradients, num_particles * 3);
+        float grad_norm =
+            rzsim_cuda::compute_vector_norm_gpu(d_gradients, num_particles * 3);
 
         // Record initial gradient norm
         if (iter == 0) {
@@ -233,7 +232,8 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         // Converge when gradient is 1/1000 of initial gradient
         if (iter > 0 && grad_norm < initial_grad_norm / 100.0f) {
             spdlog::info(
-                "[GPU] Converged at iteration {} with grad_norm={:.6e} (ratio={:.6e})",
+                "[GPU] Converged at iteration {} with grad_norm={:.6e} "
+                "(ratio={:.6e})",
                 iter,
                 grad_norm,
                 grad_norm / initial_grad_norm);
@@ -283,7 +283,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         // Negate gradient for RHS: -grad (do on GPU)
         auto d_neg_grad =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-        
+
         rzsim_cuda::negate_gpu(d_gradients, d_neg_grad, num_particles * 3);
 
         // Solve on GPU
@@ -297,13 +297,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             reinterpret_cast<float*>(d_p->get_device_ptr()),
             solver_config);
 
-        // Check if Newton direction is valid (computed on GPU)
-        float p_dot_grad = rzsim_cuda::compute_dot_product_gpu(
-            d_p, d_gradients, num_particles * 3);
-        float p_norm = rzsim_cuda::compute_vector_norm_gpu(
-            d_p, num_particles * 3);
-        float cosine = p_dot_grad / (p_norm * grad_norm + 1e-20f);
-
         if (!result.converged) {
             spdlog::error(
                 "[GPU] Newton solve failed at iteration {}: {} (iters={}, "
@@ -312,27 +305,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 result.error_message,
                 result.iterations,
                 result.final_residual);
-            break;
-        }
-
-        spdlog::info(
-            "[GPU] Iter {}: p^T * grad = {:.6e}, cos(angle)={:.6f}",
-            iter,
-            p_dot_grad,
-            cosine);
-
-        if (iter == 0) {
-            spdlog::info(
-                "[GPU] CG converged: iters={}, residual={:.6e}, ||p||={:.6e}",
-                result.iterations,
-                result.final_residual,
-                p_norm);
-        }
-
-        if (p_norm < 1e-12f) {
-            spdlog::warn(
-                "[GPU] Newton direction is nearly zero (||p||={:.6e})", p_norm);
-            converged = true;
             break;
         }
 

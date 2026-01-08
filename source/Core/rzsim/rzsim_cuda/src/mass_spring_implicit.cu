@@ -938,6 +938,17 @@ __global__ void negate_kernel(const float* in, float* out, int size)
     }
 }
 
+// Kernel to project positions to ground (enforce z >= ground_height)
+__global__ void project_to_ground_kernel(float* positions, int num_particles, float ground_height)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < num_particles) {
+        if (positions[tid * 3 + 2] < ground_height) {
+            positions[tid * 3 + 2] = ground_height;
+        }
+    }
+}
+
 // GPU vector operations to avoid CPU-GPU transfers
 float compute_vector_norm_gpu(cuda::CUDALinearBufferHandle vec, int size)
 {
@@ -1000,6 +1011,19 @@ void negate_gpu(
     int block_size = 256;
     int num_blocks = (size + block_size - 1) / block_size;
     negate_kernel<<<num_blocks, block_size>>>(in_ptr, out_ptr, size);
+    cudaDeviceSynchronize();
+}
+
+void project_to_ground_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    int num_particles,
+    float ground_height)
+{
+    float* pos_ptr = reinterpret_cast<float*>(positions->get_device_ptr());
+    
+    int block_size = 256;
+    int num_blocks = (num_particles + block_size - 1) / block_size;
+    project_to_ground_kernel<<<num_blocks, block_size>>>(pos_ptr, num_particles, ground_height);
     cudaDeviceSynchronize();
 }
 

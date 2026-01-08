@@ -104,6 +104,12 @@ void negate_gpu(
     cuda::CUDALinearBufferHandle out,
     int size);
 
+RZSIM_CUDA_API
+void project_to_ground_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    int num_particles,
+    float ground_height);
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
