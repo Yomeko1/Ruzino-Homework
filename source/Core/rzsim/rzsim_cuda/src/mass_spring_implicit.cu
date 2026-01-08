@@ -171,7 +171,8 @@ cuda::CUDALinearBufferHandle build_edge_set_gpu(
     return output_buffer;
 }
 
-// Build per-vertex spring adjacency: for each vertex, store list of spring indices it belongs to
+// Build per-vertex spring adjacency: for each vertex, store list of spring
+// indices it belongs to
 std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
 build_vertex_spring_adjacency_gpu(
     cuda::CUDALinearBufferHandle springs,
@@ -203,7 +204,10 @@ build_vertex_spring_adjacency_gpu(
     thrust::device_ptr<int> count_thrust(count_ptr);
     thrust::device_ptr<int> offsets_thrust(offsets_ptr);
     thrust::exclusive_scan(
-        thrust::device, count_thrust, count_thrust + num_particles, offsets_thrust);
+        thrust::device,
+        count_thrust,
+        count_thrust + num_particles,
+        offsets_thrust);
 
     // Get total count for last offset
     int total_entries;
@@ -214,14 +218,19 @@ build_vertex_spring_adjacency_gpu(
         cudaMemcpyDeviceToHost);
     int last_offset;
     cudaMemcpy(
-        &last_offset, offsets_ptr + num_particles - 1, sizeof(int), cudaMemcpyDeviceToHost);
+        &last_offset,
+        offsets_ptr + num_particles - 1,
+        sizeof(int),
+        cudaMemcpyDeviceToHost);
     total_entries += last_offset;
     cudaMemcpy(
-        offsets_ptr + num_particles, &total_entries, sizeof(int), cudaMemcpyHostToDevice);
+        offsets_ptr + num_particles,
+        &total_entries,
+        sizeof(int),
+        cudaMemcpyHostToDevice);
 
     // Allocate spring indices array
-    auto d_spring_indices =
-        cuda::create_cuda_linear_buffer<int>(total_entries);
+    auto d_spring_indices = cuda::create_cuda_linear_buffer<int>(total_entries);
     int* indices_ptr = d_spring_indices->get_device_ptr<int>();
 
     // Reset counts for filling
@@ -395,69 +404,6 @@ __global__ void compute_gradient_kernel_optimized(
 
         int i = springs[s * 2];
         int j = springs[s * 2 + 1];
-        float l0 = rest_lengths[s];
-        float l0_sq = l0 * l0;
-
-        float dx = x_curr[i * 3 + 0] - x_curr[j * 3 + 0];
-        float dy = x_curr[i * 3 + 1] - x_curr[j * 3 + 1];
-        float dz = x_curr[i * 3 + 2] - x_curr[j * 3 + 2];
-        float diff_sq = dx * dx + dy * dy + dz * dz;
-
-        float factor = 2.0f * stiffness * (diff_sq / l0_sq - 1.0f) * dt * dt;
-
-        if (i == tid) {
-            grad[tid * 3 + 0] += factor * dx;
-            grad[tid * 3 + 1] += factor * dy;
-            grad[tid * 3 + 2] += factor * dz;
-        }
-        else {  // j == tid
-            grad[tid * 3 + 0] -= factor * dx;
-            grad[tid * 3 + 1] -= factor * dy;
-            grad[tid * 3 + 2] -= factor * dz;
-        }
-    }
-
-    // Subtract external forces
-    grad[tid * 3 + 0] -= dt * dt * f_ext[tid * 3 + 0];
-    grad[tid * 3 + 1] -= dt * dt * f_ext[tid * 3 + 1];
-    grad[tid * 3 + 2] -= dt * dt * f_ext[tid * 3 + 2];
-}
-
-// Legacy gradient kernel (kept for compatibility, less efficient)
-__global__ void compute_gradient_kernel(
-    const float* x_curr,
-    const float* x_tilde,
-    const float* M_diag,
-    const float* f_ext,
-    const int* springs,
-    const float* rest_lengths,
-    float stiffness,
-    float dt,
-    int num_particles,
-    int num_springs,
-    float* grad)
-{
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= num_particles)
-        return;
-
-    // Initialize with inertial term: M * (x - x_tilde)
-    // M_diag is per-DOF, matching CPU implementation
-    grad[tid * 3 + 0] =
-        M_diag[tid * 3 + 0] * (x_curr[tid * 3 + 0] - x_tilde[tid * 3 + 0]);
-    grad[tid * 3 + 1] =
-        M_diag[tid * 3 + 1] * (x_curr[tid * 3 + 1] - x_tilde[tid * 3 + 1]);
-    grad[tid * 3 + 2] =
-        M_diag[tid * 3 + 2] * (x_curr[tid * 3 + 2] - x_tilde[tid * 3 + 2]);
-
-    // Add spring forces
-    for (int s = 0; s < num_springs; ++s) {
-        int i = springs[s * 2];
-        int j = springs[s * 2 + 1];
-
-        if (i != tid && j != tid)
-            continue;
-
         float l0 = rest_lengths[s];
         float l0_sq = l0 * l0;
 
