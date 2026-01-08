@@ -871,9 +871,8 @@ float compute_energy_gpu(
 
     cuda::GPUParallelFor(
         "compute_inertial_energy", n, GPU_LAMBDA_Ex(int i) {
-            int particle_id = i / 3;
             float diff = x_ptr[i] - x_tilde_ptr[i];
-            inertial_ptr[i] = 0.5f * M_ptr[particle_id] * diff * diff;
+            inertial_ptr[i] = 0.5f * M_ptr[i] * diff * diff;
         });
 
     // Sum inertial energy
@@ -918,7 +917,7 @@ float compute_energy_gpu(
     float E_potential =
         thrust::reduce(d_potential_thrust, d_potential_thrust + n, 0.0f);
 
-    float total_energy = E_inertial + E_spring + E_potential;
+    float total_energy = E_inertial + dt * dt * E_spring + E_potential;
 
     // Debug: check which energy component is inf
     static int debug_counter = 0;

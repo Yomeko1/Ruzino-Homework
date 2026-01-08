@@ -76,7 +76,7 @@ static void initialize_springs(
         storage.spring_stiffness.push_back(stiffness);
     }
 
-    printf("Edge set has %zu springs\n", storage.springs.size());
+    spdlog::debug("Initialized {} springs", storage.springs.size());
 }
 
 // Helper: Compute total energy
@@ -253,20 +253,6 @@ static bool solve_newton(
             spring_stiffness,
             dt);
 
-        // Print full gradient for small problems (iter 0 and 1)
-        if ((iter == 0 || iter == 1) && grad.size() <= 100) {
-            printf("[CPU] === Full gradient at iter %d ===\n", iter);
-            for (int i = 0; i < grad.size(); i++) {
-                printf("  grad[%d] = %.12e\n", i, grad[i]);
-            }
-            printf("[CPU] === End gradient ===\n");
-        }
-        else if (iter == 0) {
-            for (int i = 0; i < std::min(10ll, grad.size()); i++) {
-                spdlog::info("  grad[{}] = {:.6e}", i, grad[i]);
-            }
-        }
-
         double grad_inf_norm = grad.lpNorm<Eigen::Infinity>();
 
         if (!std::isfinite(grad_inf_norm)) {
@@ -294,53 +280,11 @@ static bool solve_newton(
             dt,
             num_particles);
 
-        printf(
-            "[CPU] Assembling Hessian: %d particles, %zu springs\n",
+        spdlog::debug(
+            "Assembling Hessian: {} particles, {} springs, nnz={}",
             num_particles,
-            springs.size());
-        printf("[CPU] dt = %.6f, stiffness = %.6f\n", dt, spring_stiffness[0]);
-        printf("[CPU] Matrix size: %lld x %lld\n", H.rows(), H.cols());
-        spdlog::info("[CPU] Hessian non-zeros: {}", H.nonZeros());
-
-        // Print all entries for iter 0 and 1 if small matrix
-        if (H.rows() <= 100 && (iter == 0 || iter == 1)) {
-            printf("[CPU] === Full Hessian at iter %d ===\n", iter);
-            for (int k = 0; k < H.outerSize(); ++k) {
-                for (Eigen::SparseMatrix<double>::InnerIterator it(H, k); it;
-                     ++it) {
-                    printf(
-                        "  H(%lld, %lld) = %.12e\n",
-                        it.row(),
-                        it.col(),
-                        it.value());
-                }
-            }
-            printf("[CPU] === End Hessian ===\n");
-        }
-        else if (iter == 0) {
-            // Print first 10 non-zero entries (in COO format for comparison)
-            printf("[CPU] First 10 non-zero entries (COO format):\n");
-            int count = 0;
-            for (int k = 0; k < H.outerSize() && count < 10; ++k) {
-                for (Eigen::SparseMatrix<double>::InnerIterator it(H, k);
-                     it && count < 10;
-                     ++it, ++count) {
-                    printf(
-                        "  (%lld, %lld) = %.6e\n",
-                        it.row(),
-                        it.col(),
-                        it.value());
-                }
-            }
-
-            // Print CSR format info (Eigen uses CSR by default for row-major)
-            printf("[CPU] CSR Format (Eigen internal):\n");
-            printf("  First 5 row_offsets: ");
-            for (int i = 0; i < std::min(5, (int)H.rows() + 1); i++) {
-                printf("%d ", (int)H.outerIndexPtr()[i]);
-            }
-            printf("\n");
-        }
+            springs.size(),
+            H.nonZeros());
 
         // Solve for Newton direction
         Eigen::ConjugateGradient<Eigen::SparseMatrix<double>> solver;
@@ -359,14 +303,7 @@ static bool solve_newton(
             spdlog::warn("Newton solve failed at iteration {}", iter);
             return false;
         }
-        // Print full p for small problems (iter 0 to 4)
-        if ((iter < 5) && p.size() <= 100) {
-            printf("[CPU] === Full Newton direction p at iter %d ===\n", iter);
-            for (int i = 0; i < p.size(); i++) {
-                printf("  p[%d] = %.12e\n", i, p[i]);
-            }
-            printf("[CPU] === End p ===\n");
-        }
+        
         spdlog::debug(
             "Newton iter {}: grad_norm={:.6e}, solver_iters={}",
             iter,
@@ -473,9 +410,9 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
     bool flip_normal = params.get_input<bool>("Flip Normal");
     float dt = global_payload.delta_time;
 
-    printf(
-        "[CPU Params] mass=%.2f, k=%.1f, damp=%.3f, maxIter=%d, tol=%.2e, "
-        "g=%.2f, rest=%.2f, dt=%.6f\n",
+    spdlog::debug(
+        "[CPU] Params: mass={:.2f}, k={:.1f}, damp={:.3f}, maxIter={}, "
+        "tol={:.2e}, g={:.2f}, rest={:.2f}, dt={:.6f}",
         mass,
         stiffness,
         damping,
@@ -560,28 +497,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         num_particles,
         storage.springs.size());
 
-    // Debug: print first 3 particles before simulation
-    printf(
-        "[CPU Before] p[0]=(%.6f, %.6f, %.6f), p[1]=(%.6f, %.6f, %.6f), "
-        "p[2]=(%.6f, %.6f, %.6f)\n",
-        x(0),
-        x(1),
-        x(2),
-        x(3),
-        x(4),
-        x(5),
-        x(6),
-        x(7),
-        x(8));
-    printf(
-        "[CPU Before] v[0]=(%.6f, %.6f, %.6f), v[1]=(%.6f, %.6f, %.6f)\n",
-        v(0),
-        v(1),
-        v(2),
-        v(3),
-        v(4),
-        v(5));
-
     // Solve using Newton's method
     Eigen::VectorXd x_new = x;
     bool converged = solve_newton(
@@ -600,10 +515,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
     if (!converged) {
         spdlog::warn("Newton solver failed to converge");
     }
-
-    // Debug
-    double x_diff_norm = (x_new - x_n).norm();
-    printf("[CPU Debug] ||x_new - x_n|| = %.6e\n", x_diff_norm);
 
     // Update velocity BEFORE collision handling: v = (x_new - x_n) / dt
     // This captures the velocity based on Newton's solution
@@ -639,28 +550,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         storage.velocities[i].y = v(i * 3 + 1);
         storage.velocities[i].z = v(i * 3 + 2);
     }
-
-    // Debug: print first 3 particles after simulation
-    printf(
-        "[CPU After]  p[0]=(%.6f, %.6f, %.6f), p[1]=(%.6f, %.6f, %.6f), "
-        "p[2]=(%.6f, %.6f, %.6f)\n",
-        x_new(0),
-        x_new(1),
-        x_new(2),
-        x_new(3),
-        x_new(4),
-        x_new(5),
-        x_new(6),
-        x_new(7),
-        x_new(8));
-    printf(
-        "[CPU After]  v[0]=(%.6f, %.6f, %.6f), v[1]=(%.6f, %.6f, %.6f)\n",
-        v(0),
-        v(1),
-        v(2),
-        v(3),
-        v(4),
-        v(5));
 
     if (num_collisions > 0) {
         spdlog::debug("Ground collisions: {} particles", num_collisions);

@@ -164,10 +164,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     rzsim_cuda::explicit_step_gpu(
         d_positions, d_velocities, dt, num_particles, d_next_positions);
 
-    // Debug: print first 3 particles before simulation
-    auto positions_debug = d_positions->get_host_vector<glm::vec3>();
-    auto velocities_debug = d_velocities->get_host_vector<glm::vec3>();
-
     // Newton's method iterations
     auto d_x_new = cuda::create_cuda_linear_buffer<float>(num_particles * 3);
     // Initialize x_new = x (current position, NOT x_tilde) - matching CPU
@@ -189,9 +185,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     bool converged = false;
     for (int iter = 0; iter < max_iterations; iter++) {
         spdlog::info("[GPU] === Newton iteration {} ===", iter);
-
-        // Debug: print current x_new at start of iteration
-        auto x_curr_debug = d_x_new->get_host_vector<float>();
 
         // Create fresh buffer for Newton direction each iteration to avoid warm
         // start issues
@@ -314,27 +307,18 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             reinterpret_cast<float*>(d_p->get_device_ptr()),
             solver_config);
 
-        // Debug: check what CG actually wrote to d_p
-        auto p_after_cg = d_p->get_host_vector<float>();
-
-        // Check if p is a descent direction: p^T * grad should be < 0
+        // Check if Newton direction is valid
+        auto p_host = d_p->get_host_vector<float>();
         float p_dot_grad = 0.0f;
         float p_norm_sq = 0.0f;
-        float grad_norm_sq = 0.0f;
         for (int i = 0; i < num_particles * 3; i++) {
-            p_dot_grad += p_after_cg[i] * grad_host[i];
-            p_norm_sq += p_after_cg[i] * p_after_cg[i];
-            grad_norm_sq += grad_host[i] * grad_host[i];
+            p_dot_grad += p_host[i] * grad_host[i];
+            p_norm_sq += p_host[i] * p_host[i];
         }
-        float cosine =
-            p_dot_grad /
-            (std::sqrt(p_norm_sq) * std::sqrt(grad_norm_sq) + 1e-20f);
-        spdlog::info(
-            "[GPU] Iter {}: p^T * grad = {:.6e}, cos(angle)={:.6f}",
-            iter,
-            p_dot_grad,
-            cosine);
-
+        float p_norm = std::sqrt(p_norm_sq);
+        float grad_norm_sq = grad_inf_norm * grad_inf_norm;
+        float cosine = p_dot_grad / (p_norm * grad_inf_norm + 1e-20f);
+        
         if (!result.converged) {
             spdlog::error(
                 "[GPU] Newton solve failed at iteration {}: {} (iters={}, "
@@ -345,14 +329,12 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 result.final_residual);
             break;
         }
-
-        // Check if Newton direction is valid
-        auto p_check = d_p->get_host_vector<float>();
-        float p_norm = 0.0f;
-        for (int i = 0; i < num_particles * 3; i++) {
-            p_norm += p_check[i] * p_check[i];
-        }
-        p_norm = std::sqrt(p_norm);
+        
+        spdlog::info(
+            "[GPU] Iter {}: p^T * grad = {:.6e}, cos(angle)={:.6f}",
+            iter,
+            p_dot_grad,
+            cosine);
 
         if (iter == 0) {
             spdlog::info(
@@ -399,7 +381,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         while (E_candidate > E_current && alpha > 1e-8f && ls_iter < 20) {
             // x_candidate = x_new + alpha * p
             auto x_new_host = d_x_new->get_host_vector<float>();
-            auto p_host = d_p->get_host_vector<float>();
             std::vector<float> x_cand_host(num_particles * 3);
             for (int i = 0; i < num_particles * 3; i++) {
                 x_cand_host[i] = x_new_host[i] + alpha * p_host[i];
@@ -442,21 +423,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
 
                 auto x_cand_final = d_x_candidate->get_host_vector<float>();
                 d_x_new->assign_host_vector(x_cand_final);
-
-                // Debug: verify x_new was actually updated
-                if (iter <= 2) {
-                    auto x_new_verify = d_x_new->get_host_vector<float>();
-                    printf(
-                        "[GPU Debug] After update iter %d: x[0:3]=(%.12e, "
-                        "%.12e, %.12e), x[6:9]=(%.12e, %.12e, %.12e)\n",
-                        iter,
-                        x_new_verify[0],
-                        x_new_verify[1],
-                        x_new_verify[2],
-                        x_new_verify[6],
-                        x_new_verify[7],
-                        x_new_verify[8]);
-                }
                 break;
             }
 
@@ -482,7 +448,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             max_iterations);
     }
 
-    // Update velocities: v = (x_new - x_n) / dt
+    // Update velocities: v = (x_new - x_n) / dt and apply damping
     auto x_new_final = d_x_new->get_host_vector<float>();
     auto x_n_host = d_positions->get_host_vector<glm::vec3>();
     std::vector<float> v_new(num_particles * 3);
@@ -494,19 +460,39 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         v_new[i * 3 + 2] =
             (x_new_final[i * 3 + 2] - x_n_host[i].z) / dt * damping;
     }
+
+    // Handle ground collision (z = 0)
+    int num_collisions = 0;
+    for (int i = 0; i < num_particles; i++) {
+        if (x_new_final[i * 3 + 2] < 0.0f) {  // Penetrating ground
+            // Project position to ground
+            x_new_final[i * 3 + 2] = 0.0f;
+
+            // Apply collision response to velocity
+            if (v_new[i * 3 + 2] < 0.0f) {  // Moving downward
+                v_new[i * 3 + 2] = -v_new[i * 3 + 2] * restitution;
+                float friction = 0.8f;
+                v_new[i * 3 + 0] *= friction;
+                v_new[i * 3 + 1] *= friction;
+            }
+            num_collisions++;
+        }
+    }
+
+    if (num_collisions > 0) {
+        spdlog::debug("[GPU] Ground collisions: {} particles", num_collisions);
+    }
+
     d_velocities->assign_host_vector(v_new);
     d_positions->assign_host_vector(x_new_final);
 
-    // Debug print
-    auto positions_debug_after = d_positions->get_host_vector<glm::vec3>();
-    auto velocities_debug_after = d_velocities->get_host_vector<glm::vec3>();
-
     // Convert to output format
-    std::vector<glm::vec3> new_positions = positions_debug_after;
-    std::vector<float> positions_out(3 * num_particles);
-    std::vector<float> velocities_out(3 * num_particles);
-
-    // new_positions already populated from GPU buffers above
+    std::vector<glm::vec3> new_positions(num_particles);
+    for (int i = 0; i < num_particles; i++) {
+        new_positions[i].x = x_new_final[i * 3 + 0];
+        new_positions[i].y = x_new_final[i * 3 + 1];
+        new_positions[i].z = x_new_final[i * 3 + 2];
+    }
 
     // Update geometry with new positions
     if (mesh_component) {

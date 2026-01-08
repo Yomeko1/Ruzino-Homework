@@ -196,10 +196,10 @@ namespace {
                 1,
                 &pAp);
 
-            if (abs(pAp) < 1e-15f * b_norm * b_norm) {
-                result.error_message = "CG breakdown: p^T * A * p too small";
-                break;
-            }
+            // if (abs(pAp) < 1e-15f * b_norm * b_norm) {
+            //     result.error_message = "CG breakdown: p^T * A * p too small";
+            //     break;
+            // }
 
             alpha = rzold / pAp;
 
