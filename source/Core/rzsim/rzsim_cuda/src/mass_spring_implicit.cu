@@ -388,7 +388,6 @@ void compute_gradient_gpu(
 }
 
 // Kernel to compute 3x3 eigenvalues and eigenvectors using analytical solution
-// PSD投影辅助函数 - 使用Eigen做特征分解
 __device__ Eigen::Matrix3f project_psd(const Eigen::Matrix3f& H)
 {
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigensolver(H);
@@ -405,126 +404,177 @@ __device__ Eigen::Matrix3f project_psd(const Eigen::Matrix3f& H)
     return eigenvectors * eigenvalues.asDiagonal() * eigenvectors.transpose();
 }
 
-// Kernel to assemble Hessian matrix contributions from springs
-__global__ void assemble_hessian_kernel(
+// Kernel to compute triplets for spring Hessian blocks
+__global__ void compute_spring_hessian_kernel(
     const float* x_curr,
-    const float* M_diag,
     const int* springs,
     const float* rest_lengths,
     float stiffness,
     float dt,
-    int num_particles,
     int num_springs,
-    float regularization,
-    int* row_indices,  // Output triplet format
-    int* col_indices,
-    float* values,
-    int* triplet_count)
+    int* triplet_rows,
+    int* triplet_cols,
+    float* triplet_vals,
+    int* num_triplets_per_spring)
 {
-    int s = blockIdx.x * blockDim.x + threadIdx.x;
+    int sid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (sid >= num_springs)
+        return;
 
-    // First, add mass matrix diagonal
-    if (s < num_particles * 3) {
-        int idx = atomicAdd(triplet_count, 1);
-        row_indices[idx] = s;
-        col_indices[idx] = s;
-        values[idx] = M_diag[s] + regularization;
+    int vi = springs[sid * 2];
+    int vj = springs[sid * 2 + 1];
+    float l0 = rest_lengths[sid];
+
+    if (l0 < 1e-10f) {
+        num_triplets_per_spring[sid] = 0;
         return;
     }
 
-    if (s >= num_particles * 3 + num_springs)
-        return;
-
-    s = s - num_particles * 3;  // Adjust to spring index
-
-    int vi = springs[s * 2];
-    int vj = springs[s * 2 + 1];
-    float l0 = rest_lengths[s];
-
-    if (l0 < 1e-10f)
-        return;
-
+    float k = stiffness;
     float l0_sq = l0 * l0;
 
-    float xi[3], xj[3], diff[3];
-    xi[0] = x_curr[vi * 3 + 0];
-    xi[1] = x_curr[vi * 3 + 1];
-    xi[2] = x_curr[vi * 3 + 2];
-    xj[0] = x_curr[vj * 3 + 0];
-    xj[1] = x_curr[vj * 3 + 1];
-    xj[2] = x_curr[vj * 3 + 2];
-
-    diff[0] = xi[0] - xj[0];
-    diff[1] = xi[1] - xj[1];
-    diff[2] = xi[2] - xj[2];
-
-    float diff_sq = diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2];
-
-    // 使用Eigen计算H_diff和PSD投影
-    Eigen::Vector3f diff_vec(diff[0], diff[1], diff[2]);
-    float scale = 2.0f * stiffness / l0_sq;
+    // Get positions
+    Eigen::Vector3f xi(x_curr[vi * 3], x_curr[vi * 3 + 1], x_curr[vi * 3 + 2]);
+    Eigen::Vector3f xj(x_curr[vj * 3], x_curr[vj * 3 + 1], x_curr[vj * 3 + 2]);
+    Eigen::Vector3f diff = xi - xj;
+    float diff_sq = diff.squaredNorm();
 
     // H_diff = 2*k/l0^2 * (2*outer(diff,diff) + (diff_sq - l0^2)*I)
-    Eigen::Matrix3f outer = diff_vec * diff_vec.transpose();
+    Eigen::Matrix3f outer = diff * diff.transpose();
     Eigen::Matrix3f H_diff =
-        scale *
+        2.0f * k / l0_sq *
         (2.0f * outer + (diff_sq - l0_sq) * Eigen::Matrix3f::Identity());
 
-    // PSD投影：特征分解并钳位负特征值
+    // PSD projection using Eigen on device
     H_diff = project_psd(H_diff);
 
-    // Add 6x6 block to triplet arrays
-    float dt_sq = dt * dt;
+    // Scale by dt^2
+    float scale = dt * dt;
+    H_diff *= scale;
 
-    for (int r = 0; r < 3; r++) {
-        for (int c = 0; c < 3; c++) {
-            float val = dt_sq * H_diff(r, c);
+    // Write triplets for 6x6 block (4 3x3 blocks)
+    int base_idx = sid * 36;  // Each spring contributes 36 triplets (4 blocks * 9 entries)
+    int count = 0;
 
-            // (vi, vi) block
-            int idx = atomicAdd(triplet_count, 1);
-            row_indices[idx] = vi * 3 + r;
-            col_indices[idx] = vi * 3 + c;
-            values[idx] = val;
+    for (int r = 0; r < 3; ++r) {
+        for (int c = 0; c < 3; ++c) {
+            float val = H_diff(r, c);
+            
+            // Block (vi, vi)
+            triplet_rows[base_idx + count] = vi * 3 + r;
+            triplet_cols[base_idx + count] = vi * 3 + c;
+            triplet_vals[base_idx + count] = val;
+            count++;
 
-            // (vi, vj) block
-            idx = atomicAdd(triplet_count, 1);
-            row_indices[idx] = vi * 3 + r;
-            col_indices[idx] = vj * 3 + c;
-            values[idx] = -val;
+            // Block (vi, vj)
+            triplet_rows[base_idx + count] = vi * 3 + r;
+            triplet_cols[base_idx + count] = vj * 3 + c;
+            triplet_vals[base_idx + count] = -val;
+            count++;
 
-            // (vj, vi) block
-            idx = atomicAdd(triplet_count, 1);
-            row_indices[idx] = vj * 3 + r;
-            col_indices[idx] = vi * 3 + c;
-            values[idx] = -val;
+            // Block (vj, vi)
+            triplet_rows[base_idx + count] = vj * 3 + r;
+            triplet_cols[base_idx + count] = vi * 3 + c;
+            triplet_vals[base_idx + count] = -val;
+            count++;
 
-            // (vj, vj) block
-            idx = atomicAdd(triplet_count, 1);
-            row_indices[idx] = vj * 3 + r;
-            col_indices[idx] = vj * 3 + c;
-            values[idx] = val;
+            // Block (vj, vj)
+            triplet_rows[base_idx + count] = vj * 3 + r;
+            triplet_cols[base_idx + count] = vj * 3 + c;
+            triplet_vals[base_idx + count] = val;
+            count++;
+        }
+    }
+
+    num_triplets_per_spring[sid] = count;
+}
+
+// Kernel to add mass matrix diagonal
+__global__ void add_mass_diagonal_kernel(
+    const float* M_diag,
+    int num_particles,
+    int* triplet_rows,
+    int* triplet_cols,
+    float* triplet_vals,
+    int offset)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid >= num_particles * 3)
+        return;
+
+    float regularization = 1e-6f;
+    triplet_rows[offset + tid] = tid;
+    triplet_cols[offset + tid] = tid;
+    triplet_vals[offset + tid] = M_diag[tid] + regularization;
+}
+
+// Kernel to convert COO to CSR format
+__global__ void coo_to_csr_kernel(
+    const int* row_indices,
+    int nnz,
+    int num_rows,
+    int* row_offsets)
+{
+    // Initialize row_offsets
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid <= num_rows) {
+        row_offsets[tid] = 0;
+    }
+    __syncthreads();
+
+    if (tid < nnz) {
+        int row = row_indices[tid];
+        atomicAdd(&row_offsets[row + 1], 1);
+    }
+}
+
+// Kernel to compute prefix sum for row offsets
+__global__ void prefix_sum_kernel(int* row_offsets, int num_rows)
+{
+    // Simple sequential prefix sum (for small matrices)
+    // For large matrices, use thrust::exclusive_scan
+    if (threadIdx.x == 0 && blockIdx.x == 0) {
+        for (int i = 1; i <= num_rows; ++i) {
+            row_offsets[i] += row_offsets[i - 1];
         }
     }
 }
 
-// Simple COO to CSR conversion kernel
-// Kernel to copy int buffer to thrust vector
-__global__ void copy_int_buffer_kernel(const int* src, int* dst, int n)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        dst[idx] = src[idx];
+// Functor for sorting triplets by (row, col)
+struct TripletComparator {
+    __host__ __device__ bool operator()(
+        const thrust::tuple<int, int, float>& a,
+        const thrust::tuple<int, int, float>& b) const
+    {
+        int row_a = thrust::get<0>(a);
+        int row_b = thrust::get<0>(b);
+        if (row_a != row_b)
+            return row_a < row_b;
+        return thrust::get<1>(a) < thrust::get<1>(b);
     }
-}
+};
 
-// Kernel to copy float buffer to thrust vector
-__global__ void copy_float_buffer_kernel(const float* src, float* dst, int n)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < n) {
-        dst[idx] = src[idx];
+// Functor for comparing keys in reduce_by_key
+struct KeyEqual {
+    __host__ __device__ bool operator()(
+        const thrust::tuple<int, int>& a,
+        const thrust::tuple<int, int>& b) const
+    {
+        return thrust::get<0>(a) == thrust::get<0>(b) &&
+               thrust::get<1>(a) == thrust::get<1>(b);
     }
-}
+};
+
+// Functor to atomically increment row counts
+struct IncrementRowCount {
+    int* row_offsets;
+    
+    IncrementRowCount(int* offsets) : row_offsets(offsets) {}
+    
+    __device__ void operator()(int row) {
+        atomicAdd(&row_offsets[row + 1], 1);
+    }
+};
 
 CSRMatrix assemble_hessian_gpu(
     cuda::CUDALinearBufferHandle x_curr,
@@ -535,188 +585,230 @@ CSRMatrix assemble_hessian_gpu(
     float dt,
     int num_particles)
 {
+    CSRMatrix result;
     int num_springs = springs->getDesc().element_count / 2;
-    float regularization = 1e-6f;
+    int n = num_particles * 3;
 
-    // Estimate maximum triplets: diagonal + springs * 36
-    int max_triplets = num_particles * 3 + num_springs * 36;
+    printf("[GPU] Assembling Hessian: %d particles, %d springs\n", num_particles, num_springs);
+    printf("[GPU] dt = %.6f, stiffness = %.6f\n", dt, stiffness);
 
-    auto row_indices_buf =
-        cuda::create_cuda_linear_buffer<int>((size_t)max_triplets);
-    auto col_indices_buf =
-        cuda::create_cuda_linear_buffer<int>((size_t)max_triplets);
-    auto values_buf =
-        cuda::create_cuda_linear_buffer<float>((size_t)max_triplets);
-    auto triplet_count_buf = cuda::create_cuda_linear_buffer<int>((size_t)1);
+    // Calculate total number of triplets
+    // Mass matrix: num_particles * 3 diagonal entries  
+    // Spring contributions: num_springs * 36 entries (4 blocks * 9)
+    int num_mass_triplets = num_particles * 3;
+    size_t max_spring_triplets = (size_t)num_springs * 36;
+    size_t max_total_triplets = num_mass_triplets + max_spring_triplets;
 
-    // Initialize count to 0
-    int zero = 0;
-    triplet_count_buf->assign_host_value(zero);
+    printf("[GPU] Allocating %zu triplets (%d mass + %zu spring)\n", 
+           max_total_triplets, num_mass_triplets, max_spring_triplets);
 
+    // Allocate temporary buffers for triplets
+    auto d_triplet_rows = cuda::create_cuda_linear_buffer<int>(max_total_triplets);
+    auto d_triplet_cols = cuda::create_cuda_linear_buffer<int>(max_total_triplets);
+    auto d_triplet_vals = cuda::create_cuda_linear_buffer<float>(max_total_triplets);
+    auto d_num_triplets_per_spring = cuda::create_cuda_linear_buffer<int>(num_springs);
+
+    // Compute spring Hessian blocks
     int block_size = 256;
-    int total_tasks = num_particles * 3 + num_springs;
-    int num_blocks = (total_tasks + block_size - 1) / block_size;
+    int num_blocks = (num_springs + block_size - 1) / block_size;
 
-    assemble_hessian_kernel<<<num_blocks, block_size>>>(
+    compute_spring_hessian_kernel<<<num_blocks, block_size>>>(
         x_curr->get_device_ptr<float>(),
-        M_diag->get_device_ptr<float>(),
         springs->get_device_ptr<int>(),
         rest_lengths->get_device_ptr<float>(),
         stiffness,
         dt,
-        num_particles,
         num_springs,
-        regularization,
-        row_indices_buf->get_device_ptr<int>(),
-        col_indices_buf->get_device_ptr<int>(),
-        values_buf->get_device_ptr<float>(),
-        triplet_count_buf->get_device_ptr<int>());
+        d_triplet_rows->get_device_ptr<int>(),
+        d_triplet_cols->get_device_ptr<int>(),
+        d_triplet_vals->get_device_ptr<float>(),
+        d_num_triplets_per_spring->get_device_ptr<int>());
 
     cudaDeviceSynchronize();
 
+    // Add mass matrix diagonal
+    int mass_blocks = (num_mass_triplets + block_size - 1) / block_size;
+    add_mass_diagonal_kernel<<<mass_blocks, block_size>>>(
+        M_diag->get_device_ptr<float>(),
+        num_particles,
+        d_triplet_rows->get_device_ptr<int>(),
+        d_triplet_cols->get_device_ptr<int>(),
+        d_triplet_vals->get_device_ptr<float>(),
+        max_spring_triplets);
+
+    cudaDeviceSynchronize();
+
+    // Total number of triplets (all valid ones)
+    size_t total_triplets = num_mass_triplets + max_spring_triplets;
+
+    printf("[GPU] Total allocated triplets: %zu\n", total_triplets);
+
+    // Check for CUDA errors before sorting
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
-        printf(
-            "[GPU Error] Kernel launch failed: %s\n", cudaGetErrorString(err));
+        printf("[GPU ERROR] Before sort: %s\n", cudaGetErrorString(err));
+        result.nnz = 0;
+        return result;
     }
 
-    int nnz = triplet_count_buf->get_host_value<int>();
-    printf(
-        "[GPU] Assembled Hessian COO: %d triplets (before deduplication)\n",
-        nnz);
+    // Sort triplets by (row, col) using Thrust
+    thrust::device_ptr<int> rows_ptr(d_triplet_rows->get_device_ptr<int>());
+    thrust::device_ptr<int> cols_ptr(d_triplet_cols->get_device_ptr<int>());
+    thrust::device_ptr<float> vals_ptr(d_triplet_vals->get_device_ptr<float>());
 
-    // Use thrust device_vectors and custom kernels to copy data
-    thrust::device_vector<int> row_vec(nnz);
-    thrust::device_vector<int> col_vec(nnz);
-    thrust::device_vector<float> val_vec(nnz);
+    // Create zip iterator for sorting
+    auto zip_begin = thrust::make_zip_iterator(
+        thrust::make_tuple(rows_ptr, cols_ptr, vals_ptr));
+    auto zip_end = zip_begin + total_triplets;
 
-    int matrix_size = num_particles * 3;
-    int copy_blocks = (nnz + 256 - 1) / 256;
-
-    // Copy using custom kernels
-    copy_int_buffer_kernel<<<copy_blocks, 256>>>(
-        row_indices_buf->get_device_ptr<int>(),
-        thrust::raw_pointer_cast(row_vec.data()),
-        nnz);
-    copy_int_buffer_kernel<<<copy_blocks, 256>>>(
-        col_indices_buf->get_device_ptr<int>(),
-        thrust::raw_pointer_cast(col_vec.data()),
-        nnz);
-    copy_float_buffer_kernel<<<copy_blocks, 256>>>(
-        values_buf->get_device_ptr<float>(),
-        thrust::raw_pointer_cast(val_vec.data()),
-        nnz);
+    thrust::sort(thrust::device, zip_begin, zip_end, TripletComparator());
 
     cudaDeviceSynchronize();
 
-    // Create keys: key = row * matrix_size + col
-    thrust::device_vector<long long> keys(nnz);
-    thrust::transform(
-        thrust::make_zip_iterator(
-            thrust::make_tuple(row_vec.begin(), col_vec.begin())),
-        thrust::make_zip_iterator(
-            thrust::make_tuple(row_vec.end(), col_vec.end())),
-        keys.begin(),
-        [matrix_size] __device__(const thrust::tuple<int, int>& t) {
-            return (long long)thrust::get<0>(t) * (long long)matrix_size +
-                   (long long)thrust::get<1>(t);
-        });
+    // Sum duplicate entries using thrust::reduce_by_key
+    thrust::device_vector<int> unique_rows(total_triplets);
+    thrust::device_vector<int> unique_cols(total_triplets);
+    thrust::device_vector<float> unique_vals(total_triplets);
 
-    // Sort by keys
-    thrust::sort_by_key(keys.begin(), keys.end(), val_vec.begin());
-
-    // Sum duplicates using reduce_by_key
-    thrust::device_vector<long long> unique_keys(nnz);
-    thrust::device_vector<float> unique_vals(nnz);
+    auto key_begin = thrust::make_zip_iterator(
+        thrust::make_tuple(rows_ptr, cols_ptr));
+    auto key_end = key_begin + total_triplets;
 
     auto new_end = thrust::reduce_by_key(
-        keys.begin(),
-        keys.end(),
-        val_vec.begin(),
-        unique_keys.begin(),
-        unique_vals.begin());
-
-    int nnz_unique = new_end.first - unique_keys.begin();
-
-    // Resize to only the unique entries
-    unique_keys.resize(nnz_unique);
-    unique_vals.resize(nnz_unique);
-
-    // Extract row and col from unique keys
-    thrust::device_vector<int> unique_rows(nnz_unique);
-    thrust::device_vector<int> unique_cols(nnz_unique);
-    thrust::transform(
-        unique_keys.begin(),
-        unique_keys.begin() + nnz_unique,
+        thrust::device,
+        key_begin,
+        key_end,
+        vals_ptr,
         thrust::make_zip_iterator(
             thrust::make_tuple(unique_rows.begin(), unique_cols.begin())),
-        [matrix_size] __device__(long long key) {
-            return thrust::make_tuple(
-                (int)(key / matrix_size), (int)(key % matrix_size));
-        });
+        unique_vals.begin(),
+        KeyEqual());
 
-    // Create new buffers from thrust vectors
-    // Note: explicitly cast to size_t to avoid matching the wrong overload
-    cuda::CUDALinearBufferHandle final_row_buf =
-        cuda::create_cuda_linear_buffer<int>((size_t)nnz_unique);
-    cuda::CUDALinearBufferHandle final_col_buf =
-        cuda::create_cuda_linear_buffer<int>((size_t)nnz_unique);
-    cuda::CUDALinearBufferHandle final_val_buf =
-        cuda::create_cuda_linear_buffer<float>((size_t)nnz_unique);
+    int nnz = new_end.second - unique_vals.begin();
 
-    // Copy data from thrust vectors to buffers
-    cudaMemcpy(
-        final_row_buf->get_device_ptr<int>(),
-        thrust::raw_pointer_cast(unique_rows.data()),
-        nnz_unique * sizeof(int),
-        cudaMemcpyDeviceToDevice);
-    cudaMemcpy(
-        final_col_buf->get_device_ptr<int>(),
-        thrust::raw_pointer_cast(unique_cols.data()),
-        nnz_unique * sizeof(int),
-        cudaMemcpyDeviceToDevice);
-    cudaMemcpy(
-        final_val_buf->get_device_ptr<float>(),
-        thrust::raw_pointer_cast(unique_vals.data()),
-        nnz_unique * sizeof(float),
-        cudaMemcpyDeviceToDevice);
+    printf("[GPU] Non-zeros after reduction: %d\n", nnz);
+    printf("[GPU] Matrix size: %d x %d\n", n, n);
 
-    cudaDeviceSynchronize();
+    // Debug: Print first few unique triplets
+    std::vector<int> debug_rows(std::min(20, nnz));
+    std::vector<int> debug_cols(std::min(20, nnz));
+    std::vector<float> debug_vals(std::min(20, nnz));
+    thrust::copy(unique_rows.begin(), unique_rows.begin() + std::min(20, nnz),
+                 debug_rows.begin());
+    thrust::copy(unique_cols.begin(), unique_cols.begin() + std::min(20, nnz),
+                 debug_cols.begin());
+    thrust::copy(unique_vals.begin(), unique_vals.begin() + std::min(20, nnz),
+                 debug_vals.begin());
+    printf("[GPU] First 20 triplets after reduction (sorted by row,col):\n");
+    int row0_count = 0;
+    for (int i = 0; i < std::min(20, nnz); i++) {
+        printf("  (%d, %d) = %.6e\n", debug_rows[i], debug_cols[i], debug_vals[i]);
+        if (debug_rows[i] == 0) row0_count++;
+    }
+    printf("[GPU] Row 0 has %d entries in first 20 triplets\n", row0_count);
 
-    nnz = nnz_unique;
-    printf(
-        "[GPU] Assembled Hessian: %d x %d with %d non-zeros (after "
-        "deduplication)\n",
-        matrix_size,
-        matrix_size,
-        nnz);
-
-    // Convert COO to CSR format using cuSPARSE
-    auto row_offsets_buf =
-        cuda::create_cuda_linear_buffer<int>(size_t(matrix_size + 1));
-
-    // Use cuSPARSE for COO to CSR conversion
-    cusparseHandle_t handle;
-    cusparseCreate(&handle);
-
-    cusparseXcoo2csr(
-        handle,
-        final_row_buf->get_device_ptr<int>(),
-        nnz,
-        matrix_size,
-        row_offsets_buf->get_device_ptr<int>(),
-        CUSPARSE_INDEX_BASE_ZERO);
-
-    cusparseDestroy(handle);
-    cudaDeviceSynchronize();
-
-    CSRMatrix result;
-    result.row_offsets = row_offsets_buf;
-    result.col_indices = final_col_buf;
-    result.values = final_val_buf;
-    result.num_rows = matrix_size;
-    result.num_cols = matrix_size;
+    // Convert to CSR format
+    result.num_rows = n;
+    result.num_cols = n;
     result.nnz = nnz;
+
+    result.col_indices = cuda::create_cuda_linear_buffer<int>(nnz);
+    result.values = cuda::create_cuda_linear_buffer<float>(nnz);
+    result.row_offsets = cuda::create_cuda_linear_buffer<int>(n + 1);
+
+    // Copy unique cols and vals
+    thrust::copy(unique_cols.begin(), unique_cols.begin() + nnz,
+                 thrust::device_ptr<int>(result.col_indices->get_device_ptr<int>()));
+    thrust::copy(unique_vals.begin(), unique_vals.begin() + nnz,
+                 thrust::device_ptr<float>(result.values->get_device_ptr<float>()));
+
+    // Build row_offsets using thrust operations
+    thrust::device_vector<int> unique_rows_vec(unique_rows.begin(), unique_rows.begin() + nnz);
+    
+    // Debug: check first few row indices
+    std::vector<int> first_rows(std::min(20, nnz));
+    thrust::copy(unique_rows_vec.begin(), unique_rows_vec.begin() + std::min(20, nnz),
+                 first_rows.begin());
+    printf("[GPU] First 20 row indices: ");
+    for (int i = 0; i < std::min(20, nnz); i++) {
+        printf("%d ", first_rows[i]);
+    }
+    printf("\n");
+
+    thrust::device_ptr<int> row_offsets_ptr(result.row_offsets->get_device_ptr<int>());
+    
+    // Initialize all row_offsets to 0
+    thrust::fill(thrust::device, row_offsets_ptr, row_offsets_ptr + n + 1, 0);
+
+    // Use thrust::reduce_by_key to count entries per row
+    thrust::device_vector<int> row_ids(n);  // Keys (unique row indices)
+    thrust::device_vector<int> row_counts(n);  // Values (count for each row)
+    
+    auto reduce_end = thrust::reduce_by_key(
+        thrust::device,
+        unique_rows_vec.begin(),
+        unique_rows_vec.end(),
+        thrust::constant_iterator<int>(1),  // Count 1 for each element
+        row_ids.begin(),
+        row_counts.begin());
+    
+    int num_unique_rows = reduce_end.first - row_ids.begin();
+    printf("[GPU] Found %d unique rows (should be <= %d)\n", num_unique_rows, n);
+
+    // Scatter the counts to row_offsets[row+1]
+    thrust::scatter(thrust::device,
+                    row_counts.begin(),
+                    row_counts.begin() + num_unique_rows,
+                    thrust::make_transform_iterator(row_ids.begin(), 
+                                                    [] __device__ (int r) { return r + 1; }),
+                    row_offsets_ptr);
+
+    cudaDeviceSynchronize();
+
+    // Debug: check row_offsets after counting
+    auto row_off_debug = result.row_offsets->get_host_vector<int>();
+    printf("[GPU] row_offsets after counting (first 10): ");
+    for (int i = 0; i < std::min(10, n + 1); i++) {
+        printf("%d ", row_off_debug[i]);
+    }
+    printf("\n");
+
+    // Compute prefix sum to get row offsets
+    thrust::exclusive_scan(
+        thrust::device, row_offsets_ptr, row_offsets_ptr + n + 1, row_offsets_ptr);
+
+    cudaDeviceSynchronize();
+
+    printf("[GPU] CSR assembly complete: %dx%d matrix with %d non-zeros\n", n, n, nnz);
+
+    // Debug: verify CSR format
+    auto row_offsets_host = result.row_offsets->get_host_vector<int>();
+    auto col_indices_host = result.col_indices->get_host_vector<int>();
+    auto values_host = result.values->get_host_vector<float>();
+    
+    printf("[GPU] CSR Format Verification:\n");
+    printf("  row_offsets[0] = %d (should be 0)\n", row_offsets_host[0]);
+    printf("  row_offsets[%d] = %d (should be %d)\n", n, row_offsets_host[n], nnz);
+    printf("  First 5 row_offsets: ");
+    for (int i = 0; i < std::min(5, n + 1); i++) {
+        printf("%d ", row_offsets_host[i]);
+    }
+    printf("\n");
+    
+    // Print first 10 entries in CSR format
+    printf("[GPU] First 10 CSR entries:\n");
+    for (int i = 0; i < std::min(10, nnz); i++) {
+        // Find which row this entry belongs to
+        int row = 0;
+        for (int r = 0; r < n; r++) {
+            if (i >= row_offsets_host[r] && i < row_offsets_host[r + 1]) {
+                row = r;
+                break;
+            }
+        }
+        printf("  CSR[%d]: row=%d, col=%d, val=%.6e\n", 
+               i, row, col_indices_host[i], values_host[i]);
+    }
 
     return result;
 }

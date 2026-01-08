@@ -1,11 +1,20 @@
 file(GLOB test_sources ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 
+# Exclude test_hessian_gpu.cpp from automatic processing
+list(REMOVE_ITEM test_sources ${CMAKE_CURRENT_SOURCE_DIR}/test_hessian_gpu.cpp)
+
 foreach(source ${test_sources})
     UCG_ADD_APP(
         SRC ${source}
         LIBS usdview_widget nodes_system GUI usd nodes_ui_imgui geometry MCore usdImaging usdImagingGL stb_image
     )
 endforeach()
+
+# Add special target for test_hessian_gpu with rzsim_cuda dependency
+UCG_ADD_APP(
+    SRC ${CMAKE_CURRENT_SOURCE_DIR}/test_hessian_gpu.cpp
+    LIBS rzsim_cuda RHI
+)
 
 add_dependencies(headless_render hd_RUZINO)
 add_dependencies(headless_render render_nodes)

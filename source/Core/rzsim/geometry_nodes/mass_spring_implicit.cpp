@@ -284,14 +284,27 @@ static bool solve_newton(
             dt,
             num_particles);
 
-        spdlog::info("Hessian non-zeros: {}", H.nonZeros());
-        // print first 10 non-zero entries of H
-        for (int k = 0; k < std::min(10ll, H.nonZeros()); k++) {
-            int row = H.outerIndexPtr()[k];
-            int col = H.innerIndexPtr()[k];
-            double val = H.valuePtr()[k];
-            spdlog::info("  H[{}, {}] = {:.6e}", row, col, val);
+        printf("[CPU] Assembling Hessian: %d particles, %zu springs\n", num_particles, springs.size());
+        printf("[CPU] dt = %.6f, stiffness = %.6f\n", dt, spring_stiffness[0]);
+        printf("[CPU] Matrix size: %lld x %lld\n", H.rows(), H.cols());
+        spdlog::info("[CPU] Hessian non-zeros: {}", H.nonZeros());
+        
+        // Print first 10 non-zero entries (in COO format for comparison)
+        printf("[CPU] First 10 non-zero entries (COO format):\n");
+        int count = 0;
+        for (int k = 0; k < H.outerSize() && count < 10; ++k) {
+            for (Eigen::SparseMatrix<double>::InnerIterator it(H, k); it && count < 10; ++it, ++count) {
+                printf("  (%lld, %lld) = %.6e\n", it.row(), it.col(), it.value());
+            }
         }
+        
+        // Print CSR format info (Eigen uses CSR by default for row-major)
+        printf("[CPU] CSR Format (Eigen internal):\n");
+        printf("  First 5 row_offsets: ");
+        for (int i = 0; i < std::min(5, (int)H.rows() + 1); i++) {
+            printf("%d ", (int)H.outerIndexPtr()[i]);
+        }
+        printf("\n");
 
         // Solve for Newton direction
         Eigen::ConjugateGradient<Eigen::SparseMatrix<double>> solver;
