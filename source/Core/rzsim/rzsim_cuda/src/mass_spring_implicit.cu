@@ -99,8 +99,6 @@ cuda::CUDALinearBufferHandle build_edge_set_gpu(
     // Get triangle count
     size_t num_triangles = edges->getDesc().element_count / 3;
 
-    printf("[GPU] Building edge set from %zu triangles\n", num_triangles);
-
     // Allocate temporary buffer for all edges (3 edges per triangle)
     thrust::device_vector<int> all_edges(num_triangles * 6);
 
@@ -152,8 +150,6 @@ cuda::CUDALinearBufferHandle build_edge_set_gpu(
 
     // Calculate unique edge count
     size_t num_unique_edges = new_end - edge_begin;
-
-    printf("[GPU] Found %zu unique edges\n", num_unique_edges);
 
     // Copy unique edges to output buffer (interleaved format)
     auto output_buffer =
@@ -683,12 +679,6 @@ CSRMatrix assemble_hessian_gpu(
     size_t max_spring_triplets = (size_t)num_springs * 36;
     size_t max_total_triplets = num_mass_triplets + max_spring_triplets;
 
-    printf(
-        "[GPU] Allocating %zu triplets (%d mass + %zu spring)\n",
-        max_total_triplets,
-        num_mass_triplets,
-        max_spring_triplets);
-
     // Allocate temporary buffers for triplets
     auto d_triplet_rows =
         cuda::create_cuda_linear_buffer<int>(max_total_triplets);
@@ -732,52 +722,6 @@ CSRMatrix assemble_hessian_gpu(
     // Total number of triplets (all valid ones)
     size_t total_triplets = num_mass_triplets + max_spring_triplets;
 
-    printf("[GPU] Total allocated triplets: %zu\n", total_triplets);
-
-    // Debug: Check mass matrix contribution at offset
-    int mass_offset = max_spring_triplets;
-    std::vector<int> mass_rows(10);
-    std::vector<int> mass_cols(10);
-    std::vector<float> mass_vals(10);
-    thrust::copy(
-        thrust::device_ptr<int>(d_triplet_rows->get_device_ptr<int>()) +
-            mass_offset,
-        thrust::device_ptr<int>(d_triplet_rows->get_device_ptr<int>()) +
-            mass_offset + 10,
-        mass_rows.begin());
-    thrust::copy(
-        thrust::device_ptr<int>(d_triplet_cols->get_device_ptr<int>()) +
-            mass_offset,
-        thrust::device_ptr<int>(d_triplet_cols->get_device_ptr<int>()) +
-            mass_offset + 10,
-        mass_cols.begin());
-    thrust::copy(
-        thrust::device_ptr<float>(d_triplet_vals->get_device_ptr<float>()) +
-            mass_offset,
-        thrust::device_ptr<float>(d_triplet_vals->get_device_ptr<float>()) +
-            mass_offset + 10,
-        mass_vals.begin());
-
-    // Debug: Search for all (0,0) entries in spring triplets
-    std::vector<int> spring_rows(std::min(100, (int)max_spring_triplets));
-    std::vector<int> spring_cols(std::min(100, (int)max_spring_triplets));
-    std::vector<float> spring_vals(std::min(100, (int)max_spring_triplets));
-    thrust::copy(
-        thrust::device_ptr<int>(d_triplet_rows->get_device_ptr<int>()),
-        thrust::device_ptr<int>(d_triplet_rows->get_device_ptr<int>()) +
-            std::min(100, (int)max_spring_triplets),
-        spring_rows.begin());
-    thrust::copy(
-        thrust::device_ptr<int>(d_triplet_cols->get_device_ptr<int>()),
-        thrust::device_ptr<int>(d_triplet_cols->get_device_ptr<int>()) +
-            std::min(100, (int)max_spring_triplets),
-        spring_cols.begin());
-    thrust::copy(
-        thrust::device_ptr<float>(d_triplet_vals->get_device_ptr<float>()),
-        thrust::device_ptr<float>(d_triplet_vals->get_device_ptr<float>()) +
-            std::min(100, (int)max_spring_triplets),
-        spring_vals.begin());
-
     // Sort triplets by (row, col) using Thrust
     thrust::device_ptr<int> rows_ptr(d_triplet_rows->get_device_ptr<int>());
     thrust::device_ptr<int> cols_ptr(d_triplet_cols->get_device_ptr<int>());
@@ -812,26 +756,6 @@ CSRMatrix assemble_hessian_gpu(
         KeyEqual());
 
     int nnz = new_end.second - unique_vals.begin();
-
-    printf("[GPU] Non-zeros after reduction: %d\n", nnz);
-    printf("[GPU] Matrix size: %d x %d\n", n, n);
-
-    // Debug: Print first few unique triplets
-    std::vector<int> debug_rows(std::min(20, nnz));
-    std::vector<int> debug_cols(std::min(20, nnz));
-    std::vector<float> debug_vals(std::min(20, nnz));
-    thrust::copy(
-        unique_rows.begin(),
-        unique_rows.begin() + std::min(20, nnz),
-        debug_rows.begin());
-    thrust::copy(
-        unique_cols.begin(),
-        unique_cols.begin() + std::min(20, nnz),
-        debug_cols.begin());
-    thrust::copy(
-        unique_vals.begin(),
-        unique_vals.begin() + std::min(20, nnz),
-        debug_vals.begin());
 
     // Convert to CSR format
     result.num_rows = n;
@@ -883,12 +807,6 @@ CSRMatrix assemble_hessian_gpu(
         row_offsets_ptr);
 
     cudaDeviceSynchronize();
-
-    printf(
-        "[GPU] CSR assembly complete: %dx%d matrix with %d non-zeros\n",
-        n,
-        n,
-        nnz);
 
     return result;
 }
