@@ -813,18 +813,20 @@ __global__ void compute_spring_energy_kernel(
     int vi = springs[sid * 2];
     int vj = springs[sid * 2 + 1];
     float l0 = rest_lengths[sid];
+    float l0_sq = l0 * l0;
 
     // Get positions
     float xi[3] = { x_curr[vi * 3], x_curr[vi * 3 + 1], x_curr[vi * 3 + 2] };
     float xj[3] = { x_curr[vj * 3], x_curr[vj * 3 + 1], x_curr[vj * 3 + 2] };
 
-    // Compute current length
+    // Compute squared distance
     float diff[3] = { xi[0] - xj[0], xi[1] - xj[1], xi[2] - xj[2] };
-    float l = sqrtf(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
+    float diff_sq = diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2];
 
-    // Spring energy: 0.5 * k * (l - l0)^2
-    float stretch = l - l0;
-    spring_energies[sid] = 0.5f * stiffness * stretch * stretch;
+    // Spring energy matching gradient: 0.5 * k * l0^2 * ((diff_sq / l0^2) -
+    // 1)^2
+    float ratio = diff_sq / l0_sq - 1.0f;
+    spring_energies[sid] = 0.5f * stiffness * l0_sq * ratio * ratio;
 }
 
 // Compute total energy: E = 0.5 * M * ||x - x_tilde||^2 + spring_energy -
@@ -939,7 +941,10 @@ __global__ void negate_kernel(const float* in, float* out, int size)
 }
 
 // Kernel to project positions to ground (enforce z >= ground_height)
-__global__ void project_to_ground_kernel(float* positions, int num_particles, float ground_height)
+__global__ void project_to_ground_kernel(
+    float* positions,
+    int num_particles,
+    float ground_height)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid < num_particles) {
@@ -1020,10 +1025,11 @@ void project_to_ground_gpu(
     float ground_height)
 {
     float* pos_ptr = reinterpret_cast<float*>(positions->get_device_ptr());
-    
+
     int block_size = 256;
     int num_blocks = (num_particles + block_size - 1) / block_size;
-    project_to_ground_kernel<<<num_blocks, block_size>>>(pos_ptr, num_particles, ground_height);
+    project_to_ground_kernel<<<num_blocks, block_size>>>(
+        pos_ptr, num_particles, ground_height);
     cudaDeviceSynchronize();
 }
 

@@ -149,31 +149,9 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     auto d_gradients = storage.gradients_buffer;
     auto d_f_ext = storage.f_ext_buffer;
 
-    printf(
-        "[GPU Params] mass=%.2f, k=%.1f, damp=%.3f, maxIter=%d, tol=%.2e, "
-        "g=%.2f, rest=%.2f, dt=%.6f\n",
-        mass,
-        stiffness,
-        damping,
-        max_iterations,
-        tolerance,
-        gravity,
-        restitution,
-        dt);
-
-    spdlog::info(
-        "[GPU] Implicit solver: {} particles, {} springs, {} substeps",
-        num_particles,
-        storage.springs_buffer->getDesc().element_count / 2,
-        substeps);
-
     // Substep loop
     float dt_sub = dt / substeps;
     for (int substep = 0; substep < substeps; ++substep) {
-        if (substeps > 1) {
-            spdlog::info("[GPU] === Substep {}/{} ===", substep + 1, substeps);
-        }
-
         // Setup external forces on GPU
         rzsim_cuda::setup_external_forces_gpu(
             mass, gravity, num_particles, d_f_ext);
@@ -189,13 +167,8 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
         d_x_new->copy_from_device(d_next_positions.Get());
 
-        spdlog::info(
-            "[GPU] Starting Newton iterations, max_iter={}", max_iterations);
-
         bool converged = false;
         for (int iter = 0; iter < max_iterations; iter++) {
-            spdlog::info("[GPU] === Newton iteration {} ===", iter);
-
             // Create fresh buffer for Newton direction each iteration to avoid
             // warm start issues
             auto d_p =
@@ -220,8 +193,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
 
             // Check for convergence
             if (!std::isfinite(grad_norm)) {
-                spdlog::error(
-                    "[GPU] Gradient contains NaN/Inf at iteration {}", iter);
                 break;
             }
 
@@ -231,10 +202,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
 
             // Converge when gradient is 1/1000 of initial gradient
             if (iter > 0 && grad_norm < tolerance) {
-                spdlog::info(
-                    "[GPU] Converged at iteration {} with grad_norm={:.6e}",
-                    iter,
-                    grad_norm);
                 converged = true;
                 break;
             }
@@ -249,11 +216,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 dt_sub,
                 num_particles);
 
-            // Get Hessian data for printing
-            auto row_offsets_host = hessian.row_offsets->get_host_vector<int>();
-            auto col_indices_host = hessian.col_indices->get_host_vector<int>();
-            auto values_host = hessian.values->get_host_vector<float>();
-
             // Solve H * p = -grad using CUDA CG
             auto solver = Ruzino::Solver::SolverFactory::create(
                 Ruzino::Solver::SolverType::CUDA_CG);
@@ -266,17 +228,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             solver_config.tolerance = cg_tol;
             solver_config.max_iterations = 1000;
             solver_config.use_preconditioner = true;
-            solver_config.verbose =
-                (iter <= 1);  // Verbose for first TWO iterations
-
-            if (iter <= 1) {
-                printf(
-                    "[GPU] Iter %d: CG tolerance set to %.6e (grad_norm = "
-                    "%.6e)\n",
-                    iter,
-                    cg_tol,
-                    grad_norm);
-            }
+            solver_config.verbose = false;
 
             // Negate gradient for RHS: -grad (do on GPU)
             auto d_neg_grad =
@@ -299,21 +251,8 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 solver_config);
 
             if (!result.converged) {
-                spdlog::error(
-                    "[GPU] Newton solve failed at iteration {}: {} (iters={}, "
-                    "residual={:.6e})",
-                    iter,
-                    result.error_message,
-                    result.iterations,
-                    result.final_residual);
                 break;
             }
-
-            spdlog::info(
-                "[GPU] Newton iter {}: grad_norm={:.6e}, CG_iters={}",
-                iter,
-                grad_norm / dt,
-                result.iterations);
 
             // Line search with energy descent
             float E_current = rzsim_cuda::compute_energy_gpu(
@@ -355,13 +294,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
 
                 if (E_candidate <= E_current) {
                     // Accept step - copy result directly on GPU
-                    spdlog::info(
-                        "[GPU] Iter {}: Line search accepted at LS iter {}, "
-                        "alpha={:.3e}",
-                        iter,
-                        ls_iter,
-                        alpha);
-
                     // Copy d_x_candidate to d_x_new on GPU
                     float* x_cand_ptr = d_x_candidate->get_device_ptr<float>();
                     float* x_new_ptr = d_x_new->get_device_ptr<float>();
@@ -376,12 +308,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 alpha *= 0.5f;
                 ls_iter++;
             }
-        }
-
-        if (!converged) {
-            spdlog::warn(
-                "[GPU] Newton method did not converge in {} iterations",
-                max_iterations);
         }
 
         // Update velocities: v = (x_new - x_n) / dt_sub and apply damping
@@ -413,11 +339,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 }
                 num_collisions++;
             }
-        }
-
-        if (num_collisions > 0) {
-            spdlog::debug(
-                "[GPU] Ground collisions: {} particles", num_collisions);
         }
 
         // Convert to output format
