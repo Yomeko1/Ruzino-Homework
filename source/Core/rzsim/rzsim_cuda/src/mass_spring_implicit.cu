@@ -1297,6 +1297,99 @@ void project_to_ground_gpu(
     cudaDeviceSynchronize();
 }
 
+// Kernel to compute face normals
+__global__ void compute_normals_kernel(
+    const float* positions,
+    const int* face_vertex_indices,
+    const int* face_counts,
+    int num_faces,
+    bool flip_normal,
+    float* normals)
+{
+    int face_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (face_id >= num_faces)
+        return;
+
+    // Find face start in face_vertex_indices
+    int face_start = 0;
+    for (int f = 0; f < face_id; f++) {
+        face_start += face_counts[f];
+    }
+
+    int face_count = face_counts[face_id];
+    if (face_count < 3)
+        return;
+
+    // Get first 3 vertices of the face
+    int i0 = face_vertex_indices[face_start];
+    int i1 = face_vertex_indices[face_start + 1];
+    int i2 = face_vertex_indices[face_start + 2];
+
+    // Compute edges
+    float e1x = positions[i1 * 3] - positions[i0 * 3];
+    float e1y = positions[i1 * 3 + 1] - positions[i0 * 3 + 1];
+    float e1z = positions[i1 * 3 + 2] - positions[i0 * 3 + 2];
+
+    float e2x = positions[i2 * 3] - positions[i0 * 3];
+    float e2y = positions[i2 * 3 + 1] - positions[i0 * 3 + 1];
+    float e2z = positions[i2 * 3 + 2] - positions[i0 * 3 + 2];
+
+    // Compute cross product
+    float nx, ny, nz;
+    if (flip_normal) {
+        nx = e1y * e2z - e1z * e2y;
+        ny = e1z * e2x - e1x * e2z;
+        nz = e1x * e2y - e1y * e2x;
+    } else {
+        nx = e2y * e1z - e2z * e1y;
+        ny = e2z * e1x - e2x * e1z;
+        nz = e2x * e1y - e2y * e1x;
+    }
+
+    // Normalize
+    float length = sqrtf(nx * nx + ny * ny + nz * nz);
+    if (length > 1e-8f) {
+        nx /= length;
+        ny /= length;
+        nz /= length;
+    } else {
+        nx = 0.0f;
+        ny = 0.0f;
+        nz = 1.0f;
+    }
+
+    // Write normal for all vertices in this face
+    for (int v = 0; v < face_count; v++) {
+        int out_idx = (face_start + v) * 3;
+        normals[out_idx] = nx;
+        normals[out_idx + 1] = ny;
+        normals[out_idx + 2] = nz;
+    }
+}
+
+void compute_normals_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle face_vertex_indices,
+    cuda::CUDALinearBufferHandle face_counts,
+    bool flip_normal,
+    cuda::CUDALinearBufferHandle normals)
+{
+    int num_faces = face_counts->getDesc().element_count;
+
+    int block_size = 256;
+    int num_blocks = (num_faces + block_size - 1) / block_size;
+
+    compute_normals_kernel<<<num_blocks, block_size>>>(
+        positions->get_device_ptr<float>(),
+        face_vertex_indices->get_device_ptr<int>(),
+        face_counts->get_device_ptr<int>(),
+        num_faces,
+        flip_normal,
+        normals->get_device_ptr<float>());
+
+    cudaDeviceSynchronize();
+}
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

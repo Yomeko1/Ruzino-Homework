@@ -7,6 +7,7 @@
 #include "GCore/geom_payload.hpp"
 #include "RHI/internal/cuda_extension.hpp"
 #include "RZSolver/Solver.hpp"
+#include "glm/ext/vector_float3.hpp"
 #include "nodes/core/def/node_def.hpp"
 #include "rzsim_cuda/mass_spring_implicit.cuh"
 #include "spdlog/spdlog.h"
@@ -24,6 +25,11 @@ struct MassSpringImplicitGPUStorage {
     cuda::CUDALinearBufferHandle mass_matrix_buffer;
     cuda::CUDALinearBufferHandle gradients_buffer;
     cuda::CUDALinearBufferHandle f_ext_buffer;
+
+    // Mesh topology buffers (cached)
+    cuda::CUDALinearBufferHandle face_vertex_indices_buffer;
+    cuda::CUDALinearBufferHandle face_counts_buffer;
+    cuda::CUDALinearBufferHandle normals_buffer;
 
     // NEW: Pre-built CSR structure (built once, reused forever)
     rzsim_cuda::CSRStructure hessian_structure;
@@ -144,8 +150,15 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         std::vector<float> mass_diag(num_particles * 3, mass);
         storage.mass_matrix_buffer = cuda::create_cuda_linear_buffer(mass_diag);
 
-        auto face_indices = mesh_component->get_face_vertex_indices();
-        auto triangles = cuda::create_cuda_linear_buffer(face_indices);
+        // Cache face topology buffers
+        storage.face_vertex_indices_buffer =
+            cuda::create_cuda_linear_buffer(face_vertex_indices);
+        storage.face_counts_buffer =
+            cuda::create_cuda_linear_buffer(face_counts);
+        storage.normals_buffer = cuda::create_cuda_linear_buffer<glm::vec3>(
+            face_vertex_indices.size());
+
+        auto triangles = cuda::create_cuda_linear_buffer(face_vertex_indices);
 
         // Build adjacency list directly from triangles
         auto [adjacent_vertices, vertex_offsets, rest_lengths] =
@@ -417,47 +430,24 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
     }  // End substep loop
 
     // Update geometry with new positions
-    auto final_positions = d_positions->get_host_vector<glm::vec3>();
     if (mesh_component) {
+        auto final_positions = d_positions->get_host_vector<glm::vec3>();
         mesh_component->set_vertices(final_positions);
 
-        // Recalculate normals
-        std::vector<glm::vec3> normals;
-        normals.reserve(face_vertex_indices.size());
+        // Recalculate normals on GPU
+        rzsim_cuda::compute_normals_gpu(
+            storage.positions_buffer,
+            storage.face_vertex_indices_buffer,
+            storage.face_counts_buffer,
+            flip_normal,
+            storage.normals_buffer);
 
-        int idx = 0;
-        for (int face_count : face_counts) {
-            if (face_count >= 3) {
-                int i0 = face_vertex_indices[idx];
-                int i1 = face_vertex_indices[idx + 1];
-                int i2 = face_vertex_indices[idx + 2];
-
-                glm::vec3 edge1 = final_positions[i1] - final_positions[i0];
-                glm::vec3 edge2 = final_positions[i2] - final_positions[i0];
-                glm::vec3 normal = glm::cross(
-                    flip_normal ? edge1 : edge2, flip_normal ? edge2 : edge1);
-
-                float length = glm::length(normal);
-                if (length > 1e-8f) {
-                    normal = normal / length;
-                }
-                else {
-                    normal = glm::vec3(0.0f, 0.0f, 1.0f);
-                }
-
-                for (int i = 0; i < face_count; ++i) {
-                    normals.push_back(normal);
-                }
-            }
-            idx += face_count;
-        }
-
-        if (!normals.empty()) {
-            mesh_component->set_normals(normals);
-        }
+        auto normals = storage.normals_buffer->get_host_vector<glm::vec3>();
+        mesh_component->set_normals(normals);
     }
     else {
         auto points_component = input_geom.get_component<PointsComponent>();
+        auto final_positions = d_positions->get_host_vector<glm::vec3>();
         points_component->set_vertices(final_positions);
     }
 

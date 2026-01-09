@@ -141,6 +141,14 @@ void project_to_ground_gpu(
     int num_particles,
     float ground_height);
 
+RZSIM_CUDA_API
+void compute_normals_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle face_vertex_indices,
+    cuda::CUDALinearBufferHandle face_counts,
+    bool flip_normal,
+    cuda::CUDALinearBufferHandle normals);
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
