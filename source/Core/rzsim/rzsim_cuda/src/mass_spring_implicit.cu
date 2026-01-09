@@ -3,14 +3,12 @@
 #include <thrust/device_vector.h>
 #include <thrust/inner_product.h>
 #include <thrust/reduce.h>
-#include <thrust/remove.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 #include <thrust/transform_reduce.h>
 #include <thrust/unique.h>
 
 #include <Eigen/Dense>
-#include <Eigen/Eigenvalues>
 #include <RHI/cuda.hpp>
 #include <cstddef>
 

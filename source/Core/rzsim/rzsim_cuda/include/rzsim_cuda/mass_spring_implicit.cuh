@@ -9,15 +9,6 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 
 namespace rzsim_cuda {
 
-struct CSRMatrix {
-    cuda::CUDALinearBufferHandle row_offsets;
-    cuda::CUDALinearBufferHandle col_indices;
-    cuda::CUDALinearBufferHandle values;
-    int num_rows;
-    int num_cols;
-    int nnz;
-};
-
 // Pre-built CSR structure with position mapping for fast value updates
 struct CSRStructure {
     cuda::CUDALinearBufferHandle row_offsets;
