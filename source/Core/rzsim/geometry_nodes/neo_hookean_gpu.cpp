@@ -346,51 +346,49 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                     cudaGetErrorString(err_after));
                 break;
             }
-            //        if (err_after != cudaSuccess) {
-            //            spdlog::error(
-            //                "[NeoHookean] CUDA error AFTER gradient sync: {}",
-            //                cudaGetErrorString(err_after));
-            //            break;
-            //        }
-            //        spdlog::info("[NeoHookean] Gradient computed
-            //        successfully");
+            if (err_after != cudaSuccess) {
+                spdlog::error(
+                    "[NeoHookean] CUDA error AFTER gradient sync: {}",
+                    cudaGetErrorString(err_after));
+                break;
+            }
+            spdlog::info("[NeoHookean] Gradient computed successfully");
 
-            //        // Check gradient norm for convergence
-            //        spdlog::info("[NeoHookean] Computing gradient norm...");
-            //        cudaError_t err = cudaGetLastError();
-            //        if (err != cudaSuccess) {
-            //            spdlog::error(
-            //                "[NeoHookean] CUDA error before norm: {}",
-            //                cudaGetErrorString(err));
-            //        }
-            //        float grad_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
-            //            d_gradients, num_particles * 3);
-            //        err = cudaGetLastError();
-            //        if (err != cudaSuccess) {
-            //            spdlog::error(
-            //                "[NeoHookean] CUDA error after norm: {}",
-            //                cudaGetErrorString(err));
-            //        }
-            //        spdlog::info("[NeoHookean] Gradient norm: {}", grad_norm);
+            // Check gradient norm for convergence
+            spdlog::info("[NeoHookean] Computing gradient norm...");
+            cudaError_t err = cudaGetLastError();
+            if (err != cudaSuccess) {
+                spdlog::error(
+                    "[NeoHookean] CUDA error before norm: {}",
+                    cudaGetErrorString(err));
+            }
+            float grad_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
+                d_gradients, num_particles * 3);
+            err = cudaGetLastError();
+            if (err != cudaSuccess) {
+                spdlog::error(
+                    "[NeoHookean] CUDA error after norm: {}",
+                    cudaGetErrorString(err));
+            }
+            spdlog::info("[NeoHookean] Gradient norm: {}", grad_norm);
 
-            //        if (!std::isfinite(grad_norm)) {
-            //            spdlog::error(
-            //                "[NeoHookean] Gradient norm is not finite!
-            //                Simulation " "unstable.");
-            //            break;
-            //        }
+            if (!std::isfinite(grad_norm)) {
+                spdlog::error(
+                    "[NeoHookean] Gradient norm is not finite! Simulation "
+                    "unstable.");
+                break;
+            }
 
-            //        auto dof = num_particles * 3;
-            //        grad_norm = grad_norm / dof;
-            //        spdlog::info(
-            //            "[NeoHookean] Normalized gradient norm: {}",
-            //            grad_norm);
+            auto dof = num_particles * 3;
+            grad_norm = grad_norm / dof;
+            spdlog::info(
+                "[NeoHookean] Normalized gradient norm: {}", grad_norm);
 
-            //        if (iter > 0 && grad_norm < tolerance) {
-            //            spdlog::info("[NeoHookean] Converged!");
-            //            converged = true;
-            //            break;
-            //        }
+            if (iter > 0 && grad_norm < tolerance) {
+                spdlog::info("[NeoHookean] Converged!");
+                converged = true;
+                break;
+            }
 
             // Update Hessian values
             spdlog::info("[NeoHookean] Updating Hessian values...");
@@ -398,7 +396,10 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 storage.hessian_structure,
                 storage.x_new_buffer,
                 d_M_diag,
-                storage.tetrahedra_buffer,
+                storage.adjacency_buffer,
+                storage.offsets_buffer,
+                storage.element_to_vertex_buffer,
+                storage.element_to_local_face_buffer,
                 storage.Dm_inv_buffer,
                 storage.volumes_buffer,
                 mu,
@@ -409,49 +410,47 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 storage.hessian_values);
             spdlog::info("[NeoHookean] Hessian updated");
 
-            //        // Solve H * p = -grad using CUDA CG
-            //        float cg_tol = std::max(1e-9f, grad_norm * 1e-3f);
+            // Solve H * p = -grad using CUDA CG
+            float cg_tol = std::max(1e-9f, grad_norm * 1e-3f);
 
-            //        Ruzino::Solver::SolverConfig solver_config;
-            //        solver_config.tolerance = cg_tol;
-            //        solver_config.max_iterations = 1000;
-            //        solver_config.use_preconditioner = true;
-            //        solver_config.verbose = false;
+            Ruzino::Solver::SolverConfig solver_config;
+            solver_config.tolerance = cg_tol;
+            solver_config.max_iterations = 1000;
+            solver_config.use_preconditioner = true;
+            solver_config.verbose = true;
 
-            //        // Negate gradient for RHS
-            //        spdlog::info("[NeoHookean] Negating gradient...");
-            //        rzsim_cuda::negate_nh_gpu(
-            //            d_gradients, storage.neg_gradient_buffer,
-            //            num_particles * 3);
+            // Negate gradient for RHS
+            spdlog::info("[NeoHookean] Negating gradient...");
+            rzsim_cuda::negate_nh_gpu(
+                d_gradients, storage.neg_gradient_buffer, num_particles * 3);
 
-            //        // Solve on GPU
-            //        spdlog::info("[NeoHookean] Solving linear system with
-            //        CG..."); auto result = storage.solver->solveGPU(
-            //            storage.hessian_structure.num_rows,
-            //            storage.hessian_structure.nnz,
-            //            reinterpret_cast<const int*>(
-            //                storage.hessian_structure.row_offsets->get_device_ptr()),
-            //            reinterpret_cast<const int*>(
-            //                storage.hessian_structure.col_indices->get_device_ptr()),
-            //            reinterpret_cast<const float*>(
-            //                storage.hessian_values->get_device_ptr()),
-            //            reinterpret_cast<const float*>(
-            //                storage.neg_gradient_buffer->get_device_ptr()),
-            //            reinterpret_cast<float*>(
-            //                storage.newton_direction_buffer->get_device_ptr()),
-            //            solver_config);
+            // Solve on GPU
+            spdlog::info("[NeoHookean] Solving linear system with CG... ");
+            auto result = storage.solver->solveGPU(
+                storage.hessian_structure.num_rows,
+                storage.hessian_structure.nnz,
+                reinterpret_cast<const int*>(
+                    storage.hessian_structure.row_offsets->get_device_ptr()),
+                reinterpret_cast<const int*>(
+                    storage.hessian_structure.col_indices->get_device_ptr()),
+                reinterpret_cast<const float*>(
+                    storage.hessian_values->get_device_ptr()),
+                reinterpret_cast<const float*>(
+                    storage.neg_gradient_buffer->get_device_ptr()),
+                reinterpret_cast<float*>(
+                    storage.newton_direction_buffer->get_device_ptr()),
+                solver_config);
 
-            //        if (!result.converged) {
-            //            spdlog::warn(
-            //                "[NeoHookean] CG solver did not converge in
-            //                iteration
-            //                {}", iter);
-            //        }
-            //        else {
-            //            spdlog::info(
-            //                "[NeoHookean] CG solver converged in {}
-            //                iterations", result.iterations);
-            //        }
+            if (!result.converged) {
+                spdlog::warn(
+                    "[NeoHookean] CG solver did not converge in iteration {}",
+                    iter);
+            }
+            else {
+                spdlog::info(
+                    "[NeoHookean] CG solver converged in {} iterations",
+                    result.iterations);
+            }
 
             //        // Line search with energy descent
             //        spdlog::info("[NeoHookean] Starting line search...");
