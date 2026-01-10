@@ -358,7 +358,8 @@ __global__ void accumulate_elastic_forces_kernel(
         return;
     }
 
-    // Compute gradient using raw float arrays (Eigen version causes device errors)
+    // Compute gradient using raw float arrays (Eigen version causes device
+    // errors)
     float grad_local[12] = { 0 };
     add_element_gradient(
         x_curr, tet, Dm_inv_local, volume, mu, lambda, grad_local);
@@ -719,6 +720,27 @@ NeoHookeanCSRStructure build_hessian_structure_nh_gpu(
     int nnz = new_end - zip_begin;
     cudaDeviceSynchronize();
 
+    // Debug: print first few (row, col) pairs after deduplication
+    std::vector<int> debug_rows(std::min(20, nnz));
+    std::vector<int> debug_cols(std::min(20, nnz));
+    cudaMemcpy(
+        debug_rows.data(),
+        rows,
+        debug_rows.size() * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    cudaMemcpy(
+        debug_cols.data(),
+        cols,
+        debug_cols.size() * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    fprintf(
+        stderr,
+        "[NeoHookean CSR] After deduplication, nnz=%d, first 20 entries:\n",
+        nnz);
+    for (size_t i = 0; i < debug_rows.size(); i++) {
+        fprintf(stderr, "  [%zu] (%d, %d)\n", i, debug_rows[i], debug_cols[i]);
+    }
+
     // Allocate CSR arrays
     structure.col_indices = cuda::create_cuda_linear_buffer<int>(nnz);
     structure.row_offsets = cuda::create_cuda_linear_buffer<int>(n + 1);
@@ -726,24 +748,72 @@ NeoHookeanCSRStructure build_hessian_structure_nh_gpu(
     structure.element_value_positions =
         cuda::create_cuda_linear_buffer<int>(num_elements * 144);
 
+    // Copy deduplicated rows and cols to permanent storage
+    auto d_unique_rows = cuda::create_cuda_linear_buffer<int>(nnz);
+    cudaMemcpy(
+        d_unique_rows->get_device_ptr<int>(),
+        rows,
+        nnz * sizeof(int),
+        cudaMemcpyDeviceToDevice);
+
     cudaMemcpy(
         structure.col_indices->get_device_ptr<int>(),
         cols,
         nnz * sizeof(int),
         cudaMemcpyDeviceToDevice);
 
-    // Build row_offsets
+    // Build row_offsets using the deduplicated rows
     thrust::device_ptr<int> row_offsets_ptr(
         structure.row_offsets->get_device_ptr<int>());
     thrust::fill(thrust::device, row_offsets_ptr, row_offsets_ptr + n + 1, 0);
+    cudaDeviceSynchronize();
 
     int* row_offsets_raw = structure.row_offsets->get_device_ptr<int>();
+    int* unique_rows_ptr = d_unique_rows->get_device_ptr<int>();
+
+    // Debug: check row_offsets after fill
+    std::vector<int> debug_after_fill(n + 1);
+    cudaMemcpy(
+        debug_after_fill.data(),
+        row_offsets_raw,
+        (n + 1) * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    fprintf(
+        stderr,
+        "[DEBUG] After fill, row_offsets[0]=%d, row_offsets[1]=%d\n",
+        debug_after_fill[0],
+        debug_after_fill[1]);
+
+    thrust::device_ptr<int> unique_rows_tptr(unique_rows_ptr);
+    fprintf(
+        stderr, "[DEBUG] About to call thrust::for_each with nnz=%d\n", nnz);
+
     thrust::for_each(
-        thrust::device, rows_ptr, rows_ptr + nnz, [=] __device__(int row) {
-            atomicAdd(&row_offsets_raw[row + 1], 1);
-        });
+        thrust::device,
+        unique_rows_tptr,
+        unique_rows_tptr + nnz,
+        [=] __device__(int row) { atomicAdd(&row_offsets_raw[row], 1); });
 
     cudaDeviceSynchronize();
+
+    // Debug: check row_offsets after for_each
+    std::vector<int> debug_after_foreach(n + 1);
+    cudaMemcpy(
+        debug_after_foreach.data(),
+        row_offsets_raw,
+        (n + 1) * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    fprintf(
+        stderr,
+        "[DEBUG] After for_each, row_offsets[0]=%d, row_offsets[1]=%d, "
+        "row_offsets[2]=%d\n",
+        debug_after_foreach[0],
+        debug_after_foreach[1],
+        debug_after_foreach[2]);
+    fprintf(stderr, "[DEBUG] Full row_offsets before scan:\n");
+    for (int i = 0; i <= n; i++) {
+        fprintf(stderr, "  before_scan[%d] = %d\n", i, debug_after_foreach[i]);
+    }
 
     thrust::exclusive_scan(
         thrust::device,
@@ -752,9 +822,59 @@ NeoHookeanCSRStructure build_hessian_structure_nh_gpu(
         row_offsets_ptr);
     cudaDeviceSynchronize();
 
+    // Debug: check row_offsets after scan
+    std::vector<int> debug_after_scan(n + 1);
+    cudaMemcpy(
+        debug_after_scan.data(),
+        row_offsets_raw,
+        (n + 1) * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    fprintf(stderr, "[DEBUG] Full row_offsets after scan:\n");
+    for (int i = 0; i <= n; i++) {
+        fprintf(stderr, "  after_scan[%d] = %d\n", i, debug_after_scan[i]);
+    }
+
+    // Debug: print first 30 (row,col) pairs from d_unique_rows after unique
+    fprintf(
+        stderr,
+        "\n[DEBUG] First 30 (row,col) pairs from d_unique_rows (nnz=%d):\n",
+        (int)nnz);
+    std::vector<int> debug_rows2(std::min(30, (int)nnz));
+    std::vector<int> debug_cols2(std::min(30, (int)nnz));
+    cudaMemcpy(
+        debug_rows2.data(),
+        unique_rows_ptr,
+        std::min(30, (int)nnz) * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    cudaMemcpy(
+        debug_cols2.data(),
+        structure.col_indices->get_device_ptr<int>(),
+        std::min(30, (int)nnz) * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    for (int i = 0; i < std::min(30, (int)nnz); i++) {
+        fprintf(
+            stderr,
+            "  Entry %d: row=%d, col=%d\n",
+            i,
+            debug_rows2[i],
+            debug_cols2[i]);
+    }
+
+    // Debug: print row_offsets
+    std::vector<int> debug_row_offsets(n + 1);
+    cudaMemcpy(
+        debug_row_offsets.data(),
+        row_offsets_raw,
+        (n + 1) * sizeof(int),
+        cudaMemcpyDeviceToHost);
+    fprintf(stderr, "\n[NeoHookean CSR] row_offsets (num_rows=%d):\n", n);
+    for (int i = 0; i <= n; i++) {
+        fprintf(stderr, "  row_offsets[%d] = %d\n", i, debug_row_offsets[i]);
+    }
+
     // Build mass diagonal positions
-    const int* unique_rows = rows;
-    const int* unique_cols = cols;
+    const int* unique_rows = d_unique_rows->get_device_ptr<int>();
+    const int* unique_cols = structure.col_indices->get_device_ptr<int>();
     int* mass_positions = structure.mass_value_positions->get_device_ptr<int>();
 
     cuda::GPUParallelFor("build_mass_positions_nh", n, [=] __device__(int dof) {

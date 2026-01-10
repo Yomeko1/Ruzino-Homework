@@ -304,13 +304,27 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
         // Newton's method iterations
         spdlog::info("[NeoHookean] Starting Newton iterations...");
         storage.x_new_buffer->copy_from_device(d_next_positions.Get());
+        
+        // Debug: print initial x_tilde
+        auto x_tilde_debug = d_next_positions->get_host_vector<float>();
+        spdlog::info("[NeoHookean] x_tilde (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+            x_tilde_debug[0], x_tilde_debug[1], x_tilde_debug[2],
+            x_tilde_debug[3], x_tilde_debug[4], x_tilde_debug[5]);
 
         bool converged = false;
+        float step_size = 0.01f;  // Gradient descent step size for first iteration
+        
         for (int iter = 0; iter < max_iterations; iter++) {
             spdlog::info(
                 "[NeoHookean] Newton iteration {}/{}",
                 iter + 1,
                 max_iterations);
+
+            // Debug: print current x_new at start of iteration
+            auto x_new_start = storage.x_new_buffer->get_host_vector<float>();
+            spdlog::info("[NeoHookean] x_new at start of iter {} (first 3): {:.6f} {:.6f} {:.6f}",
+                iter + 1,
+                x_new_start[0], x_new_start[1], x_new_start[2]);
 
             // Compute gradient at current x_new
             rzsim_cuda::compute_gradient_nh_gpu(
@@ -371,6 +385,12 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                     cudaGetErrorString(err));
             }
             spdlog::info("[NeoHookean] Gradient norm: {}", grad_norm);
+            
+            // Debug: print gradient values
+            auto grad_debug = d_gradients->get_host_vector<float>();
+            spdlog::info("[NeoHookean] Gradient (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+                grad_debug[0], grad_debug[1], grad_debug[2],
+                grad_debug[3], grad_debug[4], grad_debug[5]);
 
             if (!std::isfinite(grad_norm)) {
                 spdlog::error(
@@ -410,6 +430,8 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 storage.hessian_values);
             spdlog::info("[NeoHookean] Hessian updated");
 
+            // Debug hessian values
+
             // Solve H * p = -grad using CUDA CG
             float cg_tol = std::max(1e-9f, grad_norm * 1e-3f);
 
@@ -417,148 +439,300 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
             solver_config.tolerance = cg_tol;
             solver_config.max_iterations = 1000;
             solver_config.use_preconditioner = true;
-            solver_config.verbose = true;
+            solver_config.verbose =
+                false;  // Disable verbose to avoid performance issues
 
             // Negate gradient for RHS
             spdlog::info("[NeoHookean] Negating gradient...");
             rzsim_cuda::negate_nh_gpu(
                 d_gradients, storage.neg_gradient_buffer, num_particles * 3);
 
-            // Solve on GPU
-            spdlog::info("[NeoHookean] Solving linear system with CG... ");
-            auto result = storage.solver->solveGPU(
-                storage.hessian_structure.num_rows,
-                storage.hessian_structure.nnz,
-                reinterpret_cast<const int*>(
-                    storage.hessian_structure.row_offsets->get_device_ptr()),
-                reinterpret_cast<const int*>(
-                    storage.hessian_structure.col_indices->get_device_ptr()),
-                reinterpret_cast<const float*>(
-                    storage.hessian_values->get_device_ptr()),
-                reinterpret_cast<const float*>(
-                    storage.neg_gradient_buffer->get_device_ptr()),
-                reinterpret_cast<float*>(
-                    storage.newton_direction_buffer->get_device_ptr()),
-                solver_config);
-
-            if (!result.converged) {
-                spdlog::warn(
-                    "[NeoHookean] CG solver did not converge in iteration {}",
-                    iter);
+            // Check RHS norm
+            float rhs_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
+                storage.neg_gradient_buffer, num_particles * 3);
+            spdlog::info("[NeoHookean] RHS norm: {}", rhs_norm);
+            
+            // Debug: print RHS values
+            auto rhs_debug = storage.neg_gradient_buffer->get_host_vector<float>();
+            spdlog::info("[NeoHookean] RHS (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+                rhs_debug[0], rhs_debug[1], rhs_debug[2],
+                rhs_debug[3], rhs_debug[4], rhs_debug[5]);
+            
+            // Debug: print some Hessian structure info
+            spdlog::info("[NeoHookean] Hessian: num_rows={}, nnz={}",
+                storage.hessian_structure.num_rows, storage.hessian_structure.nnz);
+            auto hess_vals_debug = storage.hessian_values->get_host_vector<float>();
+            auto hess_row_offsets = storage.hessian_structure.row_offsets->get_host_vector<int>();
+            auto hess_col_indices = storage.hessian_structure.col_indices->get_host_vector<int>();
+            auto mass_positions_debug = storage.hessian_structure.mass_value_positions->get_host_vector<int>();
+            
+            // Print mass positions
+            spdlog::info("[NeoHookean] Mass diagonal positions:");
+            for (int i = 0; i < num_particles * 3; i++) {
+                spdlog::info("  mass_pos[{}] = {}", i, mass_positions_debug[i]);
             }
-            else {
-                spdlog::info(
-                    "[NeoHookean] CG solver converged in {} iterations",
-                    result.iterations);
+            
+            // Print diagonal values
+            spdlog::info("[NeoHookean] Hessian diagonal values:");
+            for (int i = 0; i < num_particles * 3; i++) {
+                int row_start = hess_row_offsets[i];
+                int row_end = hess_row_offsets[i + 1];
+                float diag_val = 0.0f;
+                bool found = false;
+                for (int j = row_start; j < row_end; j++) {
+                    if (hess_col_indices[j] == i) {
+                        diag_val = hess_vals_debug[j];
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    spdlog::warn("  H[{},{}] = NOT FOUND IN CSR! row_start={}, row_end={}", i, i, row_start, row_end);
+                } else {
+                    spdlog::info("  H[{},{}] = {:.6f}", i, i, diag_val);
+                }
+            }
+            
+            // Print first few rows
+            spdlog::info("[NeoHookean] First 3 rows of Hessian:");
+            for (int i = 0; i < std::min(3, num_particles * 3); i++) {
+                int row_start = hess_row_offsets[i];
+                int row_end = hess_row_offsets[i + 1];
+                std::stringstream ss;
+                ss << "  Row " << i << " [" << row_start << ":" << row_end << "]: ";
+                for (int j = row_start; j < row_end; j++) {
+                    ss << "(" << hess_col_indices[j] << ":" << hess_vals_debug[j] << ") ";
+                }
+                spdlog::info(ss.str());
             }
 
-            //        // Line search with energy descent
-            //        spdlog::info("[NeoHookean] Starting line search...");
-            //        float E_current = rzsim_cuda::compute_energy_nh_gpu(
-            //            storage.x_new_buffer,
-            //            d_next_positions,
-            //            d_M_diag,
-            //            d_f_ext,
-            //            storage.tetrahedra_buffer,
-            //            storage.Dm_inv_buffer,
-            //            storage.volumes_buffer,
-            //            mu,
-            //            lambda,
-            //            dt_sub,
-            //            num_particles,
-            //            storage.num_elements,
-            //            storage.inertial_terms_buffer,
-            //            storage.element_energies_buffer,
-            //            storage.potential_terms_buffer);
+            // For first iteration, use gradient descent instead of Newton
+            if (iter == 0) {
+                spdlog::info("[NeoHookean] Using gradient descent for first iteration");
+                // Copy -gradient as descent direction
+                storage.newton_direction_buffer->copy_from_device(
+                    storage.neg_gradient_buffer.Get());
+            } else {
+                // Zero out the solution buffer before solving
+                cudaMemset(
+                    reinterpret_cast<void*>(
+                        storage.newton_direction_buffer->get_device_ptr()),
+                    0,
+                    num_particles * 3 * sizeof(float));
 
-            //        float alpha = 1.0f;
-            //        int ls_iter = 0;
-            //        float E_candidate =
-            //        std::numeric_limits<float>::infinity();
+                // Solve on GPU
+                spdlog::info("[NeoHookean] Solving linear system with CG... ");
+                auto result = storage.solver->solveGPU(
+                    storage.hessian_structure.num_rows,
+                    storage.hessian_structure.nnz,
+                    reinterpret_cast<const int*>(
+                        storage.hessian_structure.row_offsets->get_device_ptr()),
+                    reinterpret_cast<const int*>(
+                        storage.hessian_structure.col_indices->get_device_ptr()),
+                    reinterpret_cast<const float*>(
+                        storage.hessian_values->get_device_ptr()),
+                    reinterpret_cast<const float*>(
+                        storage.neg_gradient_buffer->get_device_ptr()),
+                    reinterpret_cast<float*>(
+                        storage.newton_direction_buffer->get_device_ptr()),
+                    solver_config);
 
-            //        while (E_candidate > E_current && ls_iter < 50) {
-            //            // x_candidate = x_new + alpha * p
-            //            rzsim_cuda::axpy_nh_gpu(
-            //                alpha,
-            //                storage.newton_direction_buffer,
-            //                storage.x_new_buffer,
-            //                storage.x_candidate_buffer,
-            //                num_particles * 3);
+                if (!result.converged) {
+                    spdlog::warn(
+                        "[NeoHookean] CG solver did not converge in iteration {}",
+                        iter);
+                }
+                else {
+                    spdlog::info(
+                        "[NeoHookean] CG solver converged in {} iterations",
+                        result.iterations);
+                }
+            }
 
-            //            E_candidate = rzsim_cuda::compute_energy_nh_gpu(
-            //                storage.x_candidate_buffer,
-            //                d_next_positions,
-            //                d_M_diag,
-            //                d_f_ext,
-            //                storage.tetrahedra_buffer,
-            //                storage.Dm_inv_buffer,
-            //                storage.volumes_buffer,
-            //                mu,
-            //                lambda,
-            //                dt_sub,
-            //                num_particles,
-            //                storage.num_elements,
-            //                storage.inertial_terms_buffer,
-            //                storage.element_energies_buffer,
-            //                storage.potential_terms_buffer);
+            // Check solution norm
+            float sol_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
+                storage.newton_direction_buffer, num_particles * 3);
+            
+            // Scale down Newton direction for iter > 0 to avoid overshoot
+            if (iter > 0) {
+                float damp_factor = 0.1f;
+                rzsim_cuda::axpy_nh_gpu(
+                    damp_factor - 1.0f,  // This will do: result = -0.9 * newton_direction + newton_direction = 0.1 * newton_direction
+                    storage.newton_direction_buffer,
+                    storage.newton_direction_buffer,
+                    storage.newton_direction_buffer,
+                    num_particles * 3);
+                sol_norm *= damp_factor;
+            }
+            
+            spdlog::info("[NeoHookean] Solution norm (scaled): {}", sol_norm);
+            
+            // Debug: print solution values
+            auto sol_debug = storage.newton_direction_buffer->get_host_vector<float>();
+            spdlog::info("[NeoHookean] Solution (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+                sol_debug[0], sol_debug[1], sol_debug[2],
+                sol_debug[3], sol_debug[4], sol_debug[5]);
 
-            //            if (E_candidate <= E_current) {
-            //                storage.x_new_buffer->copy_from_device(
-            //                    storage.x_candidate_buffer.Get());
-            //                break;
-            //            }
+            // Line search with energy descent
+            // IMPORTANT: Do NOT update x_new before line search!
+            spdlog::info("[NeoHookean] Starting line search...");
+            float E_current = rzsim_cuda::compute_energy_nh_gpu(
+                storage.x_new_buffer,
+                d_next_positions,
+                d_M_diag,
+                d_f_ext,
+                storage.adjacency_buffer,
+                storage.offsets_buffer,
+                storage.element_to_vertex_buffer,
+                storage.element_to_local_face_buffer,
+                storage.Dm_inv_buffer,
+                storage.volumes_buffer,
+                mu,
+                lambda,
+                dt_sub,
+                num_particles,
+                storage.num_elements,
+                storage.inertial_terms_buffer,
+                storage.element_energies_buffer,
+                storage.potential_terms_buffer);
+            
+            spdlog::info("[NeoHookean] Current energy: {:.6f}", E_current);
 
-            //            alpha *= 0.5f;
-            //            ls_iter++;
-            //        }
+            int ls_iter = 0;
+            float E_candidate = std::numeric_limits<float>::infinity();
+            // Start with very small step size since Newton direction seems poorly scaled
+            float alpha = 1e-5f;  // Start very small and work upward if possible
 
-            //        if (alpha < 1e-4f) {
-            //            spdlog::warn("Line search failed, alpha too small");
-            //            break;
-            //        }
+            // Debug: check if solution direction p is descent direction
+            // Compute <-grad, p> = <neg_gradient, solution>
+            float neg_grad_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
+                storage.neg_gradient_buffer, num_particles * 3);
+            spdlog::info("[NeoHookean] Neg gradient norm: {}", neg_grad_norm);
+            
+            // Also check the dot product manually by reading data
+            auto neg_grad_host = storage.neg_gradient_buffer->get_host_vector<float>();
+            auto sol_host = storage.newton_direction_buffer->get_host_vector<float>();
+            float dot_product = 0.0f;
+            for (int i = 0; i < std::min(num_particles * 3, 36); i++) {
+                dot_product += neg_grad_host[i] * sol_host[i];
+            }
+            spdlog::info("[NeoHookean] Dot product <-grad, p> (first 36 dof): {:.6f}", dot_product);
+            
+            // Also print gradient
+            auto grad_debug2 = d_gradients->get_host_vector<float>();
+            spdlog::info("[NeoHookean] Gradient (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+                grad_debug2[0], grad_debug2[1], grad_debug2[2],
+                grad_debug2[3], grad_debug2[4], grad_debug2[5]);
+            
+            spdlog::info("[NeoHookean] -Gradient (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+                neg_grad_host[0], neg_grad_host[1], neg_grad_host[2],
+                neg_grad_host[3], neg_grad_host[4], neg_grad_host[5]);
+            
+            // Solution p should satisfy H*p = -grad (or close to it)
+            auto sol_debug2 = storage.newton_direction_buffer->get_host_vector<float>();
+            spdlog::info("[NeoHookean] Solution p (first 6 values): {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}",
+                sol_debug2[0], sol_debug2[1], sol_debug2[2],
+                sol_debug2[3], sol_debug2[4], sol_debug2[5]);
+
+            spdlog::info("[NeoHookean] Line search: initial alpha={}, E_current={:.6f}", alpha, E_current);
+
+            while (E_candidate > E_current + 1e-7f && ls_iter < 200) {
+                // x_candidate = x_new + alpha * p
+                rzsim_cuda::axpy_nh_gpu(
+                    alpha,
+                    storage.newton_direction_buffer,
+                    storage.x_new_buffer,
+                    storage.x_candidate_buffer,
+                    num_particles * 3);
+
+                E_candidate = rzsim_cuda::compute_energy_nh_gpu(
+                    storage.x_candidate_buffer,
+                    d_next_positions,
+                    d_M_diag,
+                    d_f_ext,
+                    storage.adjacency_buffer,
+                    storage.offsets_buffer,
+                    storage.element_to_vertex_buffer,
+                    storage.element_to_local_face_buffer,
+                    storage.Dm_inv_buffer,
+                    storage.volumes_buffer,
+                    mu,
+                    lambda,
+                    dt_sub,
+                    num_particles,
+                    storage.num_elements,
+                    storage.inertial_terms_buffer,
+                    storage.element_energies_buffer,
+                    storage.potential_terms_buffer);
+
+                bool accept = E_candidate <= E_current + 1e-7f;
+                if (accept) {
+                    storage.x_new_buffer->copy_from_device(
+                        storage.x_candidate_buffer.Get());
+                    spdlog::info("[NeoHookean] Line search accepted at iter {}, alpha={:.2e}, E_candidate={:.8f}", ls_iter, alpha, E_candidate);
+                    break;
+                }
+
+                alpha *= 0.5f;
+                ls_iter++;
+            }
+
+            spdlog::info("[NeoHookean] Line search ended: ls_iter={}, alpha={:.2e}", ls_iter, alpha);
+            if (ls_iter >= 200 || alpha < 1e-6f) {
+                spdlog::warn("Line search failed: ls_iter={}, alpha={:.2e}", ls_iter, alpha);
+                // If line search fails completely, still take a tiny step to make progress
+                if (alpha < 1e-6f) {
+                    spdlog::info("[NeoHookean] Forcing update with alpha=1e-6");
+                    rzsim_cuda::axpy_nh_gpu(
+                        1e-6f,
+                        storage.newton_direction_buffer,
+                        storage.x_new_buffer,
+                        storage.x_candidate_buffer,
+                        num_particles * 3);
+                    storage.x_new_buffer->copy_from_device(
+                        storage.x_candidate_buffer.Get());
+                }
+            }
         }
 
-        //    // Update velocities: v = (x_new - x_n) / dt_sub and apply damping
-        //    spdlog::info("[NeoHookean] Updating velocities...");
-        //    auto x_new_final = storage.x_new_buffer->get_host_vector<float>();
-        //    auto x_n_host = d_positions->get_host_vector<glm::vec3>();
-        //    std::vector<glm::vec3> v_new(num_particles);
-        //    for (int i = 0; i < num_particles; i++) {
-        //        v_new[i].x =
-        //            (x_new_final[i * 3 + 0] - x_n_host[i].x) / dt_sub *
-        //            damping;
-        //        v_new[i].y =
-        //            (x_new_final[i * 3 + 1] - x_n_host[i].y) / dt_sub *
-        //            damping;
-        //        v_new[i].z =
-        //            (x_new_final[i * 3 + 2] - x_n_host[i].z) / dt_sub *
-        //            damping;
-        //    }
+        // Update velocities: v = (x_new - x_n) / dt_sub and apply damping
+        spdlog::info("[NeoHookean] Updating velocities...");
+        auto x_new_final = storage.x_new_buffer->get_host_vector<float>();
+        auto x_n_host = d_positions->get_host_vector<glm::vec3>();
+        std::vector<glm::vec3> v_new(num_particles);
+        for (int i = 0; i < num_particles; i++) {
+            v_new[i].x =
+                (x_new_final[i * 3 + 0] - x_n_host[i].x) / dt_sub * damping;
+            v_new[i].y =
+                (x_new_final[i * 3 + 1] - x_n_host[i].y) / dt_sub * damping;
+            v_new[i].z =
+                (x_new_final[i * 3 + 2] - x_n_host[i].z) / dt_sub * damping;
+        }
 
-        //    // Handle ground collision (z = 0)
-        //    for (int i = 0; i < num_particles; i++) {
-        //        float z_new = x_new_final[i * 3 + 2];
-        //        if (z_new < 0.0f) {
-        //            x_new_final[i * 3 + 2] = 0.0f;
+        // Handle ground collision (z = 0)
+        for (int i = 0; i < num_particles; i++) {
+            float z_new = x_new_final[i * 3 + 2];
+            if (z_new < 0.0f) {
+                x_new_final[i * 3 + 2] = 0.0f;
 
-        //            // Reflect velocity with restitution
-        //            if (v_new[i].z < 0.0f) {
-        //                v_new[i].z = -v_new[i].z * restitution;
-        //            }
-        //        }
-        //    }
+                // Reflect velocity with restitution
+                if (v_new[i].z < 0.0f) {
+                    v_new[i].z = -v_new[i].z * restitution;
+                }
+            }
+        }
 
-        //    // Convert to output format
-        //    std::vector<glm::vec3> new_positions(num_particles);
-        //    for (int i = 0; i < num_particles; i++) {
-        //        new_positions[i].x = x_new_final[i * 3 + 0];
-        //        new_positions[i].y = x_new_final[i * 3 + 1];
-        //        new_positions[i].z = x_new_final[i * 3 + 2];
-        //    }
+        // Convert to output format
+        std::vector<glm::vec3> new_positions(num_particles);
+        for (int i = 0; i < num_particles; i++) {
+            new_positions[i].x = x_new_final[i * 3 + 0];
+            new_positions[i].y = x_new_final[i * 3 + 1];
+            new_positions[i].z = x_new_final[i * 3 + 2];
+        }
 
-        //    d_velocities->assign_host_vector(v_new);
-        //    d_positions->assign_host_vector(new_positions);
-        //    spdlog::info("[NeoHookean] Substep {} completed", substep + 1);
+        d_velocities->assign_host_vector(v_new);
+        d_positions->assign_host_vector(new_positions);
+        spdlog::info("[NeoHookean] Substep {} completed", substep + 1);
     }
 
     // Update geometry with new positions
