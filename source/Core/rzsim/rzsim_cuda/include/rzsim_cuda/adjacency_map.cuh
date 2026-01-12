@@ -9,6 +9,49 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 
 namespace rzsim_cuda {
 
+class RZSIM_CUDA_API AdjacencyMap {
+   public:
+    AdjacencyMap(
+        const std::vector<int>& face_vertex_indices,
+        const std::vector<int>& face_counts);
+
+    // For each vertex, an easy way to get its adjacent faces
+    std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+    get_adjacent_faces() const;
+
+    cuda::CUDALinearBufferHandle element_to_vertex_buffer() const;
+    cuda::CUDALinearBufferHandle element_to_local_face_buffer() const;
+
+   private:
+    cuda::CUDALinearBufferHandle adjacency_list_;
+    cuda::CUDALinearBufferHandle offset_buffer_;
+
+    //...
+};
+
+// Volume mesh adjacency for FEM simulation
+class RZSIM_CUDA_API VolumeAdjacencyMap {
+   public:
+    VolumeAdjacencyMap(
+        cuda::CUDALinearBufferHandle positions,
+        const std::vector<int>& face_vertex_indices);
+
+    // Accessors for adjacency data
+    cuda::CUDALinearBufferHandle adjacency_buffer() const { return adjacency_list_; }
+    cuda::CUDALinearBufferHandle offsets_buffer() const { return offset_buffer_; }
+    cuda::CUDALinearBufferHandle element_to_vertex_buffer() const { return element_to_vertex_; }
+    cuda::CUDALinearBufferHandle element_to_local_face_buffer() const { return element_to_local_face_; }
+    
+    unsigned num_elements() const { return num_elements_; }
+
+   private:
+    cuda::CUDALinearBufferHandle adjacency_list_;
+    cuda::CUDALinearBufferHandle offset_buffer_;
+    cuda::CUDALinearBufferHandle element_to_vertex_;
+    cuda::CUDALinearBufferHandle element_to_local_face_;
+    unsigned num_elements_;
+};
+
 // Surface mesh (triangles): For each vertex, stores pairs of opposite edge
 // vertices For vertex v in triangle (v, a, b), stores pair (a, b) Format:
 // [count_v0, a1,b1, a2,b2, ... | count_v1, ... ]
@@ -32,7 +75,8 @@ RZSIM_CUDA_API
 std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, unsigned>
 compute_volume_adjacency_gpu(
     cuda::CUDALinearBufferHandle vertices,
-    cuda::CUDALinearBufferHandle triangles);  // triangle indices [v0,v1,v2, ...]
+    cuda::CUDALinearBufferHandle
+        triangles);  // triangle indices [v0,v1,v2, ...]
 
 // Build edge set from triangles
 // Returns: buffer of unique edges in format [v0, v1, v0, v1, ...]
@@ -50,10 +94,13 @@ cuda::CUDALinearBufferHandle compute_rest_lengths_gpu(
 
 // Build adjacency list from triangles for mass-spring simulation
 // Returns: (adjacent_vertices, vertex_offsets, rest_lengths)
-// Format: adjacent_vertices[vertex_offsets[v]..vertex_offsets[v+1]] = neighbors of vertex v
-// rest_lengths has the same length as adjacent_vertices
+// Format: adjacent_vertices[vertex_offsets[v]..vertex_offsets[v+1]] = neighbors
+// of vertex v rest_lengths has the same length as adjacent_vertices
 RZSIM_CUDA_API
-std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+std::tuple<
+    cuda::CUDALinearBufferHandle,
+    cuda::CUDALinearBufferHandle,
+    cuda::CUDALinearBufferHandle>
 build_adjacency_list_gpu(
     cuda::CUDALinearBufferHandle triangles,
     cuda::CUDALinearBufferHandle positions,

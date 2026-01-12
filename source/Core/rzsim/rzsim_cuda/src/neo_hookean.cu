@@ -12,6 +12,7 @@
 #include <RHI/cuda.hpp>
 
 #include "rzsim_cuda/neo_hookean.cuh"
+#include "rzsim_cuda/adjacency_map.cuh"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
@@ -80,10 +81,7 @@ __global__ void compute_lumped_mass_kernel(
 }
 
 void compute_lumped_mass_matrix_gpu(
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle volumes,
     float density,
     int num_particles,
@@ -100,10 +98,10 @@ void compute_lumped_mass_matrix_gpu(
     int num_blocks = (num_elements + block_size - 1) / block_size;
 
     compute_lumped_mass_kernel<<<num_blocks, block_size>>>(
-        adjacency->get_device_ptr<unsigned>(),
-        offsets->get_device_ptr<unsigned>(),
-        element_to_vertex->get_device_ptr<int>(),
-        element_to_local_face->get_device_ptr<int>(),
+        volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>(),
+        volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>(),
         volumes->get_device_ptr<float>(),
         density,
         num_elements,
@@ -154,10 +152,7 @@ __global__ void setup_external_forces_fem_kernel(
 }
 
 void setup_external_forces_fem_gpu(
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle volumes,
     float density,
     float gravity,
@@ -175,10 +170,10 @@ void setup_external_forces_fem_gpu(
     int num_blocks = (num_elements + block_size - 1) / block_size;
 
     setup_external_forces_fem_kernel<<<num_blocks, block_size>>>(
-        adjacency->get_device_ptr<unsigned>(),
-        offsets->get_device_ptr<unsigned>(),
-        element_to_vertex->get_device_ptr<int>(),
-        element_to_local_face->get_device_ptr<int>(),
+        volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>(),
+        volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>(),
         volumes->get_device_ptr<float>(),
         density,
         gravity,
@@ -505,10 +500,7 @@ void compute_gradient_nh_gpu(
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
     cuda::CUDALinearBufferHandle f_ext,
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
@@ -541,10 +533,10 @@ void compute_gradient_nh_gpu(
     // Second pass: elastic forces
     accumulate_elastic_forces_kernel<<<num_blocks_elements, block_size>>>(
         x_curr->get_device_ptr<float>(),
-        adjacency->get_device_ptr<unsigned>(),
-        offsets->get_device_ptr<unsigned>(),
-        element_to_vertex->get_device_ptr<int>(),
-        element_to_local_face->get_device_ptr<int>(),
+        volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>(),
+        volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>(),
         Dm_inv->get_device_ptr<float>(),
         volumes->get_device_ptr<float>(),
         mu,
@@ -761,20 +753,17 @@ __device__ int find_entry_position_nh(
 
 // Build CSR structure for Neo-Hookean Hessian
 NeoHookeanCSRStructure build_hessian_structure_nh_gpu(
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     int num_particles,
     int num_elements)
 {
     NeoHookeanCSRStructure structure;
     int n = num_particles * 3;
 
-    const unsigned* adj_ptr = adjacency->get_device_ptr<unsigned>();
-    const unsigned* off_ptr = offsets->get_device_ptr<unsigned>();
-    const int* elem_to_v_ptr = element_to_vertex->get_device_ptr<int>();
-    const int* elem_to_lf_ptr = element_to_local_face->get_device_ptr<int>();
+    const unsigned* adj_ptr = volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>();
+    const unsigned* off_ptr = volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>();
+    const int* elem_to_v_ptr = volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>();
+    const int* elem_to_lf_ptr = volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>();
 
     // Each tetrahedron contributes 12x12 = 144 entries
     // For symmetric matrix, we need both (i,j) and (j,i) if i != j
@@ -1014,10 +1003,7 @@ void update_hessian_values_nh_gpu(
     const NeoHookeanCSRStructure& csr_structure,
     cuda::CUDALinearBufferHandle x_curr,
     cuda::CUDALinearBufferHandle M_diag,
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
@@ -1056,10 +1042,10 @@ void update_hessian_values_nh_gpu(
 
     fill_hessian_values_nh_kernel<<<num_blocks, block_size>>>(
         x_curr->get_device_ptr<float>(),
-        adjacency->get_device_ptr<unsigned>(),
-        offsets->get_device_ptr<unsigned>(),
-        element_to_vertex->get_device_ptr<int>(),
-        element_to_local_face->get_device_ptr<int>(),
+        volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>(),
+        volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>(),
         Dm_inv->get_device_ptr<float>(),
         volumes->get_device_ptr<float>(),
         csr_structure.element_value_positions->get_device_ptr<int>(),
@@ -1119,10 +1105,7 @@ float compute_energy_nh_gpu(
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
     cuda::CUDALinearBufferHandle f_ext,
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
@@ -1164,10 +1147,10 @@ float compute_energy_nh_gpu(
 
     compute_element_energy_kernel<<<num_blocks, block_size>>>(
         x_ptr,
-        adjacency->get_device_ptr<unsigned>(),
-        offsets->get_device_ptr<unsigned>(),
-        element_to_vertex->get_device_ptr<int>(),
-        element_to_local_face->get_device_ptr<int>(),
+        volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>(),
+        volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>(),
         Dm_inv->get_device_ptr<float>(),
         volumes->get_device_ptr<float>(),
         mu,
@@ -1390,6 +1373,35 @@ compute_reference_data_gpu(
 
     return std::make_tuple(
         Dm_inv, volumes, element_to_vertex, element_to_local_face);
+}
+
+// Compute only Dm_inv and volumes (Neo-Hookean specific reference data)
+// Assumes element_to_vertex and element_to_local_face are already computed
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+compute_nh_reference_data_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    const VolumeAdjacencyMap& volume_adjacency,
+    int num_elements)
+{
+    auto Dm_inv = cuda::create_cuda_linear_buffer<float>(num_elements * 9);
+    auto volumes = cuda::create_cuda_linear_buffer<float>(num_elements);
+
+    int block_size = 256;
+    int num_blocks = (num_elements + block_size - 1) / block_size;
+
+    compute_Dm_inv_kernel<<<num_blocks, block_size>>>(
+        positions->get_device_ptr<float>(),
+        volume_adjacency.adjacency_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.offsets_buffer()->get_device_ptr<unsigned>(),
+        volume_adjacency.element_to_vertex_buffer()->get_device_ptr<int>(),
+        volume_adjacency.element_to_local_face_buffer()->get_device_ptr<int>(),
+        num_elements,
+        Dm_inv->get_device_ptr<float>(),
+        volumes->get_device_ptr<float>());
+
+    cudaDeviceSynchronize();
+
+    return std::make_tuple(Dm_inv, volumes);
 }
 
 // ============================================================================

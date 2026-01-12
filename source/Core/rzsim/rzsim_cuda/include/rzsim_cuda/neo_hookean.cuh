@@ -8,6 +8,9 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 
 namespace rzsim_cuda {
 
+// Forward declaration
+class VolumeAdjacencyMap;
+
 // CSR structure for sparse Hessian matrix (same as mass-spring)
 struct NeoHookeanCSRStructure {
     cuda::CUDALinearBufferHandle row_offsets;   // size: (n+1)
@@ -34,10 +37,7 @@ void explicit_step_nh_gpu(
 // Compute lumped mass matrix from density and element volumes
 RZSIM_CUDA_API
 void compute_lumped_mass_matrix_gpu(
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle volumes,
     float density,
     int num_particles,
@@ -47,10 +47,7 @@ void compute_lumped_mass_matrix_gpu(
 // Setup external forces using FEM integration
 RZSIM_CUDA_API
 void setup_external_forces_fem_gpu(
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle volumes,
     float density,
     float gravity,
@@ -73,10 +70,7 @@ void compute_gradient_nh_gpu(
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
     cuda::CUDALinearBufferHandle f_ext,
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,      // [9 * num_elements] inverse
                                               // reference shape matrices
     cuda::CUDALinearBufferHandle volumes,     // [num_elements] rest volumes
@@ -90,10 +84,7 @@ void compute_gradient_nh_gpu(
 // Build CSR sparsity pattern once during initialization
 RZSIM_CUDA_API
 NeoHookeanCSRStructure build_hessian_structure_nh_gpu(
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     int num_particles,
     int num_elements);
 
@@ -103,10 +94,7 @@ void update_hessian_values_nh_gpu(
     const NeoHookeanCSRStructure& csr_structure,
     cuda::CUDALinearBufferHandle x_curr,
     cuda::CUDALinearBufferHandle M_diag,
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
@@ -123,10 +111,7 @@ float compute_energy_nh_gpu(
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
     cuda::CUDALinearBufferHandle f_ext,
-    cuda::CUDALinearBufferHandle adjacency,
-    cuda::CUDALinearBufferHandle offsets,
-    cuda::CUDALinearBufferHandle element_to_vertex,
-    cuda::CUDALinearBufferHandle element_to_local_face,
+    const VolumeAdjacencyMap& volume_adjacency,
     cuda::CUDALinearBufferHandle Dm_inv,
     cuda::CUDALinearBufferHandle volumes,
     float mu,
@@ -140,6 +125,16 @@ float compute_energy_nh_gpu(
 
 // Compute reference shape matrices Dm and their inverses for all tetrahedra
 // Returns: (Dm_inv, volumes, element_to_vertex, element_to_local_face)
+// Compute Neo-Hookean reference data (Dm_inv and volumes)
+// Requires element_to_vertex and element_to_local_face from VolumeAdjacencyMap
+RZSIM_CUDA_API
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+compute_nh_reference_data_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    const VolumeAdjacencyMap& volume_adjacency,
+    int num_elements);
+
+// Legacy function - computes both topology and reference data
 RZSIM_CUDA_API
 std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
 compute_reference_data_gpu(

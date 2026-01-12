@@ -10,6 +10,7 @@
 #include <RHI/rhi.hpp>
 
 #include "rzsim_cuda/adjacency_map.cuh"
+#include "rzsim_cuda/neo_hookean.cuh"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
@@ -367,18 +368,18 @@ __device__ float compute_tet_signed_volume(
     unsigned c)
 {
     // Get vertex positions
-    float x0[3] = {
-        positions[v * 3 + 0], positions[v * 3 + 1], positions[v * 3 + 2]
-    };
-    float x1[3] = {
-        positions[a * 3 + 0], positions[a * 3 + 1], positions[a * 3 + 2]
-    };
-    float x2[3] = {
-        positions[b * 3 + 0], positions[b * 3 + 1], positions[b * 3 + 2]
-    };
-    float x3[3] = {
-        positions[c * 3 + 0], positions[c * 3 + 1], positions[c * 3 + 2]
-    };
+    float x0[3] = { positions[v * 3 + 0],
+                    positions[v * 3 + 1],
+                    positions[v * 3 + 2] };
+    float x1[3] = { positions[a * 3 + 0],
+                    positions[a * 3 + 1],
+                    positions[a * 3 + 2] };
+    float x2[3] = { positions[b * 3 + 0],
+                    positions[b * 3 + 1],
+                    positions[b * 3 + 2] };
+    float x3[3] = { positions[c * 3 + 0],
+                    positions[c * 3 + 1],
+                    positions[c * 3 + 2] };
 
     // Compute edge vectors from v
     float e1[3] = { x1[0] - x0[0], x1[1] - x0[1], x1[2] - x0[2] };
@@ -450,23 +451,56 @@ __global__ void fill_volume_adjacency_kernel(
     if (!contains_vertex(v0, v1, v2, v) &&
         forms_tetrahedron_fast(
             triangles_sorted, num_triangles, v, v0, v1, v2)) {
-        
         // Check orientation: compute signed volume of tet (v, v0, v1, v2)
         float signed_vol = compute_tet_signed_volume(positions, v, v0, v1, v2);
-        
+
         unsigned pos = atomicAdd(&write_positions[v], 3);
-        
+
         // Store vertices in order that gives positive volume
         if (signed_vol > 0.0f) {
             // Positive orientation: store as is
             adjacency_list[offsets[v] + 1 + pos + 0] = v0;
             adjacency_list[offsets[v] + 1 + pos + 1] = v1;
             adjacency_list[offsets[v] + 1 + pos + 2] = v2;
-        } else {
+        }
+        else {
             // Negative orientation: swap v1 and v2 to flip
             adjacency_list[offsets[v] + 1 + pos + 0] = v0;
             adjacency_list[offsets[v] + 1 + pos + 1] = v2;
             adjacency_list[offsets[v] + 1 + pos + 2] = v1;
+        }
+    }
+}
+
+// Kernel to build element mappings (apex vertex and local face index)
+__global__ void build_element_mappings_kernel(
+    const unsigned* adjacency_ptr,
+    const unsigned* offsets_ptr,
+    unsigned num_vertices,
+    int* elem_to_v_ptr,
+    int* elem_to_lf_ptr,
+    int* counter_ptr)
+{
+    unsigned v = blockIdx.x * blockDim.x + threadIdx.x;
+    if (v >= num_vertices)
+        return;
+
+    unsigned offset = offsets_ptr[v];
+    unsigned count = adjacency_ptr[offset];
+
+    for (unsigned local_idx = 0; local_idx < count; local_idx++) {
+        unsigned v0 = adjacency_ptr[offset + 1 + local_idx * 3 + 0];
+        unsigned v1 = adjacency_ptr[offset + 1 + local_idx * 3 + 1];
+        unsigned v2 = adjacency_ptr[offset + 1 + local_idx * 3 + 2];
+
+        // Check if v is the minimum among {v, v0, v1, v2}
+        bool is_min = (v < v0) && (v < v1) && (v < v2);
+
+        if (is_min) {
+            // This is the unique representative for this tetrahedron
+            int elem_idx = atomicAdd(counter_ptr, 1);
+            elem_to_v_ptr[elem_idx] = (int)v;
+            elem_to_lf_ptr[elem_idx] = (int)local_idx;
         }
     }
 }
@@ -615,16 +649,16 @@ compute_volume_adjacency_gpu(
         cudaMemcpyDeviceToDevice);
 
     // Calculate total number of tetrahedra
-    // Each tetrahedron has 4 vertices, and each vertex records one opposite face
-    // So total_face_counts = 4 * num_tetrahedra
-    // Therefore: num_tetrahedra = total_face_counts / 4
+    // Each tetrahedron has 4 vertices, and each vertex records one opposite
+    // face So total_face_counts = 4 * num_tetrahedra Therefore: num_tetrahedra
+    // = total_face_counts / 4
     unsigned total_face_counts = thrust::reduce(
         thrust::device,
         face_counts.begin(),
         face_counts.end(),
         0u,
         thrust::plus<unsigned>());
-    
+
     unsigned total_elements = total_face_counts / 4;
 
     return std::make_tuple(adjacency_buffer, offset_buffer, total_elements);
@@ -855,6 +889,63 @@ build_adjacency_list_gpu(
     cudaDeviceSynchronize();
 
     return { d_adjacent_vertices, d_offsets, d_rest_lengths };
+}
+
+// ============================================================================
+// VolumeAdjacencyMap Implementation
+// ============================================================================
+
+VolumeAdjacencyMap::VolumeAdjacencyMap(
+    cuda::CUDALinearBufferHandle positions,
+    const std::vector<int>& face_vertex_indices)
+{
+    // Convert face indices to CUDA buffer
+    auto face_indices_buffer =
+        cuda::create_cuda_linear_buffer(face_vertex_indices);
+
+    // Compute volume adjacency
+    std::tie(adjacency_list_, offset_buffer_, num_elements_) =
+        compute_volume_adjacency_gpu(positions, face_indices_buffer);
+
+    if (num_elements_ == 0) {
+        return;  // No tetrahedral elements found
+    }
+
+    // Build element topology mappings
+    element_to_vertex_ = cuda::create_cuda_linear_buffer<int>(num_elements_);
+    element_to_local_face_ =
+        cuda::create_cuda_linear_buffer<int>(num_elements_);
+
+    int* elem_to_v_ptr = element_to_vertex_->get_device_ptr<int>();
+    int* elem_to_lf_ptr = element_to_local_face_->get_device_ptr<int>();
+
+    const unsigned* adjacency_ptr = adjacency_list_->get_device_ptr<unsigned>();
+    const unsigned* offsets_ptr = offset_buffer_->get_device_ptr<unsigned>();
+
+    unsigned num_vertices = offset_buffer_->getDesc().element_count;
+
+    // Use atomic counter to assign global element indices
+    auto element_counter = cuda::create_cuda_linear_buffer<int>(1);
+    cudaMemset(
+        reinterpret_cast<void*>(element_counter->get_device_ptr()),
+        0,
+        sizeof(int));
+    int* counter_ptr = element_counter->get_device_ptr<int>();
+
+    // For each vertex, process its opposite faces and assign unique element IDs
+    // Only vertices where v < all face vertices create elements (deduplication)
+    int threads = 256;
+    int blocks = (num_vertices + threads - 1) / threads;
+
+    build_element_mappings_kernel<<<blocks, threads>>>(
+        adjacency_ptr,
+        offsets_ptr,
+        num_vertices,
+        elem_to_v_ptr,
+        elem_to_lf_ptr,
+        counter_ptr);
+
+    cudaDeviceSynchronize();
 }
 
 }  // namespace rzsim_cuda

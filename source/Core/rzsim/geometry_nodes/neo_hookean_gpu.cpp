@@ -20,10 +20,6 @@ NODE_DEF_OPEN_SCOPE
 struct NeoHookeanGPUStorage {
     cuda::CUDALinearBufferHandle positions_buffer;
     cuda::CUDALinearBufferHandle velocities_buffer;
-    cuda::CUDALinearBufferHandle Dm_inv_buffer;
-    cuda::CUDALinearBufferHandle volumes_buffer;
-    cuda::CUDALinearBufferHandle element_to_vertex_buffer;
-    cuda::CUDALinearBufferHandle element_to_local_face_buffer;
     cuda::CUDALinearBufferHandle next_positions_buffer;
     cuda::CUDALinearBufferHandle mass_matrix_buffer;
     cuda::CUDALinearBufferHandle gradients_buffer;
@@ -33,8 +29,13 @@ struct NeoHookeanGPUStorage {
     cuda::CUDALinearBufferHandle face_vertex_indices_buffer;
     cuda::CUDALinearBufferHandle face_counts_buffer;
     cuda::CUDALinearBufferHandle normals_buffer;
-    cuda::CUDALinearBufferHandle adjacency_buffer;
-    cuda::CUDALinearBufferHandle offsets_buffer;
+
+    // Volume adjacency map encapsulates all tetrahedral topology
+    std::unique_ptr<rzsim_cuda::VolumeAdjacencyMap> volume_adjacency;
+
+    // Neo-Hookean specific reference data
+    cuda::CUDALinearBufferHandle Dm_inv_buffer;
+    cuda::CUDALinearBufferHandle volumes_buffer;
 
     // Pre-built CSR structure (built once, reused forever)
     rzsim_cuda::NeoHookeanCSRStructure hessian_structure;
@@ -78,13 +79,11 @@ struct NeoHookeanGPUStorage {
         normals_buffer = cuda::create_cuda_linear_buffer<glm::vec3>(
             face_vertex_indices.size());
 
-        // Compute volume adjacency (tetrahedra reconstruction)
-        unsigned num_elements_gpu;
-        std::tie(adjacency_buffer, offsets_buffer, num_elements_gpu) =
-            rzsim_cuda::compute_volume_adjacency_gpu(
-                positions_buffer, face_vertex_indices_buffer);
+        // Build volume adjacency map (encapsulates all tetrahedral topology)
+        volume_adjacency = std::make_unique<rzsim_cuda::VolumeAdjacencyMap>(
+            positions_buffer, face_vertex_indices);
 
-        num_elements = num_elements_gpu;
+        num_elements = volume_adjacency->num_elements();
 
         if (num_elements == 0) {
             spdlog::error(
@@ -92,6 +91,13 @@ struct NeoHookeanGPUStorage {
                 "volumetric mesh.");
             return;
         }
+
+        // Compute Neo-Hookean specific reference data (Dm_inv and volumes)
+        auto [Dm_inv, volumes] = rzsim_cuda::compute_nh_reference_data_gpu(
+            positions_buffer, *volume_adjacency, num_elements);
+
+        Dm_inv_buffer = Dm_inv;
+        volumes_buffer = volumes;
 
         // Initialize velocities to zero
         std::vector<glm::vec3> initial_velocities(
@@ -110,27 +116,11 @@ struct NeoHookeanGPUStorage {
         mass_matrix_buffer =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
 
-        // Compute reference shape matrices and volumes
-        auto [Dm_inv, volumes, element_to_vertex, element_to_local_face] =
-            rzsim_cuda::compute_reference_data_gpu(
-                positions_buffer,
-                adjacency_buffer,
-                offsets_buffer,
-                num_elements);
-
-        Dm_inv_buffer = Dm_inv;
-        volumes_buffer = volumes;
-        element_to_vertex_buffer = element_to_vertex;
-        element_to_local_face_buffer = element_to_local_face;
-
         // Compute lumped mass matrix from density and element volumes
         // For each element: m_elem = density * volume
         // Distribute equally to 4 vertices: m_vertex += m_elem / 4
         rzsim_cuda::compute_lumped_mass_matrix_gpu(
-            adjacency_buffer,
-            offsets_buffer,
-            element_to_vertex_buffer,
-            element_to_local_face_buffer,
+            *volume_adjacency,
             volumes_buffer,
             density,
             num_particles,
@@ -139,12 +129,7 @@ struct NeoHookeanGPUStorage {
 
         // Build Hessian CSR structure
         hessian_structure = rzsim_cuda::build_hessian_structure_nh_gpu(
-            adjacency_buffer,
-            offsets_buffer,
-            element_to_vertex_buffer,
-            element_to_local_face_buffer,
-            num_particles,
-            num_elements);
+            *volume_adjacency, num_particles, num_elements);
 
         hessian_values =
             cuda::create_cuda_linear_buffer<float>(hessian_structure.nnz);
@@ -286,10 +271,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     for (int substep = 0; substep < substeps; ++substep) {
         // Setup external forces on GPU (using proper FEM integration)
         rzsim_cuda::setup_external_forces_fem_gpu(
-            storage.adjacency_buffer,
-            storage.offsets_buffer,
-            storage.element_to_vertex_buffer,
-            storage.element_to_local_face_buffer,
+            *storage.volume_adjacency,
             storage.volumes_buffer,
             density,
             gravity,
@@ -314,10 +296,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 d_next_positions,
                 d_M_diag,
                 d_f_ext,
-                storage.adjacency_buffer,
-                storage.offsets_buffer,
-                storage.element_to_vertex_buffer,
-                storage.element_to_local_face_buffer,
+                *storage.volume_adjacency,
                 storage.Dm_inv_buffer,
                 storage.volumes_buffer,
                 mu,
@@ -352,10 +331,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 storage.hessian_structure,
                 storage.x_new_buffer,
                 d_M_diag,
-                storage.adjacency_buffer,
-                storage.offsets_buffer,
-                storage.element_to_vertex_buffer,
-                storage.element_to_local_face_buffer,
+                *storage.volume_adjacency,
                 storage.Dm_inv_buffer,
                 storage.volumes_buffer,
                 mu,
@@ -415,10 +391,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 d_next_positions,
                 d_M_diag,
                 d_f_ext,
-                storage.adjacency_buffer,
-                storage.offsets_buffer,
-                storage.element_to_vertex_buffer,
-                storage.element_to_local_face_buffer,
+                *storage.volume_adjacency,
                 storage.Dm_inv_buffer,
                 storage.volumes_buffer,
                 mu,
@@ -448,10 +421,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                     d_next_positions,
                     d_M_diag,
                     d_f_ext,
-                    storage.adjacency_buffer,
-                    storage.offsets_buffer,
-                    storage.element_to_vertex_buffer,
-                    storage.element_to_local_face_buffer,
+                    *storage.volume_adjacency,
                     storage.Dm_inv_buffer,
                     storage.volumes_buffer,
                     mu,
@@ -510,10 +480,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
 
         // Handle ground collision on GPU
         rzsim_cuda::handle_ground_collision_nh_gpu(
-            storage.x_new_buffer,
-            d_velocities,
-            restitution,
-            num_particles);
+            storage.x_new_buffer, d_velocities, restitution, num_particles);
 
         // Copy final positions back to position buffer
         d_positions->copy_from_device(storage.x_new_buffer.Get());
