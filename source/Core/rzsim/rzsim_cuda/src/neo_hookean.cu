@@ -708,15 +708,16 @@ __device__ void compute_element_hessian(
             // alpha j beta} grad_Nb^j where C_{ijkl} = lambda * delta_ij *
             // delta_kl + mu * (delta_ik * delta_jl + delta_il * delta_jk)
             
-            // Correct formula for isotropic elasticity:
-            // K_ab = V * [lambda * (grad_Na ⊗ grad_Nb) + mu * (grad_Na ⊗ grad_Nb + grad_Nb ⊗ grad_Na)]
+            // Correct formula for isotropic linear elasticity:
+            // K_ab^(α,β) = V * [λ (∇N_a · ∇N_b) δ_αβ + μ (∇N_a^α ∇N_b^β + ∇N_a^β ∇N_b^α)]
+            // In matrix form: K_ab = V * [λ (∇N_a · ∇N_b) I + μ (∇N_a ⊗ ∇N_b + ∇N_b ⊗ ∇N_a)]
             float dot_product = grad_Na.dot(grad_Nb);
-            K_ab = volume * lambda * (grad_Na * grad_Nb.transpose());
+            K_ab = volume * lambda * dot_product * Eigen::Matrix3f::Identity();
             K_ab += volume * mu * (grad_Na * grad_Nb.transpose() + 
                                    grad_Nb * grad_Na.transpose());
 
-            // Project to PSD
-            K_ab = project_psd_nh(K_ab);
+            // Do NOT project individual blocks - this breaks symmetry
+            // PSD projection will be done on the full assembled matrix if needed
 
             // Fill into 12x12 matrix
             for (int alpha = 0; alpha < 3; alpha++) {

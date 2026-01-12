@@ -20,6 +20,11 @@ Run the following command in Ruzino/Binaries/Release:
 ```
 f = 2 means render 2 frames, which will trigger the soft body simulation in between.
 
+## Simulation
+```
+.\rz_simulate.exe -u ..\..\Assets\soft_body_neo.usdc -f 5 -v
+```
+
 Or
 ```
 .\Ruzino.exe somestage.usdc

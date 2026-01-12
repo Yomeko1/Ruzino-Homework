@@ -58,6 +58,10 @@ struct NeoHookeanGPUStorage {
     bool initialized = false;
     int num_particles = 0;
     int num_elements = 0;
+    
+    // For vertical motion validation
+    std::vector<glm::vec3> initial_positions;
+    int frame_count = 0;
 
     constexpr static bool has_storage = false;
 
@@ -168,6 +172,10 @@ struct NeoHookeanGPUStorage {
         solver = Ruzino::Solver::SolverFactory::create(
             Ruzino::Solver::SolverType::CUDA_CG);
 
+        // Store initial positions for validation
+        initial_positions = positions;
+        frame_count = 0;
+
         initialized = true;
     }
 };
@@ -219,7 +227,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     int substeps = params.get_input<int>("Substeps");
     int max_iterations = params.get_input<int>("Newton Iterations");
     float tolerance = params.get_input<float>("Newton Tolerance");
-    tolerance = std::max(tolerance, 1e-8f);
+    tolerance = std::max(tolerance, 1e-10f);  // Use very tight tolerance for symmetry
     float gravity = params.get_input<float>("Gravity");
     float restitution = params.get_input<float>("Ground Restitution");
     bool flip_normal = params.get_input<bool>("Flip Normal");
@@ -361,6 +369,19 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
             num_particles,
             storage.num_elements,
             d_f_ext);
+        
+        // Debug: Check external forces symmetry in first 3 frames/substep 0
+        if (storage.frame_count < 3 && substep == 0) {
+            auto f_ext_check = d_f_ext->get_host_vector<float>();
+            debug_log << "\n===== Frame " << storage.frame_count << " SUBSTEP 0: External Forces Check =====\n";
+            for (int i = 0; i < num_particles; i++) {
+                debug_log << "  f_ext[" << i << "] = [" 
+                         << f_ext_check[i*3+0] << ", "
+                         << f_ext_check[i*3+1] << ", "
+                         << f_ext_check[i*3+2] << "]\n";
+            }
+            debug_log.flush();
+        }
 
         // Compute x_tilde = x + dt_sub * v on GPU
         rzsim_cuda::explicit_step_nh_gpu(
@@ -396,8 +417,8 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
             float grad_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
                 d_gradients, num_particles * 3);
 
-            // Detailed logging for first substep and first few iterations
-            if (substep == 0 && iter < 3) {
+            // Detailed logging for first 3 frames, first substep, first few iterations
+            if (storage.frame_count < 3 && substep == 0 && iter < 3) {
                 auto grad_host = d_gradients->get_host_vector<float>();
                 auto x_curr_host = storage.x_new_buffer->get_host_vector<float>();
                 auto x_tilde_host = d_next_positions->get_host_vector<float>();
@@ -653,12 +674,12 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 "direction...");
 
             // Solve H * p = -grad using CUDA CG
-            // Use more relaxed tolerance since we're in an outer Newton loop
-            float cg_tol = std::max(1e-6f, grad_norm * 0.1f);
+            // Use tight tolerance for better symmetry preservation
+            float cg_tol = std::max(1e-8f, grad_norm * 0.01f);
 
             Ruzino::Solver::SolverConfig solver_config;
             solver_config.tolerance = cg_tol;
-            solver_config.max_iterations = 500;  // Increased from 1000
+            solver_config.max_iterations = 1000;  // Increased for tighter convergence
             solver_config.use_preconditioner = true;
             solver_config.verbose = false;
 
@@ -695,9 +716,46 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                     iter);
             }
 
-            // Log Newton direction
-            if (substep == 0 && iter < 3) {
+            // Log Newton direction for first 3 frames
+            if (storage.frame_count < 3 && substep == 0 && iter < 3) {
                 auto newton_dir_host = storage.newton_direction_buffer->get_host_vector<float>();
+                auto grad_check = d_gradients->get_host_vector<float>();
+                
+                debug_log << "\nIteration " << iter << " - Gradient (first frame only):\n";
+                for (int i = 0; i < num_particles; i++) {
+                    debug_log << "  grad[" << i << "] = [" 
+                             << grad_check[i*3+0] << ", "
+                             << grad_check[i*3+1] << ", "
+                             << grad_check[i*3+2] << "]\n";
+                }
+                
+                // Check Hessian diagonal symmetry
+                auto hess_diag = storage.hessian_values->get_host_vector<float>();
+                auto hess_offsets = storage.hessian_structure.row_offsets->get_host_vector<int>();
+                auto hess_cols = storage.hessian_structure.col_indices->get_host_vector<int>();
+                
+                debug_log << "\nHessian diagonal (should be symmetric for symmetric geometry):\n";
+                for (int i = 0; i < num_particles; i++) {
+                    int row_start = hess_offsets[i*3];
+                    int row_end = hess_offsets[i*3 + 1];
+                    float H_xx = 0, H_yy = 0, H_zz = 0;
+                    
+                    // Find diagonal entries
+                    for (int dof = 0; dof < 3; dof++) {
+                        row_start = hess_offsets[i*3 + dof];
+                        row_end = hess_offsets[i*3 + dof + 1];
+                        for (int j = row_start; j < row_end; j++) {
+                            if (hess_cols[j] == i*3 + dof) {
+                                if (dof == 0) H_xx = hess_diag[j];
+                                else if (dof == 1) H_yy = hess_diag[j];
+                                else H_zz = hess_diag[j];
+                                break;
+                            }
+                        }
+                    }
+                    debug_log << "  Vertex " << i << ": H_diag = [" << H_xx << ", " << H_yy << ", " << H_zz << "]\n";
+                }
+                
                 debug_log << "\nNewton direction (solution to H * d = -g):\n";
                 for (int i = 0; i < num_particles; i++) {
                     debug_log << "  Vertex " << i << ": d = [" 
@@ -897,8 +955,72 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     }
 
     // Update geometry with new positions
+    auto final_positions = d_positions->get_host_vector<glm::vec3>();
+    
+    // Validate vertical motion for first 10 frames
+    storage.frame_count++;
+    if (storage.frame_count <= 10) {
+        bool is_vertical = true;
+        float max_horizontal_displacement = 0.0f;
+        float max_vertical_displacement = 0.0f;
+        int worst_vertex = -1;
+        
+        for (int i = 0; i < num_particles; i++) {
+            glm::vec3 displacement = final_positions[i] - storage.initial_positions[i];
+            float horizontal_disp = std::sqrt(displacement.x * displacement.x + 
+                                             displacement.y * displacement.y);
+            float vertical_disp = std::abs(displacement.z);
+            
+            if (horizontal_disp > max_horizontal_displacement) {
+                max_horizontal_displacement = horizontal_disp;
+                max_vertical_displacement = vertical_disp;
+                worst_vertex = i;
+            }
+            
+            // Check both relative AND absolute criteria:
+            // 1. Horizontal displacement should be negligible compared to vertical (0.1%)
+            // 2. OR horizontal displacement should be absolutely tiny (< 1e-4 = 0.1mm for typical scale)
+            bool relative_ok = (vertical_disp < 1e-6f) || (horizontal_disp <= 0.001f * vertical_disp);
+            bool absolute_ok = (horizontal_disp < 1e-4f);
+            
+            if (!relative_ok && !absolute_ok) {
+                is_vertical = false;
+            }
+        }
+        
+        if (!is_vertical) {
+            spdlog::error(
+                "[NeoHookean] Frame {}: FAILED vertical motion test!",
+                storage.frame_count);
+            spdlog::error(
+                "  Worst vertex {}: horizontal = {:.6e}, vertical = {:.6e}, ratio = {:.2f}%",
+                worst_vertex,
+                max_horizontal_displacement,
+                max_vertical_displacement,
+                100.0f * max_horizontal_displacement / std::max(max_vertical_displacement, 1e-10f));
+            
+            // Log all vertex displacements for debugging
+            for (int i = 0; i < num_particles; i++) {
+                glm::vec3 displacement = final_positions[i] - storage.initial_positions[i];
+                spdlog::error(
+                    "  Vertex {}: initial=[{:.6f},{:.6f},{:.6f}], final=[{:.6f},{:.6f},{:.6f}], disp=[{:.6e},{:.6e},{:.6e}]",
+                    i,
+                    storage.initial_positions[i].x, storage.initial_positions[i].y, storage.initial_positions[i].z,
+                    final_positions[i].x, final_positions[i].y, final_positions[i].z,
+                    displacement.x, displacement.y, displacement.z);
+            }
+            
+            return false;  // Fail the node execution
+        }
+        else {
+            spdlog::info(
+                "[NeoHookean] Frame {}: Vertical motion OK - max horizontal/vertical ratio = {:.4f}%",
+                storage.frame_count,
+                100.0f * max_horizontal_displacement / std::max(max_vertical_displacement, 1e-10f));
+        }
+    }
+    
     if (mesh_component) {
-        auto final_positions = d_positions->get_host_vector<glm::vec3>();
         mesh_component->set_vertices(final_positions);
 
         // Note: For proper rendering, you'd want to recompute normals
@@ -907,7 +1029,6 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     }
     else {
         auto points_component = input_geom.get_component<PointsComponent>();
-        auto final_positions = d_positions->get_host_vector<glm::vec3>();
         points_component->set_vertices(final_positions);
     }
 
