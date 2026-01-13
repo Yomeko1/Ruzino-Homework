@@ -21,6 +21,7 @@ add_dependencies(Ruzino render_nodes)
 add_dependencies(Ruzino RZFemBemNodes)
 add_dependencies(Ruzino rzsim_geometry_nodes)
 target_link_libraries(Ruzino PUBLIC rzpython)
+target_link_libraries(rz_simulate PUBLIC rzpython)
 
 
 if(RUZINO_WITH_POLYSCOPE)

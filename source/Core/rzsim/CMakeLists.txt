@@ -17,6 +17,7 @@ add_subdirectory(nodes)
 add_subdirectory(renderer_nodes)
 add_subdirectory(geometry_nodes)
 
+target_link_libraries(bss_deducer PRIVATE  rzpython)
+
 # Tests
-add_executable(reduced_basis_simple tests/reduced_basis_simple.cpp)
-target_link_libraries(reduced_basis_simple PRIVATE rzsim geometry igl_core)
+target_link_libraries(reduced_basis_simple_test PRIVATE rzsim geometry igl_core)

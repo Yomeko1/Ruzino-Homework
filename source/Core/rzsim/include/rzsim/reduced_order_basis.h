@@ -12,6 +12,9 @@ RUZINO_NAMESPACE_OPEN_SCOPE
 class Geometry;
 
 struct RZSIM_API ReducedOrderedBasis {
+    // Default constructor
+    ReducedOrderedBasis() = default;
+    
     // dimension: 2 for surface mesh (triangles/quads), 3 for volume mesh (tetrahedra)
     // use_libigl: if true, use libigl's cotmatrix; otherwise use custom implementation
     ReducedOrderedBasis(const Geometry& g, int num_modes = 10, int dimension = 2, bool use_libigl = false);

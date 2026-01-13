@@ -21,6 +21,8 @@
 #include "pxr/base/tf/setenv.h"
 #include "pxr/usd/usd/stage.h"
 
+#include <rzpython/rzpython.hpp>
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -30,6 +32,7 @@ using namespace pxr;
 
 int main(int argc, char* argv[])
 {
+    python::initialize();
     // 禁止 abort 弹窗，改为直接退出
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
     // 或者设置错误模式，避免 Windows 弹窗
@@ -154,4 +157,6 @@ int main(int argc, char* argv[])
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
+
+    python::finalize();
 }
