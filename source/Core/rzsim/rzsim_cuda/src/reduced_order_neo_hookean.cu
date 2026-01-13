@@ -333,8 +333,59 @@ void compute_reduced_gradient_gpu(
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         printf(
-            "[ReducedOrder] CUDA error in compute_reduced_gradient_kernel: "
-            "%s\n",
+            "[ReducedOrder] CUDA error in compute_reduced_gradient_kernel: %s\n",
+            cudaGetErrorString(err));
+    }
+}
+
+// ============================================================================
+// Kernel: Map reduced velocities to full space (v_full = J * q_dot)
+// ============================================================================
+
+__global__ void map_reduced_velocities_kernel(
+    const float* __restrict__ jacobian,       // [num_particles * 3, num_basis * 12]
+    const float* __restrict__ q_dot,          // [num_basis * 12]
+    int num_particles,
+    int reduced_dof,
+    float* __restrict__ v_full)               // [num_particles * 3]
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int full_dof = num_particles * 3;
+    
+    if (idx >= full_dof) return;
+
+    float sum = 0.0f;
+    // v_full[idx] = J[idx, :] * q_dot = sum_j J[idx, j] * q_dot[j]
+    for (int j = 0; j < reduced_dof; ++j) {
+        sum += jacobian[idx * reduced_dof + j] * q_dot[j];
+    }
+
+    v_full[idx] = sum;
+}
+
+void map_reduced_velocities_to_full_gpu(
+    cuda::CUDALinearBufferHandle jacobian,
+    cuda::CUDALinearBufferHandle q_dot,
+    int num_particles,
+    int num_basis,
+    cuda::CUDALinearBufferHandle v_full)
+{
+    int reduced_dof = num_basis * 12;
+    int full_dof = num_particles * 3;
+    int block_size = 256;
+    int num_blocks = (full_dof + block_size - 1) / block_size;
+
+    map_reduced_velocities_kernel<<<num_blocks, block_size>>>(
+        reinterpret_cast<const float*>(jacobian->get_device_ptr()),
+        reinterpret_cast<const float*>(q_dot->get_device_ptr()),
+        num_particles,
+        reduced_dof,
+        reinterpret_cast<float*>(v_full->get_device_ptr()));
+
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf(
+            "[ReducedOrder] CUDA error in map_reduced_velocities_kernel: %s\n",
             cudaGetErrorString(err));
     }
 }

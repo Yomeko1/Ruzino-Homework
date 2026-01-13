@@ -727,11 +727,32 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
     rzsim_cuda::map_reduced_to_full_gpu(
         storage.q_reduced, storage.ro_data, d_positions);
 
+    // Project reduced velocities to full space before collision handling
+    // v_full = J * q_dot
+    rzsim_cuda::compute_jacobian_gpu(
+        storage.q_reduced,
+        storage.ro_data,
+        storage.jacobian);
+    
+    rzsim_cuda::map_reduced_velocities_to_full_gpu(
+        storage.jacobian,
+        storage.q_dot_reduced,
+        num_particles,
+        storage.num_basis,
+        storage.velocities_buffer);
+
     // Handle ground collision in full space
-    // Note: This breaks the reduced order model slightly, but is necessary for
-    // stability
     rzsim_cuda::handle_ground_collision_nh_gpu(
         d_positions, storage.velocities_buffer, restitution, num_particles);
+
+    // Project modified full-space velocities back to reduced space
+    // dq/dt = J^T * (dx/dt), assuming orthonormal basis (J^T * J ≈ I)
+    rzsim_cuda::compute_reduced_gradient_gpu(
+        storage.jacobian,
+        storage.velocities_buffer,
+        num_particles,
+        storage.num_basis,
+        storage.q_dot_reduced);
 
     // Get final center of mass
     auto final_positions = d_positions->get_host_vector<glm::vec3>();

@@ -62,6 +62,16 @@ void compute_reduced_gradient_gpu(
     int num_basis,
     cuda::CUDALinearBufferHandle grad_q);        // [num_basis * 12]
 
+// Map reduced velocities to full space: v_full = J * q_dot
+// This is the forward mapping for velocities (inverse of compute_reduced_gradient for velocities)
+RZSIM_CUDA_API
+void map_reduced_velocities_to_full_gpu(
+    cuda::CUDALinearBufferHandle jacobian,       // [num_particles * 3, num_basis * 12]
+    cuda::CUDALinearBufferHandle q_dot,          // [num_basis * 12]
+    int num_particles,
+    int num_basis,
+    cuda::CUDALinearBufferHandle v_full);        // [num_particles * 3]
+
 // Compute reduced Hessian: H_q = J^T * H_x * J
 // H_x is sparse CSR matrix [num_particles * 3, num_particles * 3]
 // Result is dense matrix [num_basis * 12, num_basis * 12]
