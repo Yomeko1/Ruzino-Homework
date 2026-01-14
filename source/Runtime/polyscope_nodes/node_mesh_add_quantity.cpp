@@ -72,68 +72,8 @@ NODE_EXECUTION_FUNCTION(mesh_add_face_scalar_quantity)
     return true;
 }
 
-NODE_DECLARATION_FUNCTION(mesh_add_vertex_color_quantity)
-{
-    b.add_input<Geometry>("Geometry");
-    b.add_input<pxr::VtArray<pxr::GfVec3f>>("Vertex color");
-    b.add_input<std::string>("Quantity name");
-
-    b.add_output<Geometry>("Geometry");
-}
-
-NODE_EXECUTION_FUNCTION(mesh_add_vertex_color_quantity)
-{
-    auto mesh = params.get_input<Geometry>("Geometry");
-    auto vertexColor =
-        params.get_input<pxr::VtArray<pxr::GfVec3f>>("Vertex color");
-    auto quantityName = params.get_input<std::string>("Quantity name");
-    quantityName = "vc_" + quantityName;
-
-    auto meshComponent = mesh.get_component<MeshComponent>();
-
-    if (!meshComponent) {
-        return false;
-    }
-
-    if (meshComponent->get_vertices().size() != vertexColor.size()) {
-        return false;
-    }
-
-    meshComponent->add_vertex_color_quantity(quantityName, vertexColor);
-    params.set_output("Geometry", std::move(mesh));
-    return true;
-}
-
-NODE_DECLARATION_FUNCTION(mesh_add_face_color_quantity)
-{
-    b.add_input<Geometry>("Geometry");
-    b.add_input<pxr::VtArray<pxr::GfVec3f>>("Face color");
-    b.add_input<std::string>("Quantity name");
-
-    b.add_output<Geometry>("Geometry");
-}
-
-NODE_EXECUTION_FUNCTION(mesh_add_face_color_quantity)
-{
-    auto mesh = params.get_input<Geometry>("Geometry");
-    auto faceColor = params.get_input<pxr::VtArray<pxr::GfVec3f>>("Face color");
-    auto quantityName = params.get_input<std::string>("Quantity name");
-    quantityName = "fc_" + quantityName;
-
-    auto meshComponent = mesh.get_component<MeshComponent>();
-
-    if (!meshComponent) {
-        return false;
-    }
-
-    if (meshComponent->get_face_vertex_counts().size() != faceColor.size()) {
-        return false;
-    }
-
-    meshComponent->add_face_color_quantity(quantityName, faceColor);
-    params.set_output("Geometry", std::move(mesh));
-    return true;
-}
+// Removed mesh_add_vertex_color_quantity and mesh_add_face_color_quantity nodes
+// as color quantities are no longer supported. Use display color instead.
 
 NODE_DECLARATION_FUNCTION(mesh_add_vertex_vector_quantity)
 {

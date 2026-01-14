@@ -98,7 +98,7 @@ struct ReducedNeoHookeanGPUStorage {
         }
 
         num_basis = reduced_basis->basis.size();
-        spdlog::info("[ReducedNeoHookean] Using {} basis modes", num_basis);
+        spdlog::debug("[ReducedNeoHookean] Using {} basis modes", num_basis);
 
         // Validate basis dimensions
         for (int i = 0; i < num_basis; ++i) {
@@ -222,7 +222,7 @@ struct ReducedNeoHookeanGPUStorage {
         solver = Ruzino::Solver::SolverFactory::create(
             Ruzino::Solver::SolverType::CUDA_CG);
 
-        spdlog::info(
+        spdlog::debug(
             "[ReducedNeoHookean] Initialized with {} particles, {} elements, "
             "{} basis modes, {} reduced DOF",
             num_particles,
@@ -344,7 +344,7 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
         }
 
         storage.q_reduced->assign_host_vector(q_host);
-        spdlog::info(
+        spdlog::debug(
             "[ReducedNeoHookean] Applied initial translation (0, 0, 0.02) "
             "to all bases");
     }
@@ -369,10 +369,10 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
     int max_newton_iterations = 0;
     int max_line_search_iterations = 0;
 
-    spdlog::info(
+    spdlog::debug(
         "[ReducedNeoHookean] Starting simulation with {} reduced DOF",
         storage.num_basis);
-    spdlog::info(
+    spdlog::debug(
         "[ReducedNeoHookean] dt={:.4f}, substeps={}, gravity={:.2f}",
         dt,
         substeps,
@@ -380,7 +380,7 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
 
     for (int substep = 0; substep < substeps; ++substep) {
         if (substep == 0) {
-            spdlog::info(
+            spdlog::debug(
                 "[ReducedNeoHookean] Substep {}/{}, dt_sub={:.4f}",
                 substep + 1,
                 substeps,
@@ -428,7 +428,7 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.inertial_terms_buffer,
                 storage.element_energies_buffer);
 
-            spdlog::info(
+            spdlog::debug(
                 "[ReducedNeoHookean] Initial energy before Newton: {:.6f}",
                 initial_energy);
         }
@@ -497,7 +497,7 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
 
             // Log first few iterations for debugging
             if (substep == 0 && iter < 3) {
-                spdlog::info(
+                spdlog::debug(
                     "[ReducedNeoHookean]   Newton iter {}: grad_norm={:.6e}",
                     iter,
                     grad_norm);
@@ -507,7 +507,7 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
             if (iter > 0 && grad_norm < tolerance) {
                 converged = true;
                 if (substep == 0) {
-                    spdlog::info(
+                    spdlog::debug(
                         "[ReducedNeoHookean]   Converged at iteration {} with "
                         "grad_norm={:.6e}",
                         iter,

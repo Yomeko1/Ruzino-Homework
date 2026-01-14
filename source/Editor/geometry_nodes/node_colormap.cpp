@@ -100,6 +100,10 @@ NODE_DECLARATION_FUNCTION(colormap)
 {
     b.add_input<Geometry>("Geometry");
     b.add_input<std::string>("Scalar Name").default_val("result");
+    b.add_input<int>("Attribute Domain")
+        .default_val(0)
+        .min(0)
+        .max(1);  // 0: vertex, 1: face
     b.add_input<int>("Colormap Type")
         .default_val(0)
         .min(0)
@@ -115,6 +119,7 @@ NODE_EXECUTION_FUNCTION(colormap)
     // 获取输入参数
     Geometry input_geometry = params.get_input<Geometry>("Geometry");
     std::string scalar_name = params.get_input<std::string>("Scalar Name");
+    int attribute_domain = params.get_input<int>("Attribute Domain");
     int colormap_type = params.get_input<int>("Colormap Type");
     bool auto_range = params.get_input<bool>("Auto Range");
     float min_value = params.get_input<float>("Min Value");
@@ -128,8 +133,14 @@ NODE_EXECUTION_FUNCTION(colormap)
     }
 
     // 获取标量数据
-    std::vector<float> scalar_data =
-        mesh_component->get_vertex_scalar_quantity(scalar_name);
+    std::vector<float> scalar_data;
+    if (attribute_domain == 0) {
+        scalar_data = mesh_component->get_vertex_scalar_quantity(scalar_name);
+    }
+    else {
+        scalar_data = mesh_component->get_face_scalar_quantity(scalar_name);
+    }
+
     if (scalar_data.empty()) {
         spdlog::error(
             "Scalar quantity '{}' not found in mesh component", scalar_name);
@@ -162,7 +173,7 @@ NODE_EXECUTION_FUNCTION(colormap)
 
     // 添加颜色量到网格
     mesh_component->set_display_color(colors);
-    mesh_component->set_normals({});  // 清除法线以使用顶点颜色显示
+    mesh_component->set_normals({});  // 清除法线以使用颜色显示
 
     // 输出结果
     params.set_output("Geometry", input_geometry);

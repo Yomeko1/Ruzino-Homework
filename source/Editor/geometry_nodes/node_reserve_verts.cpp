@@ -121,22 +121,6 @@ NODE_EXECUTION_FUNCTION(reserve_verts)
         }
     }
 
-    // 处理顶点颜色量
-    auto color_names = mesh_component->get_vertex_color_quantity_names();
-    for (const auto& name : color_names) {
-        std::vector<glm::vec3> old_data = mesh_component->get_vertex_color_quantity(name);
-        if (old_data.size() == vertices.size()) {
-            std::vector<glm::vec3> new_data;
-            new_data.reserve(new_vertices.size());
-            for (int i = 0; i < static_cast<int>(vertices.size()); ++i) {
-                if (mask[i] > 0.5f) {
-                    new_data.push_back(old_data[i]);
-                }
-            }
-            mesh_component->add_vertex_color_quantity(name, new_data);
-        }
-    }
-
     // 处理顶点向量量
     auto vector_names = mesh_component->get_vertex_vector_quantity_names();
     for (const auto& name : vector_names) {

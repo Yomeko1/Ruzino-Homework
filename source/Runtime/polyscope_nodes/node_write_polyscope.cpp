@@ -105,9 +105,6 @@ NODE_EXECUTION_FUNCTION(write_polyscope)
             mesh->get_vertex_scalar_quantity_names();
         auto face_scalar_quantity_names =
             mesh->get_face_scalar_quantity_names();
-        auto vertex_color_quantity_names =
-            mesh->get_vertex_color_quantity_names();
-        auto face_color_quantity_names = mesh->get_face_color_quantity_names();
         auto vertex_vector_quantity_names =
             mesh->get_vertex_vector_quantity_names();
         auto face_vector_quantity_names =
@@ -132,28 +129,6 @@ NODE_EXECUTION_FUNCTION(write_polyscope)
             try {
                 surface_mesh->addFaceScalarQuantity(
                     name, mesh->get_face_scalar_quantity(name));
-            }
-            catch (std::exception& e) {
-                std::cerr << e.what() << std::endl;
-                return false;
-            }
-        }
-
-        for (const auto& name : vertex_color_quantity_names) {
-            try {
-                surface_mesh->addVertexColorQuantity(
-                    name, mesh->get_vertex_color_quantity(name));
-            }
-            catch (std::exception& e) {
-                std::cerr << e.what() << std::endl;
-                return false;
-            }
-        }
-
-        for (const auto& name : face_color_quantity_names) {
-            try {
-                surface_mesh->addFaceColorQuantity(
-                    name, mesh->get_face_color_quantity(name));
             }
             catch (std::exception& e) {
                 std::cerr << e.what() << std::endl;
