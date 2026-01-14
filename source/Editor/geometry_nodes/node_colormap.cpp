@@ -5,6 +5,7 @@
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/GOP.h"
 #include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 
 using namespace Ruzino;
 
@@ -122,6 +123,7 @@ NODE_EXECUTION_FUNCTION(colormap)
     // 获取网格组件
     auto mesh_component = input_geometry.get_component<MeshComponent>();
     if (!mesh_component) {
+        spdlog::error("No mesh component found in geometry");
         return false;
     }
 
@@ -129,6 +131,8 @@ NODE_EXECUTION_FUNCTION(colormap)
     std::vector<float> scalar_data =
         mesh_component->get_vertex_scalar_quantity(scalar_name);
     if (scalar_data.empty()) {
+        spdlog::error(
+            "Scalar quantity '{}' not found in mesh component", scalar_name);
         return false;
     }
 
@@ -158,6 +162,7 @@ NODE_EXECUTION_FUNCTION(colormap)
 
     // 添加颜色量到网格
     mesh_component->set_display_color(colors);
+    mesh_component->set_normals({});  // 清除法线以使用顶点颜色显示
 
     // 输出结果
     params.set_output("Geometry", input_geometry);
