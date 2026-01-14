@@ -264,9 +264,6 @@ NODE_DECLARATION_FUNCTION(reduced_order_neo_hookean_gpu)
 
 NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
 {
-    std::cout << "\n===== ReducedNeoHookeanGPU node executing ====="
-              << std::endl;
-
     auto& global_payload = params.get_global_payload<GeomPayload&>();
     auto& storage = params.get_storage<ReducedNeoHookeanGPUStorage&>();
 
@@ -470,8 +467,9 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.num_elements,
                 d_gradients);
 
-            // Project negative gradient to reduced space: -grad_q = J^T * (-grad_x)
-            // Since we already have negative gradient, just use regular projection
+            // Project negative gradient to reduced space: -grad_q = J^T *
+            // (-grad_x) Since we already have negative gradient, just use
+            // regular projection
             rzsim_cuda::compute_reduced_gradient_gpu(
                 storage.jacobian,
                 d_gradients,
@@ -479,7 +477,8 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.num_basis,
                 storage.neg_gradient_reduced);
 
-            // Compute gradient norm in reduced space (norm of -g equals norm of g)
+            // Compute gradient norm in reduced space (norm of -g equals norm of
+            // g)
             int reduced_dof = storage.num_basis * 12;
             float grad_norm = rzsim_cuda::compute_vector_norm_nh_gpu(
                 storage.neg_gradient_reduced, reduced_dof);

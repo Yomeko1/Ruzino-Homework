@@ -10,15 +10,13 @@ import utils.Spectrum;
 [shader("callable")]
 void eval_custom_checkerboard_material(inout EvalCallableData data)
 {
-    // Create checkerboard pattern based on world position
+    // Create checkerboard pattern based on world position (x, y only)
     float3 pos = data.vertexInfo.posW;
-    float scale = 1;
+    float scale = 2;
     float3 scaledPos = pos * scale;
-    float checker = ((int(floor(scaledPos.x)) + int(floor(scaledPos.y)) +
-                      int(floor(scaledPos.z))) %
-                     2) == 0
-                        ? 1.0
-                        : 0.0;
+    float checker =
+        ((int(floor(scaledPos.x)) + int(floor(scaledPos.y))) % 2) == 0 ? 1.0
+                                                                       : 0.0;
 
     // Mix between two colors
     float3 color1 = float3(1.0, 1.0, 1.0);  // White
