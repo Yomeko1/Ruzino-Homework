@@ -1,8 +1,7 @@
 #include <GCore/Components/MeshComponent.h>
 #include <GCore/GOP.h>
-#include <GCore/util_openmesh_bind.h>
-#include <GCore/create_geom.h>
 #include <GCore/algorithms/tetgen_algorithm.h>
+#include <GCore/create_geom.h>
 #include <GCore/util_openmesh_bind.h>
 #include <gtest/gtest.h>
 #include <rzsim/rzsim.h>
@@ -17,10 +16,10 @@ namespace cuda {
 }  // namespace cuda
 }  // namespace Ruzino
 
+#include <algorithm>
 #include <iostream>
 #include <set>
 #include <tuple>
-#include <algorithm>
 
 using namespace Ruzino;
 
@@ -209,24 +208,29 @@ TEST(SurfaceAdjacency, TriangleFan)
 // Volume Mesh Tests (Tetrahedra)
 // ============================================================================
 
-// Check if two triangles are the same (allow any cyclic permutation, including reverse)
-// E.g., (1,2,3), (2,3,1), (3,1,2), (3,2,1), (2,1,3), (1,3,2) all represent the same triangle
+// Check if two triangles are the same (allow any cyclic permutation, including
+// reverse) E.g., (1,2,3), (2,3,1), (3,1,2), (3,2,1), (2,1,3), (1,3,2) all
+// represent the same triangle
 bool triangles_match_oriented(
-    unsigned a0, unsigned a1, unsigned a2,
-    unsigned b0, unsigned b1, unsigned b2)
+    unsigned a0,
+    unsigned a1,
+    unsigned a2,
+    unsigned b0,
+    unsigned b1,
+    unsigned b2)
 {
     // Check all cyclic permutations (CCW)
     if ((a0 == b0 && a1 == b1 && a2 == b2) ||
         (a0 == b1 && a1 == b2 && a2 == b0) ||
         (a0 == b2 && a1 == b0 && a2 == b1))
         return true;
-    
+
     // Check reverse cyclic permutations (CW)
     if ((a0 == b0 && a1 == b2 && a2 == b1) ||
         (a0 == b1 && a1 == b0 && a2 == b2) ||
         (a0 == b2 && a1 == b1 && a2 == b0))
         return true;
-    
+
     return false;
 }
 
@@ -264,13 +268,15 @@ void verify_volume_adjacency(
             auto [exp_a, exp_b, exp_c] = expected_triplet;
             for (const auto& actual_triplet : actual_triplets) {
                 auto [act_a, act_b, act_c] = actual_triplet;
-                if (triangles_match_oriented(exp_a, exp_b, exp_c, act_a, act_b, act_c)) {
+                if (triangles_match_oriented(
+                        exp_a, exp_b, exp_c, act_a, act_b, act_c)) {
                     found = true;
                     break;
                 }
             }
-            EXPECT_TRUE(found) << "Vertex " << v << " missing face triplet ("
-                               << exp_a << ", " << exp_b << ", " << exp_c << ")";
+            EXPECT_TRUE(found)
+                << "Vertex " << v << " missing face triplet (" << exp_a << ", "
+                << exp_b << ", " << exp_c << ")";
         }
     }
 }
@@ -301,7 +307,8 @@ TEST(VolumeAdjacency, SingleTetrahedron)
     meshComp->set_face_vertex_counts(faceVertexCounts);
     meshComp->set_face_vertex_indices(faceVertexIndices);
 
-    auto [adjacencyCPU, offsetCPU] = get_volume_adjacency(mesh);
+    auto [adjacencyCPU, offsetCPU, num_tets] = get_volume_adjacency(mesh);
+    EXPECT_EQ(num_tets, 1) << "Should detect exactly 1 tetrahedron";
 
     std::cout << "\n=== Single Tetrahedron Volume Adjacency ===\n";
     for (size_t i = 0; i < offsetCPU.size(); ++i) {
@@ -349,22 +356,37 @@ TEST(VolumeAdjacency, TwoTetrahedra)
     std::vector<int> faceVertexCounts = { 3, 3, 3, 3, 3, 3, 3 };
     std::vector<int> faceVertexIndices = {
         // Tet 1 faces
-        1, 2, 3,  // opposite to v0
-        0, 2, 3,  // opposite to v1
-        0, 1, 3,  // opposite to v2
+        1,
+        2,
+        3,  // opposite to v0
+        0,
+        2,
+        3,  // opposite to v1
+        0,
+        1,
+        3,  // opposite to v2
         // Tet 2 faces (excluding shared face)
-        1, 2, 4,  // opposite to v0
-        0, 2, 4,  // opposite to v1
-        0, 1, 4,  // opposite to v2
+        1,
+        2,
+        4,  // opposite to v0
+        0,
+        2,
+        4,  // opposite to v1
+        0,
+        1,
+        4,  // opposite to v2
         // Shared face
-        0, 1, 2   // opposite to v3 (in Tet1) and v4 (in Tet2)
+        0,
+        1,
+        2  // opposite to v3 (in Tet1) and v4 (in Tet2)
     };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
     meshComp->set_face_vertex_indices(faceVertexIndices);
 
-    auto [adjacencyCPU, offsetCPU] = get_volume_adjacency(mesh);
+    auto [adjacencyCPU, offsetCPU, num_tets] = get_volume_adjacency(mesh);
+    EXPECT_EQ(num_tets, 2) << "Should detect exactly 2 tetrahedra";
 
     std::cout << "\n=== Two Tetrahedra Volume Adjacency ===\n";
     for (size_t i = 0; i < offsetCPU.size(); ++i) {
@@ -401,26 +423,32 @@ TEST(VolumeAdjacency, TwoTetrahedra)
 // ============================================================================
 
 // Compare our adjacency results with OpenVolumeMesh
-void verify_against_openvolulemesh(const Geometry& mesh)
+void verify_against_openvolumemesh(const Geometry& mesh)
 {
     auto volumemesh = operand_to_openvolumemesh(const_cast<Geometry*>(&mesh));
-    auto [adjacencyCPU, offsetCPU] = get_volume_adjacency(mesh);
-    
+    auto [adjacencyCPU, offsetCPU, num_tets_gpu] = get_volume_adjacency(mesh);
+
     std::cout << "\n=== OpenVolumeMesh Validation ===\n";
     std::cout << "Vertices: " << volumemesh->n_vertices() << "\n";
-    std::cout << "Cells: " << volumemesh->n_cells() << "\n";
+    std::cout << "Cells (OVM): " << volumemesh->n_cells() << "\n";
+    std::cout << "Cells (GPU): " << num_tets_gpu << "\n";
     std::cout << "Faces: " << volumemesh->n_faces() << "\n";
-    
+
+    EXPECT_EQ(num_tets_gpu, volumemesh->n_cells())
+        << "GPU tetrahedra count should match OpenVolumeMesh cell count";
+
     // For each vertex, get opposite faces from OpenVolumeMesh
     // Note: We iterate through ALL cells and extract faces for each vertex
-    // rather than using vc_iter, since vc_iter may be incomplete when _topologyCheck=false
-    std::vector<std::vector<std::tuple<unsigned, unsigned, unsigned>>> ovm_opposite_by_vertex(
-        volumemesh->n_vertices());
-    
-    for (auto c_it = volumemesh->cells_begin(); c_it != volumemesh->cells_end(); ++c_it) {
+    // rather than using vc_iter, since vc_iter may be incomplete when
+    // _topologyCheck=false
+    std::vector<std::vector<std::tuple<unsigned, unsigned, unsigned>>>
+        ovm_opposite_by_vertex(volumemesh->n_vertices());
+
+    for (auto c_it = volumemesh->cells_begin(); c_it != volumemesh->cells_end();
+         ++c_it) {
         // Get all faces of this cell
         auto cell_faces = volumemesh->cell(*c_it).halffaces();
-        
+
         for (auto hf : cell_faces) {
             // Get vertices of this face in order
             std::vector<unsigned> face_v;
@@ -431,7 +459,7 @@ void verify_against_openvolulemesh(const Geometry& mesh)
                 face_v.push_back(from_v.idx());
                 he = volumemesh->next_halfedge_in_halfface(he, hf);
             } while (he != he_begin && face_v.size() < 10);
-            
+
             if (face_v.size() == 3) {
                 // This face is opposite to the 4th vertex of the cell
                 auto cv_it = volumemesh->cv_iter(*c_it);
@@ -439,52 +467,55 @@ void verify_against_openvolulemesh(const Geometry& mesh)
                 for (; cv_it.valid(); ++cv_it) {
                     cell_verts.insert((*cv_it).idx());
                 }
-                
+
                 // Find the vertex NOT in this face
                 for (unsigned v_idx : cell_verts) {
-                    if (std::find(face_v.begin(), face_v.end(), v_idx) == face_v.end()) {
+                    if (std::find(face_v.begin(), face_v.end(), v_idx) ==
+                        face_v.end()) {
                         // v_idx is the opposite vertex
                         if (v_idx < volumemesh->n_vertices()) {
                             ovm_opposite_by_vertex[v_idx].push_back(
-                                {face_v[0], face_v[1], face_v[2]});
+                                { face_v[0], face_v[1], face_v[2] });
                         }
                     }
                 }
             }
         }
     }
-    
+
     // Now compare OVM (extracted from full cell iteration) with GPU results
     int mismatch_count = 0;
     for (unsigned v_idx = 0; v_idx < volumemesh->n_vertices(); ++v_idx) {
         // Collect opposite faces from our implementation (with orientation)
-        std::vector<std::tuple<unsigned, unsigned, unsigned>> our_opposite_faces;
+        std::vector<std::tuple<unsigned, unsigned, unsigned>>
+            our_opposite_faces;
         unsigned offset = offsetCPU[v_idx];
         unsigned count = adjacencyCPU[offset];
-        
+
         for (unsigned i = 0; i < count; ++i) {
             unsigned a = adjacencyCPU[offset + 1 + i * 3];
             unsigned b = adjacencyCPU[offset + 1 + i * 3 + 1];
             unsigned c = adjacencyCPU[offset + 1 + i * 3 + 2];
-            our_opposite_faces.push_back({a, b, c});
+            our_opposite_faces.push_back({ a, b, c });
         }
-        
+
         const auto& ovm_opposite_faces = ovm_opposite_by_vertex[v_idx];
-        
+
         // Check if counts match
         if (ovm_opposite_faces.size() != our_opposite_faces.size()) {
-            std::cout << "V" << v_idx << ": OVM=" << ovm_opposite_faces.size() 
-                      << ", Ours=" << our_opposite_faces.size() << " ✗ COUNT MISMATCH!\n";
+            std::cout << "V" << v_idx << ": OVM=" << ovm_opposite_faces.size()
+                      << ", Ours=" << our_opposite_faces.size()
+                      << " ✗ COUNT MISMATCH!\n";
             mismatch_count++;
-            EXPECT_EQ(ovm_opposite_faces.size(), our_opposite_faces.size()) 
+            EXPECT_EQ(ovm_opposite_faces.size(), our_opposite_faces.size())
                 << "Vertex " << v_idx << " opposite face count mismatch";
             continue;
         }
-        
+
         // Check if all faces match with correct orientation
         bool all_match = true;
         std::vector<bool> ovm_matched(ovm_opposite_faces.size(), false);
-        
+
         for (const auto& [a, b, c] : our_opposite_faces) {
             bool found = false;
             for (size_t j = 0; j < ovm_opposite_faces.size(); ++j) {
@@ -500,18 +531,20 @@ void verify_against_openvolulemesh(const Geometry& mesh)
             if (!found) {
                 all_match = false;
                 std::cout << "V" << v_idx << " ✗ ORIENTATION MISMATCH!\n";
-                std::cout << "  Missing oriented face: (" << a << "," << b << "," << c << ")\n";
+                std::cout << "  Missing oriented face: (" << a << "," << b
+                          << "," << c << ")\n";
                 mismatch_count++;
                 break;
             }
         }
-        
-        EXPECT_TRUE(all_match) 
+
+        EXPECT_TRUE(all_match)
             << "Vertex " << v_idx << " opposite faces orientation mismatch";
     }
-    
+
     if (mismatch_count == 0) {
-        std::cout << "Full OVM validation successful for " << volumemesh->n_cells() << " tetrahedra\n";
+        std::cout << "Full OVM validation successful for "
+                  << volumemesh->n_cells() << " tetrahedra\n";
     }
 }
 
@@ -535,24 +568,78 @@ TEST(VolumeAdjacency, CubeWithFiveTets)
 
     // 5 tetrahedra along diagonal (0,6) - standard cube subdivision
     std::vector<int> faceVertexCounts(20, 3);
-    std::vector<int> faceVertexIndices = {
-        // Tet 1: (0,1,2,6)
-        1,2,6, 0,6,2, 0,1,6, 0,2,1,
-        // Tet 2: (0,4,5,6)
-        4,5,6, 0,6,5, 0,4,6, 0,5,4,
-        // Tet 3: (0,1,5,6)
-        1,5,6, 0,6,5, 0,1,6, 0,5,1,
-        // Tet 4: (0,2,3,6)
-        2,3,6, 0,6,3, 0,2,6, 0,3,2,
-        // Tet 5: (0,4,6,7)
-        4,6,7, 0,7,6, 0,4,7, 0,6,4
+    std::vector<int> faceVertexIndices = { // Tet 1: (0,1,2,6)
+                                           1,
+                                           2,
+                                           6,
+                                           0,
+                                           6,
+                                           2,
+                                           0,
+                                           1,
+                                           6,
+                                           0,
+                                           2,
+                                           1,
+                                           // Tet 2: (0,4,5,6)
+                                           4,
+                                           5,
+                                           6,
+                                           0,
+                                           6,
+                                           5,
+                                           0,
+                                           4,
+                                           6,
+                                           0,
+                                           5,
+                                           4,
+                                           // Tet 3: (0,1,5,6)
+                                           1,
+                                           5,
+                                           6,
+                                           0,
+                                           6,
+                                           5,
+                                           0,
+                                           1,
+                                           6,
+                                           0,
+                                           5,
+                                           1,
+                                           // Tet 4: (0,2,3,6)
+                                           2,
+                                           3,
+                                           6,
+                                           0,
+                                           6,
+                                           3,
+                                           0,
+                                           2,
+                                           6,
+                                           0,
+                                           3,
+                                           2,
+                                           // Tet 5: (0,4,6,7)
+                                           4,
+                                           6,
+                                           7,
+                                           0,
+                                           7,
+                                           6,
+                                           0,
+                                           4,
+                                           7,
+                                           0,
+                                           6,
+                                           4
     };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
     meshComp->set_face_vertex_indices(faceVertexIndices);
 
-    verify_against_openvolulemesh(mesh);
+    verify_against_openvolumemesh(mesh);
 }
 
 TEST(VolumeAdjacency, OctahedronWithEightTets)
@@ -573,32 +660,119 @@ TEST(VolumeAdjacency, OctahedronWithEightTets)
 
     // 8 tetrahedra from center to each octahedron face
     std::vector<int> faceVertexCounts(32, 3);
-    std::vector<int> faceVertexIndices = {
-        // Top pyramid (4 tets)
-        // Tet: (0,1,2,5)
-        1,2,5, 0,5,2, 0,1,5, 0,2,1,
-        // Tet: (0,2,3,5)
-        2,3,5, 0,5,3, 0,2,5, 0,3,2,
-        // Tet: (0,3,4,5)
-        3,4,5, 0,5,4, 0,3,5, 0,4,3,
-        // Tet: (0,4,1,5)
-        4,1,5, 0,5,1, 0,4,5, 0,1,4,
-        // Bottom pyramid (4 tets)
-        // Tet: (0,2,1,6)
-        2,1,6, 0,6,1, 0,2,6, 0,1,2,
-        // Tet: (0,3,2,6)
-        3,2,6, 0,6,2, 0,3,6, 0,2,3,
-        // Tet: (0,4,3,6)
-        4,3,6, 0,6,3, 0,4,6, 0,3,4,
-        // Tet: (0,1,4,6)
-        1,4,6, 0,6,4, 0,1,6, 0,4,1
+    std::vector<int> faceVertexIndices = { // Top pyramid (4 tets)
+                                           // Tet: (0,1,2,5)
+                                           1,
+                                           2,
+                                           5,
+                                           0,
+                                           5,
+                                           2,
+                                           0,
+                                           1,
+                                           5,
+                                           0,
+                                           2,
+                                           1,
+                                           // Tet: (0,2,3,5)
+                                           2,
+                                           3,
+                                           5,
+                                           0,
+                                           5,
+                                           3,
+                                           0,
+                                           2,
+                                           5,
+                                           0,
+                                           3,
+                                           2,
+                                           // Tet: (0,3,4,5)
+                                           3,
+                                           4,
+                                           5,
+                                           0,
+                                           5,
+                                           4,
+                                           0,
+                                           3,
+                                           5,
+                                           0,
+                                           4,
+                                           3,
+                                           // Tet: (0,4,1,5)
+                                           4,
+                                           1,
+                                           5,
+                                           0,
+                                           5,
+                                           1,
+                                           0,
+                                           4,
+                                           5,
+                                           0,
+                                           1,
+                                           4,
+                                           // Bottom pyramid (4 tets)
+                                           // Tet: (0,2,1,6)
+                                           2,
+                                           1,
+                                           6,
+                                           0,
+                                           6,
+                                           1,
+                                           0,
+                                           2,
+                                           6,
+                                           0,
+                                           1,
+                                           2,
+                                           // Tet: (0,3,2,6)
+                                           3,
+                                           2,
+                                           6,
+                                           0,
+                                           6,
+                                           2,
+                                           0,
+                                           3,
+                                           6,
+                                           0,
+                                           2,
+                                           3,
+                                           // Tet: (0,4,3,6)
+                                           4,
+                                           3,
+                                           6,
+                                           0,
+                                           6,
+                                           3,
+                                           0,
+                                           4,
+                                           6,
+                                           0,
+                                           3,
+                                           4,
+                                           // Tet: (0,1,4,6)
+                                           1,
+                                           4,
+                                           6,
+                                           0,
+                                           6,
+                                           4,
+                                           0,
+                                           1,
+                                           6,
+                                           0,
+                                           4,
+                                           1
     };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
     meshComp->set_face_vertex_indices(faceVertexIndices);
 
-    verify_against_openvolulemesh(mesh);
+    verify_against_openvolumemesh(mesh);
 }
 
 TEST(VolumeAdjacency, PrismWithThreeTets)
@@ -609,31 +783,63 @@ TEST(VolumeAdjacency, PrismWithThreeTets)
 
     std::vector<glm::vec3> vertices = {
         // Bottom triangle
-        glm::vec3(0.0f, 0.0f, 0.0f),   // 0
-        glm::vec3(1.0f, 0.0f, 0.0f),   // 1
-        glm::vec3(0.5f, 1.0f, 0.0f),   // 2
+        glm::vec3(0.0f, 0.0f, 0.0f),  // 0
+        glm::vec3(1.0f, 0.0f, 0.0f),  // 1
+        glm::vec3(0.5f, 1.0f, 0.0f),  // 2
         // Top triangle
-        glm::vec3(0.0f, 0.0f, 1.0f),   // 3
-        glm::vec3(1.0f, 0.0f, 1.0f),   // 4
-        glm::vec3(0.5f, 1.0f, 1.0f)    // 5
+        glm::vec3(0.0f, 0.0f, 1.0f),  // 3
+        glm::vec3(1.0f, 0.0f, 1.0f),  // 4
+        glm::vec3(0.5f, 1.0f, 1.0f)   // 5
     };
 
     // 3 tetrahedra subdividing the prism
     std::vector<int> faceVertexCounts(12, 3);
-    std::vector<int> faceVertexIndices = {
-        // Tet 1: (0,1,2,3)
-        1,2,3, 0,3,2, 0,1,3, 0,2,1,
-        // Tet 2: (1,2,3,4)
-        2,3,4, 1,4,3, 1,2,4, 1,3,2,
-        // Tet 3: (2,3,4,5)
-        3,4,5, 2,5,4, 2,3,5, 2,4,3
+    std::vector<int> faceVertexIndices = { // Tet 1: (0,1,2,3)
+                                           1,
+                                           2,
+                                           3,
+                                           0,
+                                           3,
+                                           2,
+                                           0,
+                                           1,
+                                           3,
+                                           0,
+                                           2,
+                                           1,
+                                           // Tet 2: (1,2,3,4)
+                                           2,
+                                           3,
+                                           4,
+                                           1,
+                                           4,
+                                           3,
+                                           1,
+                                           2,
+                                           4,
+                                           1,
+                                           3,
+                                           2,
+                                           // Tet 3: (2,3,4,5)
+                                           3,
+                                           4,
+                                           5,
+                                           2,
+                                           5,
+                                           4,
+                                           2,
+                                           3,
+                                           5,
+                                           2,
+                                           4,
+                                           3
     };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
     meshComp->set_face_vertex_indices(faceVertexIndices);
 
-    verify_against_openvolulemesh(mesh);
+    verify_against_openvolumemesh(mesh);
 }
 
 // ============================================================================
@@ -644,251 +850,167 @@ TEST(VolumeAdjacency, TetgenCube)
 {
     // Create a cube and tetrahedralize it
     Geometry cube = create_cube(2.0f, 2.0f, 2.0f);
-    
+
     // Triangulate first (cube has quad faces)
     auto omesh = operand_to_openmesh(&cube);
     omesh->triangulate();
     Geometry triangulated_cube = *openmesh_to_operand(omesh.get());
-    
+
     geom_algorithm::TetgenParams params;
     params.max_volume = 0.5f;
     params.quality_ratio = 2.0f;
-    
-    Geometry tet_mesh = geom_algorithm::tetrahedralize(triangulated_cube, params);
-    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
-    
-    // Count tetrahedra (each tet has 4 faces)
-    int num_faces = mesh_comp->get_face_vertex_counts().size();
-    int num_tets = num_faces / 4;
-    
-    std::cout << "\n=== TetGen Cube ===\n";
-    std::cout << "Tetrahedra: " << num_tets << "\n";
-    std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
-    
-    // Debug: Check how many times face (9,12,13) appears
-    {
-        // Print all tetrahedra in TetGen output
-        const auto& indices = mesh_comp->get_face_vertex_indices();
-        std::map<std::set<int>, int> tet_map;
-        
-        for (int t = 0; t < num_tets; ++t) {
-            int base = t * 12;
-            std::set<int> tet_verts;
-            for (int f = 0; f < 4; ++f) {
-                for (int v = 0; v < 3; ++v) {
-                    tet_verts.insert(indices[base + f * 3 + v]);
-                }
-            }
-            tet_map[tet_verts]++;
-        }
-        
-        // Check for specific tets
-        std::set<int> target_1 = {6, 8, 10, 11};
-        std::set<int> target_2 = {6, 8, 11, 10};
-        std::set<int> target_3 = {8, 10, 11, 6};
-        
-        bool found_6_8_10_11 = false;
-        if (tet_map.count(target_1)) {
-            std::cout << "✓ Tetrahedron {6,8,10,11} FOUND in TetGen output\n";
-            found_6_8_10_11 = true;
-        } else {
-            std::cout << "✗ Tetrahedron {6,8,10,11} NOT in TetGen output\n";
-        }
-        
-        if (!found_6_8_10_11) {
-            std::cout << "Available tets containing {6,8,10,11} vertices:\n";
-            for (const auto& [tet, count] : tet_map) {
-                bool has_6 = tet.count(6) > 0;
-                bool has_8 = tet.count(8) > 0;
-                bool has_10 = tet.count(10) > 0;
-                bool has_11 = tet.count(11) > 0;
-                
-                if ((has_6 + has_8 + has_10 + has_11) >= 3) {
-                    std::cout << "  {";
-                    bool first = true;
-                    for (int v : tet) {
-                        if (!first) std::cout << ",";
-                        std::cout << v;
-                        first = false;
-                    }
-                    std::cout << "}\n";
-                }
-            }
-        }
-    }
 
-    
-    // Debug: print all tetrahedra to check for (2,9,12,13)
-    {
-        const auto& indices = mesh_comp->get_face_vertex_indices();
-        std::map<std::set<int>, int> tet_sets;
-        for (int t = 0; t < num_tets; ++t) {
-            int base = t * 12; // 4 faces * 3 vertices
-            std::set<int> tet_vertices;
-            for (int f = 0; f < 4; ++f) {
-                for (int v = 0; v < 3; ++v) {
-                    tet_vertices.insert(indices[base + f * 3 + v]);
-                }
-            }
-            tet_sets[tet_vertices]++;
-        }
-        
-        // Check if (2,9,12,13) exists
-        std::set<int> target_tet = {2, 9, 12, 13};
-        if (tet_sets.count(target_tet)) {
-            std::cout << "WARNING: Tetrahedron (2,9,12,13) FOUND in TetGen output!\n";
-            // Print vertex coordinates
-            const auto& verts = mesh_comp->get_vertices();
-            std::cout << "  V2: (" << verts[2].x << ", " << verts[2].y << ", " << verts[2].z << ")\n";
-            std::cout << "  V9: (" << verts[9].x << ", " << verts[9].y << ", " << verts[9].z << ")\n";
-            std::cout << "  V12: (" << verts[12].x << ", " << verts[12].y << ", " << verts[12].z << ")\n";
-            std::cout << "  V13: (" << verts[13].x << ", " << verts[13].y << ", " << verts[13].z << ")\n";
-            
-            // Compute volume to check if degenerate
-            glm::vec3 v2 = verts[2];
-            glm::vec3 v9 = verts[9];
-            glm::vec3 v12 = verts[12];
-            glm::vec3 v13 = verts[13];
-            glm::vec3 a = v9 - v2;
-            glm::vec3 b = v12 - v2;
-            glm::vec3 c = v13 - v2;
-            float volume = std::abs(glm::dot(a, glm::cross(b, c))) / 6.0f;
-            std::cout << "  Tetrahedron volume: " << volume << "\n";
-            if (volume < 1e-6f) {
-                std::cout << "  -> DEGENERATE (near-zero volume)!\n";
-            }
-        } else {
-            std::cout << "Tetrahedron (2,9,12,13) NOT found in TetGen output (as expected)\n";
-        }
-    }
-    
-    EXPECT_GT(num_tets, 10) << "Should generate at least 10 tetrahedra";
-    EXPECT_LT(num_tets, 2000) << "Should not generate excessive tetrahedra";
-    
+    Geometry tet_mesh =
+        geom_algorithm::tetrahedralize(triangulated_cube, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+
+    auto [adjacencyCPU, offsetCPU, num_tets] = get_volume_adjacency(tet_mesh);
+
+    std::cout << "\n=== TetGen Cube ===\n";
+    std::cout << "Tetrahedra (GPU): " << num_tets << "\n";
+    std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    std::cout << "Faces: " << mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // TetGen reported generating 24 tetrahedra - validate this
+    EXPECT_EQ(num_tets, 24)
+        << "Should match TetGen's reported count of 24 tetrahedra";
+
     // Verify with OpenVolumeMesh
-    verify_against_openvolulemesh(tet_mesh);
+    verify_against_openvolumemesh(tet_mesh);
 }
 
 TEST(VolumeAdjacency, TetgenIcoSphere)
 {
     // Create an icosphere and tetrahedralize it
     Geometry sphere = create_ico_sphere(1, 1.0f);
-    
+
     geom_algorithm::TetgenParams params;
     params.max_volume = 0.3f;
     params.quality_ratio = 2.0f;
-    
+
     Geometry tet_mesh = geom_algorithm::tetrahedralize(sphere, params);
     auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
-    
-    int num_faces = mesh_comp->get_face_vertex_counts().size();
-    int num_tets = num_faces / 4;
-    
+
+    auto [adjacencyCPU, offsetCPU, num_tets] = get_volume_adjacency(tet_mesh);
+
     std::cout << "\n=== TetGen IcoSphere ===\n";
-    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Tetrahedra (GPU): " << num_tets << "\n";
     std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
-    
-    EXPECT_GT(num_tets, 20) << "Should generate reasonable number of tetrahedra";
-    EXPECT_LT(num_tets, 3000) << "Should not generate excessive tetrahedra";
-    
+    std::cout << "Faces: " << mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // TetGen reports 85 tetrahedra
+    EXPECT_EQ(num_tets, 85)
+        << "Should match TetGen's reported count of 85 tetrahedra";
+
     // Verify with OpenVolumeMesh
-    verify_against_openvolulemesh(tet_mesh);
+    verify_against_openvolumemesh(tet_mesh);
 }
 
 TEST(VolumeAdjacency, TetgenUVSphere)
 {
     // Create a UV sphere and tetrahedralize it
     Geometry sphere = create_uv_sphere(8, 6, 1.5f);
-    
+
     // Triangulate first (UV sphere has quad faces)
     auto omesh = operand_to_openmesh(&sphere);
     omesh->triangulate();
     Geometry triangulated_sphere = *openmesh_to_operand(omesh.get());
-    
+
     geom_algorithm::TetgenParams params;
     params.max_volume = 0.4f;
     params.quality_ratio = 2.0f;
-    
-    Geometry tet_mesh = geom_algorithm::tetrahedralize(triangulated_sphere, params);
+
+    Geometry tet_mesh =
+        geom_algorithm::tetrahedralize(triangulated_sphere, params);
     auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
-    
-    int num_faces = mesh_comp->get_face_vertex_counts().size();
-    int num_tets = num_faces / 4;
-    
+
+    auto [adjacencyCPU, offsetCPU, num_tets] = get_volume_adjacency(tet_mesh);
+
     std::cout << "\n=== TetGen UV Sphere ===\n";
-    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Tetrahedra (GPU): " << num_tets << "\n";
     std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
-    
-    EXPECT_GT(num_tets, 50) << "Should generate substantial tetrahedra";
-    EXPECT_LT(num_tets, 5000) << "Should not generate excessive tetrahedra";
-    
+    std::cout << "Faces: " << mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // TetGen reports 80 tetrahedra
+    EXPECT_EQ(num_tets, 80)
+        << "Should match TetGen's reported count of 80 tetrahedra";
+
     // Verify with OpenVolumeMesh
-    verify_against_openvolulemesh(tet_mesh);
+    verify_against_openvolumemesh(tet_mesh);
 }
 
 TEST(VolumeAdjacency, TetgenLargeMesh)
 {
     // Create a larger mesh to test performance with hundreds of tets
     Geometry sphere = create_uv_sphere(16, 12, 2.0f);
-    
+
     // Triangulate first (UV sphere has quad faces)
     auto omesh = operand_to_openmesh(&sphere);
     omesh->triangulate();
     Geometry triangulated_sphere = *openmesh_to_operand(omesh.get());
-    
+
     geom_algorithm::TetgenParams params;
     params.max_volume = 0.15f;  // Smaller volume for more tets
     params.quality_ratio = 2.0f;
-    
-    Geometry tet_mesh = geom_algorithm::tetrahedralize(triangulated_sphere, params);
+
+    Geometry tet_mesh =
+        geom_algorithm::tetrahedralize(triangulated_sphere, params);
     auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
-    
-    int num_faces = mesh_comp->get_face_vertex_counts().size();
-    int num_tets = num_faces / 4;
-    
+
+    auto [adjacencyCPU, offsetCPU, num_tets] = get_volume_adjacency(tet_mesh);
+
     std::cout << "\n=== TetGen Large Mesh ===\n";
-    std::cout << "Tetrahedra: " << num_tets << "\n";
+    std::cout << "Tetrahedra (GPU): " << num_tets << "\n";
     std::cout << "Vertices: " << mesh_comp->get_vertices().size() << "\n";
-    
-    EXPECT_GT(num_tets, 200) << "Should generate hundreds of tetrahedra";
-    EXPECT_LT(num_tets, 10000) << "Should not generate excessive tetrahedra";
-    
+    std::cout << "Faces: " << mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // TetGen reports 812 tetrahedra
+    EXPECT_EQ(num_tets, 812)
+        << "Should match TetGen's reported count of 812 tetrahedra";
+
     // Verify with OpenVolumeMesh (full validation even for large mesh)
-    verify_against_openvolulemesh(tet_mesh);
-    
-    std::cout << "Full OVM validation successful for " << num_tets << " tetrahedra\n";
+    verify_against_openvolumemesh(tet_mesh);
 }
 
 TEST(VolumeAdjacency, SubDevidedTet)
 {
     std::cout << "\n=== Subdivided Tetrahedron Tests ===\n";
-    
+
     // Test subdivision level 1 (8 tets)
     Geometry tet1 = create_subdivided_tetrahedron(1, 1.0f);
     auto mesh1 = tet1.get_component<MeshComponent>();
-    
+
     std::cout << "\n--- Subdivision Level 1 ---\n";
     std::cout << "Vertices: " << mesh1->get_vertices().size() << "\n";
     std::cout << "Faces: " << mesh1->get_face_vertex_counts().size() << "\n";
-    std::cout << "Face indices: " << mesh1->get_face_vertex_indices().size() << "\n";
-    
+    std::cout << "Face indices: " << mesh1->get_face_vertex_indices().size()
+              << "\n";
+
     // Print first few triangles
     const auto& indices1 = mesh1->get_face_vertex_indices();
     const auto& counts1 = mesh1->get_face_vertex_counts();
     std::cout << "First few triangles:\n";
     for (size_t i = 0; i < std::min((size_t)5, counts1.size()); i++) {
-        std::cout << "  Triangle " << i << ": (" << indices1[i*3] << "," << indices1[i*3+1] << "," << indices1[i*3+2] << ")\n";
+        std::cout << "  Triangle " << i << ": (" << indices1[i * 3] << ","
+                  << indices1[i * 3 + 1] << "," << indices1[i * 3 + 2] << ")\n";
     }
-    
-    auto [adj1, off1] = get_volume_adjacency(tet1);
-    
+
+    auto [adj1, off1, num_tets1] = get_volume_adjacency(tet1);
+    EXPECT_EQ(num_tets1, 8)
+        << "Subdivision level 1 should produce 8 tetrahedra";
+
     // Count total opposite faces
     int total_opposite_1 = 0;
     for (size_t v = 0; v < off1.size(); v++) {
         total_opposite_1 += adj1[off1[v]];
     }
-    std::cout << "Total opposite faces (subdivision 1): " << total_opposite_1 << "\n";
-    
+    std::cout << "Total opposite faces (subdivision 1): " << total_opposite_1
+              << "\n";
+
     // Print first few vertices' adjacency
     for (size_t v = 0; v < std::min((size_t)5, off1.size()); v++) {
         unsigned offset = off1[v];
@@ -900,30 +1022,36 @@ TEST(VolumeAdjacency, SubDevidedTet)
             unsigned c = adj1[offset + 1 + i * 3 + 2];
             std::cout << "(" << a << "," << b << "," << c << ") ";
         }
-        if (count > 3) std::cout << "...";
+        if (count > 3)
+            std::cout << "...";
         std::cout << "\n";
     }
-    
-    EXPECT_GT(total_opposite_1, 0) << "Subdivision 1 should have opposite faces";
-    
+
+    EXPECT_GT(total_opposite_1, 0)
+        << "Subdivision 1 should have opposite faces";
+
     // Test subdivision level 2 (64 tets)
     Geometry tet2 = create_subdivided_tetrahedron(2, 1.0f);
     auto mesh2 = tet2.get_component<MeshComponent>();
-    
+
     std::cout << "\n--- Subdivision Level 2 ---\n";
     std::cout << "Vertices: " << mesh2->get_vertices().size() << "\n";
     std::cout << "Faces: " << mesh2->get_face_vertex_counts().size() << "\n";
-    std::cout << "Face indices: " << mesh2->get_face_vertex_indices().size() << "\n";
-    
-    auto [adj2, off2] = get_volume_adjacency(tet2);
-    
+    std::cout << "Face indices: " << mesh2->get_face_vertex_indices().size()
+              << "\n";
+
+    auto [adj2, off2, num_tets2] = get_volume_adjacency(tet2);
+    EXPECT_EQ(num_tets2, 64)
+        << "Subdivision level 2 should produce 64 tetrahedra";
+
     // Count total opposite faces
     int total_opposite_2 = 0;
     for (size_t v = 0; v < off2.size(); v++) {
         total_opposite_2 += adj2[off2[v]];
     }
-    std::cout << "Total opposite faces (subdivision 2): " << total_opposite_2 << "\n";
-    
+    std::cout << "Total opposite faces (subdivision 2): " << total_opposite_2
+              << "\n";
+
     // Print first few vertices' adjacency
     for (size_t v = 0; v < std::min((size_t)5, off2.size()); v++) {
         unsigned offset = off2[v];
@@ -935,23 +1063,24 @@ TEST(VolumeAdjacency, SubDevidedTet)
             unsigned c = adj2[offset + 1 + i * 3 + 2];
             std::cout << "(" << a << "," << b << "," << c << ") ";
         }
-        if (count > 3) std::cout << "...";
+        if (count > 3)
+            std::cout << "...";
         std::cout << "\n";
     }
-    
-    EXPECT_GT(total_opposite_2, 0) << "Subdivision 2 should have opposite faces";
-    
+
+    EXPECT_GT(total_opposite_2, 0)
+        << "Subdivision 2 should have opposite faces";
+
     // Verify with OpenVolumeMesh
     std::cout << "\n--- OVM Validation for Subdivision 1 ---\n";
-    verify_against_openvolulemesh(tet1);
-    
+    verify_against_openvolumemesh(tet1);
+
     std::cout << "\n--- OVM Validation for Subdivision 2 ---\n";
-    verify_against_openvolulemesh(tet2);
+    verify_against_openvolumemesh(tet2);
 }
 
 TEST(VolumeAdjacency, KnownVolumeMesh)
 {
-    
 }
 
 int main(int argc, char** argv)
