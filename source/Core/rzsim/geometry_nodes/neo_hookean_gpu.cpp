@@ -1,6 +1,8 @@
 #include <RHI/cuda.hpp>
+#include <algorithm>
 #include <glm/glm.hpp>
 #include <limits>
+#include <numeric>
 
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/Components/PointsComponent.h"
@@ -88,6 +90,9 @@ struct NeoHookeanGPUStorage {
 
         num_elements = volume_adjacency->num_elements();
 
+        spdlog::info(
+            "[NeoHookean] Detected {} tetrahedral elements", num_elements);
+
         if (num_elements == 0) {
             spdlog::error(
                 "No tetrahedral elements found! Neo-Hookean requires "
@@ -101,6 +106,33 @@ struct NeoHookeanGPUStorage {
 
         Dm_inv_buffer = Dm_inv;
         volumes_buffer = volumes;
+
+        // Diagnostic: Check volumes
+        auto volumes_host = volumes->get_host_vector<float>();
+        float min_volume =
+            *std::min_element(volumes_host.begin(), volumes_host.end());
+        float max_volume =
+            *std::max_element(volumes_host.begin(), volumes_host.end());
+        float total_volume =
+            std::accumulate(volumes_host.begin(), volumes_host.end(), 0.0f);
+        spdlog::info(
+            "[NeoHookean] Volume statistics: min={:.6e}, max={:.6e}, "
+            "total={:.6e}, avg={:.6e}",
+            min_volume,
+            max_volume,
+            total_volume,
+            total_volume / num_elements);
+
+        // Check for problematic volumes
+        int num_small = std::count_if(
+            volumes_host.begin(), volumes_host.end(), [](float v) {
+                return v < 1e-10f;
+            });
+        if (num_small > 0) {
+            spdlog::warn(
+                "[NeoHookean] Found {} degenerate tetrahedra (volume < 1e-10)",
+                num_small);
+        }
 
         // Initialize velocities to zero
         std::vector<glm::vec3> initial_velocities(
@@ -134,6 +166,13 @@ struct NeoHookeanGPUStorage {
 
         hessian_values =
             cuda::create_cuda_linear_buffer<float>(hessian_structure.nnz);
+
+        spdlog::info(
+            "[NeoHookean] Hessian structure: {} rows, {} nnz, avg "
+            "nnz/row={:.1f}",
+            hessian_structure.num_rows,
+            hessian_structure.nnz,
+            (float)hessian_structure.nnz / hessian_structure.num_rows);
 
         // Allocate temporary buffers for Newton iterations
         x_new_buffer =
@@ -394,6 +433,27 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     int max_newton_iterations = 0;
     int max_line_search_iterations = 0;
 
+    // Log initial state
+    if (substeps > 0) {
+        auto pos_host = d_positions->get_host_vector<glm::vec3>();
+        glm::vec3 center(0.0f);
+        for (const auto& p : pos_host) {
+            center += p;
+        }
+        center /= (float)pos_host.size();
+        spdlog::info(
+            "[NeoHookean] Starting simulation: center=({:.4f}, {:.4f}, "
+            "{:.4f}), "
+            "dt={:.4f}, substeps={}, mu={:.2e}, lambda={:.2e}",
+            center.x,
+            center.y,
+            center.z,
+            dt_sub,
+            substeps,
+            mu,
+            lambda);
+    }
+
     for (int substep = 0; substep < substeps; ++substep) {
         // Compute x_tilde = x + dt_sub * v on GPU
         rzsim_cuda::explicit_step_nh_gpu(
@@ -404,6 +464,30 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
 
         bool converged = false;
         int newton_iter_count = 0;
+
+        // Log initial energy for first substep
+        if (substep == 0) {
+            float E_initial = rzsim_cuda::compute_energy_nh_gpu(
+                storage.x_new_buffer,
+                d_next_positions,
+                d_M_diag,
+                *storage.volume_adjacency,
+                storage.Dm_inv_buffer,
+                storage.volumes_buffer,
+                mu,
+                lambda,
+                density,
+                gravity,
+                dt_sub,
+                num_particles,
+                storage.num_elements,
+                storage.inertial_terms_buffer,
+                storage.element_energies_buffer);
+            spdlog::info(
+                "[NeoHookean] Substep {}: Initial energy={:.6e}",
+                substep,
+                E_initial);
+        }
 
         for (int iter = 0; iter < max_iterations; iter++) {
             // Compute negative gradient at current x_new (for Newton's method)
@@ -438,9 +522,24 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
 
             newton_iter_count = iter;
 
+            // Log first few iterations for debugging
+            if (substep == 0 && iter < 5) {
+                spdlog::info(
+                    "[NeoHookean]   Iter {}: grad_norm={:.6e}",
+                    iter,
+                    grad_norm);
+            }
+
             // Run at least one iteration
             if (iter > 0 && grad_norm < tolerance) {
                 converged = true;
+                if (substep == 0) {
+                    spdlog::info(
+                        "[NeoHookean]   Converged at iteration {} with "
+                        "grad_norm={:.6e}",
+                        iter,
+                        grad_norm);
+                }
                 break;
             }
 

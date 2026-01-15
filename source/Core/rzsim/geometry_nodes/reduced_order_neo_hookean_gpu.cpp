@@ -1,6 +1,8 @@
 #include <RHI/cuda.hpp>
+#include <algorithm>
 #include <glm/glm.hpp>
 #include <limits>
+#include <numeric>
 
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/Components/PointsComponent.h"
@@ -140,6 +142,34 @@ struct ReducedNeoHookeanGPUStorage {
 
         Dm_inv_buffer = Dm_inv;
         volumes_buffer = volumes;
+
+        // Diagnostic: Check volumes
+        auto volumes_host = volumes->get_host_vector<float>();
+        float min_volume =
+            *std::min_element(volumes_host.begin(), volumes_host.end());
+        float max_volume =
+            *std::max_element(volumes_host.begin(), volumes_host.end());
+        float total_volume =
+            std::accumulate(volumes_host.begin(), volumes_host.end(), 0.0f);
+        spdlog::info(
+            "[ReducedNeoHookean] Volume statistics: min={:.6e}, max={:.6e}, "
+            "total={:.6e}, avg={:.6e}",
+            min_volume,
+            max_volume,
+            total_volume,
+            total_volume / num_elements);
+
+        // Check for problematic volumes
+        int num_small = std::count_if(
+            volumes_host.begin(), volumes_host.end(), [](float v) {
+                return v < 1e-10f;
+            });
+        if (num_small > 0) {
+            spdlog::warn(
+                "[ReducedNeoHookean] Found {} degenerate tetrahedra (volume < "
+                "1e-10)",
+                num_small);
+        }
 
         // Initialize velocities to zero
         std::vector<glm::vec3> initial_velocities(
