@@ -149,7 +149,7 @@ NODE_EXECUTION_FUNCTION(value_atan)
     auto a = params.get_input<float>("A");
     params.set_output<float>("Result", std::atan(a));
     return true;
-} 
+}
 
 NODE_DECLARATION_FUNCTION(value_and)
 {
@@ -190,6 +190,36 @@ NODE_EXECUTION_FUNCTION(value_not)
 {
     auto a = params.get_input<bool>("A");
     params.set_output<bool>("Result", !a);
+    return true;
+}
+
+NODE_DECLARATION_FUNCTION(value_min)
+{
+    b.add_input<float>("A");
+    b.add_input<float>("B");
+    b.add_output<float>("Result");
+}
+
+NODE_EXECUTION_FUNCTION(value_min)
+{
+    auto a = params.get_input<float>("A");
+    auto b = params.get_input<float>("B");
+    params.set_output("Result", std::min(a, b));
+    return true;
+}
+
+NODE_DECLARATION_FUNCTION(value_max)
+{
+    b.add_input<float>("A");
+    b.add_input<float>("B");
+    b.add_output<float>("Result");
+}
+
+NODE_EXECUTION_FUNCTION(value_max)
+{
+    auto a = params.get_input<float>("A");
+    auto b = params.get_input<float>("B");
+    params.set_output("Result", std::max(a, b));
     return true;
 }
 

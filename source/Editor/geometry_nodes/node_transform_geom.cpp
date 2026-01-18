@@ -27,6 +27,7 @@ NODE_DECLARATION_FUNCTION(transform_geom)
 NODE_EXECUTION_FUNCTION(transform_geom)
 {
     auto geometry = params.get_input<Geometry>("Geometry");
+    geometry.apply_transform();
 
     auto t_x = params.get_input<float>("Translate X");
     auto t_y = params.get_input<float>("Translate Y");

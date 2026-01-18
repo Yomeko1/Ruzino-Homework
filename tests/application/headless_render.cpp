@@ -24,13 +24,12 @@
 #include "usd_nodejson.hpp"
 
 // USD includes
+#include <rzpython/rzpython.hpp>
+
 #include "pxr/base/tf/setenv.h"
 #include "pxr/usd/usd/primRange.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/camera.h"
-
-#include <rzpython/rzpython.hpp>
-
 
 // Hydra includes
 #include "pxr/base/gf/camera.h"
@@ -435,6 +434,7 @@ int main(int argc, char* argv[])
         false,
         60.0f);
     parser.add("no-save", 'n', "Skip saving images (for profiling)");
+    parser.add("no-progress", 'p', "Disable progress bar display");
 
     parser.parse_check(argc, argv);
 
@@ -459,6 +459,7 @@ int main(int argc, char* argv[])
     std::string camera_path = parser.get<std::string>("camera");
     bool verbose = parser.exist("verbose");
     bool skip_save = parser.exist("no-save");
+    bool show_progress = !parser.exist("no-progress");
     int num_frames = parser.get<int>("frames");
     float fps = parser.get<float>("fps");
     float delta_time = 1.0f / fps;
@@ -577,8 +578,8 @@ int main(int argc, char* argv[])
 
         // Render loop for each frame
         for (int frame = 0; frame < frames_to_render; ++frame) {
-            // Update stage for animation (skip first frame)
-            if (is_sequence && frame > 0) {
+            // Update stage for animation (including first frame for sequences)
+            if (is_sequence) {
                 stage->tick(delta_time);
                 stage->finish_tick();
             }
@@ -613,83 +614,91 @@ int main(int argc, char* argv[])
                 // Skip first sample for timing (shader compilation, etc.)
                 if (sample == 0 && frame == 0) {
                     render_start = std::chrono::high_resolution_clock::now();
-                    printf(
-                        "Sample 1/%d completed in %.2fs (warmup)\n",
-                        spp,
-                        sample_duration / 1000.0);
-                    fflush(stdout);
+                    if (show_progress) {
+                        printf(
+                            "Sample 1/%d completed in %.2fs (warmup)\n",
+                            spp,
+                            sample_duration / 1000.0);
+                        fflush(stdout);
+                    }
                     continue;
                 }
 
                 total_sample_time += sample_duration;
                 timed_samples++;
 
-                // Calculate progress and ETA (based on samples after warmup)
-                int progress_percent = ((sample + 1) * 100) / spp;
-                double avg_time_per_sample =
-                    (double)total_sample_time / timed_samples;
-                int remaining_samples = spp - (sample + 1);
-                double eta_seconds =
-                    (avg_time_per_sample * remaining_samples) / 1000.0;
+                if (show_progress) {
+                    // Calculate progress and ETA (based on samples after
+                    // warmup)
+                    int progress_percent = ((sample + 1) * 100) / spp;
+                    double avg_time_per_sample =
+                        (double)total_sample_time / timed_samples;
+                    int remaining_samples = spp - (sample + 1);
+                    double eta_seconds =
+                        (avg_time_per_sample * remaining_samples) / 1000.0;
 
-                // Create progress bar
-                const int bar_width = 40;
-                int filled = (bar_width * (sample + 1)) / spp;
-                char bar[bar_width + 1];
-                memset(bar, ' ', bar_width);
-                for (int i = 0; i < filled; ++i) {
-                    bar[i] = '=';
-                }
-                if (filled < bar_width) {
-                    bar[filled] = '>';
-                }
-                bar[bar_width] = '\0';
+                    // Create progress bar
+                    const int bar_width = 40;
+                    int filled = (bar_width * (sample + 1)) / spp;
+                    char bar[bar_width + 1];
+                    memset(bar, ' ', bar_width);
+                    for (int i = 0; i < filled; ++i) {
+                        bar[i] = '=';
+                    }
+                    if (filled < bar_width) {
+                        bar[filled] = '>';
+                    }
+                    bar[bar_width] = '\0';
 
-                // Format ETA
-                int eta_minutes = (int)(eta_seconds / 60);
-                int eta_secs = (int)(eta_seconds) % 60;
+                    // Format ETA
+                    int eta_minutes = (int)(eta_seconds / 60);
+                    int eta_secs = (int)(eta_seconds) % 60;
 
-                // Print progress bar with ETA using printf
-                // Include frame info in sequence mode
-                if (is_sequence) {
-                    printf(
-                        "\r[Frame %d/%d] [%s] %d%% (%d/%d) Sample: %.4fs Avg: "
-                        "%.4fs ",
-                        frame + 1,
-                        frames_to_render,
-                        bar,
-                        progress_percent,
-                        sample + 1,
-                        spp,
-                        sample_duration / 1000.0,
-                        avg_time_per_sample / 1000.0);
-                }
-                else {
-                    printf(
-                        "\r[%s] %d%% (%d/%d) Sample: %.4fs Avg: %.4fs ",
-                        bar,
-                        progress_percent,
-                        sample + 1,
-                        spp,
-                        sample_duration / 1000.0,
-                        avg_time_per_sample / 1000.0);
-                }
-
-                if (remaining_samples > 0) {
-                    if (eta_minutes > 0) {
-                        printf("ETA: %dm %ds", eta_minutes, eta_secs);
+                    // Print progress bar with ETA using printf
+                    // Include frame info in sequence mode
+                    if (is_sequence) {
+                        printf(
+                            "\r[Frame %d/%d] [%s] %d%% (%d/%d) Sample: %.4fs "
+                            "Avg: "
+                            "%.4fs ",
+                            frame + 1,
+                            frames_to_render,
+                            bar,
+                            progress_percent,
+                            sample + 1,
+                            spp,
+                            sample_duration / 1000.0,
+                            avg_time_per_sample / 1000.0);
                     }
                     else {
-                        printf("ETA: %ds", eta_secs);
+                        printf(
+                            "\r[%s] %d%% (%d/%d) Sample: %.4fs Avg: %.4fs ",
+                            bar,
+                            progress_percent,
+                            sample + 1,
+                            spp,
+                            sample_duration / 1000.0,
+                            avg_time_per_sample / 1000.0);
                     }
-                }
-                else {
-                    printf("Complete!");
-                }
 
-                fflush(stdout);
+                    if (remaining_samples > 0) {
+                        if (eta_minutes > 0) {
+                            printf("ETA: %dm %ds", eta_minutes, eta_secs);
+                        }
+                        else {
+                            printf("ETA: %ds", eta_secs);
+                        }
+                    }
+                    else {
+                        printf("Complete!");
+                    }
+
+                    fflush(stdout);
+                }
             }
-            printf("\n");
+            if (show_progress) {
+                printf("\n");
+            }
 
             auto render_end = std::chrono::high_resolution_clock::now();
             auto total_duration =

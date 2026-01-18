@@ -595,6 +595,9 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                     result.iterations,
                     result.final_residual,
                     result.error_message);
+
+                params.set_output<Geometry>("Geometry", std::move(input_geom));
+                return false;
             }
 
             // Ensure BC DOFs have zero Newton direction

@@ -36,3 +36,4 @@ Assets/
 cmake-build-*/
 submissions/lisi_homework
 *_gfgf.*
+*.log
