@@ -415,50 +415,53 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
         }
     }
 
-    // Update Dirichlet boundary conditions from face quantities
-    // Find all vertices that belong to faces marked as dirichlet
-    std::set<int> bc_vertices;
-    if (!dirichlet_face_values.empty() &&
-        dirichlet_face_values.size() == face_counts.size()) {
-        int face_idx = 0;
-        int vertex_offset = 0;
-        for (int face = 0; face < face_counts.size(); ++face) {
-            // If this face is marked as dirichlet (non-zero value)
-            if (dirichlet_face_values[face] > 0.5f) {
-                int num_verts = face_counts[face];
-                for (int v = 0; v < num_verts; ++v) {
-                    int vert_idx = face_vertex_indices[vertex_offset + v];
-                    bc_vertices.insert(vert_idx);
-                }
-            }
-            vertex_offset += face_counts[face];
-        }
-    }
-
-    // Convert vertex indices to DOF indices (each vertex has 3 DOFs: x, y, z)
-    storage.bc_dofs.clear();
-    for (int v : bc_vertices) {
-        storage.bc_dofs.push_back(v * 3 + 0);  // x DOF
-        storage.bc_dofs.push_back(v * 3 + 1);  // y DOF
-        storage.bc_dofs.push_back(v * 3 + 2);  // z DOF
-    }
-    storage.num_bc_dofs = storage.bc_dofs.size();
-
-    // Upload BC DOFs to GPU
-    if (storage.num_bc_dofs > 0) {
-        storage.bc_dofs_buffer =
-            cuda::create_cuda_linear_buffer(storage.bc_dofs);
-        spdlog::info(
-            "[ReducedNeoHookean] Dirichlet BC applied to {} vertices ({} DOFs)",
-            bc_vertices.size(),
-            storage.num_bc_dofs);
-    }
-    else {
-        spdlog::info("[ReducedNeoHookean] No Dirichlet boundary conditions");
-    }
-
     // Apply initial transform on the first frame
     if (global_payload.is_simulating == false && initial_transform) {
+        // Update Dirichlet boundary conditions from face quantities
+        // Find all vertices that belong to faces marked as dirichlet
+        std::set<int> bc_vertices;
+        if (!dirichlet_face_values.empty() &&
+            dirichlet_face_values.size() == face_counts.size()) {
+            int face_idx = 0;
+            int vertex_offset = 0;
+            for (int face = 0; face < face_counts.size(); ++face) {
+                // If this face is marked as dirichlet (non-zero value)
+                if (dirichlet_face_values[face] > 0.5f) {
+                    int num_verts = face_counts[face];
+                    for (int v = 0; v < num_verts; ++v) {
+                        int vert_idx = face_vertex_indices[vertex_offset + v];
+                        bc_vertices.insert(vert_idx);
+                    }
+                }
+                vertex_offset += face_counts[face];
+            }
+        }
+
+        // Convert vertex indices to DOF indices (each vertex has 3 DOFs: x, y,
+        // z)
+        storage.bc_dofs.clear();
+        for (int v : bc_vertices) {
+            storage.bc_dofs.push_back(v * 3 + 0);  // x DOF
+            storage.bc_dofs.push_back(v * 3 + 1);  // y DOF
+            storage.bc_dofs.push_back(v * 3 + 2);  // z DOF
+        }
+        storage.num_bc_dofs = storage.bc_dofs.size();
+
+        // Upload BC DOFs to GPU
+        if (storage.num_bc_dofs > 0) {
+            storage.bc_dofs_buffer =
+                cuda::create_cuda_linear_buffer(storage.bc_dofs);
+            spdlog::info(
+                "[ReducedNeoHookean] Dirichlet BC applied to {} vertices ({} "
+                "DOFs)",
+                bc_vertices.size(),
+                storage.num_bc_dofs);
+        }
+        else {
+            spdlog::info(
+                "[ReducedNeoHookean] No Dirichlet boundary conditions");
+        }
+
         int reduced_dof = storage.num_basis * 12;
 
         // Validate that transform has the right number of modes
@@ -944,106 +947,108 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
         }
     }
 
-    // // Project reduced velocities to full space before collision handling
-    // // v_full = J * q_dot
-    // rzsim_cuda::compute_jacobian_gpu(
-    //     storage.q_reduced, storage.ro_data, storage.jacobian);
+    // Project reduced velocities to full space before collision handling
+    // v_full = J * q_dot
+    rzsim_cuda::compute_jacobian_gpu(
+        storage.q_reduced, storage.ro_data, storage.jacobian);
 
-    // // Save original q_dot for verification (before collision)
-    // int reduced_dof = storage.num_basis * 12;
-    // cuda::CUDALinearBufferHandle q_dot_original =
-    //     cuda::create_cuda_linear_buffer<float>(reduced_dof);
-    // q_dot_original->copy_from_device(storage.q_dot_reduced.Get());
+    // Save original q_dot for verification (before collision)
+    int reduced_dof = storage.num_basis * 12;
 
-    // rzsim_cuda::map_reduced_velocities_to_full_gpu(
-    //     storage.jacobian,
-    //     storage.q_dot_reduced,
-    //     num_particles,
-    //     storage.num_basis,
-    //     storage.velocities_buffer);
+    cuda::CUDALinearBufferHandle q_dot_original =
+        cuda::create_cuda_linear_buffer<float>(reduced_dof);
+    q_dot_original->copy_from_device(storage.q_dot_reduced.Get());
 
-    // // Apply Dirichlet BC to full-space velocities (set BC vertices to zero
-    // velocity) if (storage.num_bc_dofs > 0) {
-    //     rzsim_cuda::apply_dirichlet_bc_to_velocities_gpu(
-    //         storage.bc_dofs_buffer,
-    //         storage.num_bc_dofs,
-    //         storage.velocities_buffer,
-    //         num_particles);
-    // }
+    rzsim_cuda::map_reduced_velocities_to_full_gpu(
+        storage.jacobian,
+        storage.q_dot_reduced,
+        num_particles,
+        storage.num_basis,
+        storage.velocities_buffer);
 
-    // // Save full-space velocity before collision for verification
-    // cuda::CUDALinearBufferHandle velocities_before_collision =
-    //     cuda::create_cuda_linear_buffer<glm::vec3>(num_particles);
-    // velocities_before_collision->copy_from_device(
-    //     storage.velocities_buffer.Get());
+    // Apply Dirichlet BC to full-space velocities (set BC vertices to zero
+    // velocity)
+    if (storage.num_bc_dofs > 0) {
+        rzsim_cuda::apply_dirichlet_bc_to_velocities_gpu(
+            storage.bc_dofs_buffer,
+            storage.num_bc_dofs,
+            storage.velocities_buffer,
+            num_particles);
+    }
 
-    // // Handle ground collision in full space
-    // rzsim_cuda::handle_ground_collision_nh_gpu(
-    //     d_positions, storage.velocities_buffer, restitution, num_particles);
+    // Save full-space velocity before collision for verification
+    cuda::CUDALinearBufferHandle velocities_before_collision =
+        cuda::create_cuda_linear_buffer<glm::vec3>(num_particles);
+    velocities_before_collision->copy_from_device(
+        storage.velocities_buffer.Get());
 
-    // // Check if collision actually occurred (compare velocities)
-    // auto v_before =
-    // velocities_before_collision->get_host_vector<glm::vec3>(); auto v_after =
-    // storage.velocities_buffer->get_host_vector<glm::vec3>(); bool
-    // collision_occurred = false; float max_velocity_change = 0.0f; for (int i
-    // = 0; i < num_particles; ++i) {
-    //     glm::vec3 change = v_after[i] - v_before[i];
-    //     float change_mag = glm::length(change);
-    //     max_velocity_change = std::max(max_velocity_change, change_mag);
-    //     if (change_mag > 1e-6f) {
-    //         collision_occurred = true;
-    //     }
-    // }
+    // Handle ground collision in full space
+    rzsim_cuda::handle_ground_collision_nh_gpu(
+        d_positions, storage.velocities_buffer, restitution, num_particles);
 
-    // if (collision_occurred) {
-    //     spdlog::debug(
-    //         "[ReducedNeoHookean] Collision detected, max velocity change: "
-    //         "{:.6e}",
-    //         max_velocity_change);
-    // }
+    // Check if collision actually occurred (compare velocities)
+    auto v_before = velocities_before_collision->get_host_vector<glm::vec3>();
+    auto v_after = storage.velocities_buffer->get_host_vector<glm::vec3>();
+    bool collision_occurred = false;
+    float max_velocity_change = 0.0f;
+    for (int i = 0; i < num_particles; ++i) {
+        glm::vec3 change = v_after[i] - v_before[i];
+        float change_mag = glm::length(change);
+        max_velocity_change = std::max(max_velocity_change, change_mag);
+        if (change_mag > 1e-6f) {
+            collision_occurred = true;
+        }
+    }
 
-    // // Project modified full-space velocities back to reduced space
-    // // Solve: (J^T * J) * q_dot = J^T * v_full for proper projection
-    // // First compute rhs = J^T * v_full
-    // rzsim_cuda::compute_reduced_gradient_gpu(
-    //     storage.jacobian,
-    //     storage.velocities_buffer,
-    //     num_particles,
-    //     storage.num_basis,
-    //     storage.grad_reduced);
+    if (collision_occurred) {
+        spdlog::debug(
+            "[ReducedNeoHookean] Collision detected, max velocity change: "
+            "{:.6e}",
+            max_velocity_change);
+    }
 
-    // // Compute J^T * J (Gram matrix / reduced "mass matrix")
-    // cuda::CUDALinearBufferHandle JtJ =
-    //     cuda::create_cuda_linear_buffer<float>(reduced_dof * reduced_dof);
+    // Project modified full-space velocities back to reduced space
+    // Solve: (J^T * J) * q_dot = J^T * v_full for proper projection
+    // First compute rhs = J^T * v_full
+    rzsim_cuda::compute_reduced_gradient_gpu(
+        storage.jacobian,
+        storage.velocities_buffer,
+        num_particles,
+        storage.num_basis,
+        storage.grad_reduced);
 
-    // rzsim_cuda::compute_jacobian_gram_matrix_gpu(
-    //     storage.jacobian, num_particles, storage.num_basis, JtJ);
+    // Compute J^T * J (Gram matrix / reduced "mass matrix")
+    cuda::CUDALinearBufferHandle JtJ =
+        cuda::create_cuda_linear_buffer<float>(reduced_dof * reduced_dof);
 
-    // // Solve (J^T * J) * q_dot = J^T * v_full using dense Cholesky
-    // Ruzino::Solver::SolverConfig solver_config_vel;
-    // solver_config_vel.tolerance = 1e-9f;
-    // solver_config_vel.verbose = false;
+    rzsim_cuda::compute_jacobian_gram_matrix_gpu(
+        storage.jacobian, num_particles, storage.num_basis, JtJ);
 
-    // auto solver_result_vel = storage.solver->solveDenseGPU(
-    //     reduced_dof,
-    //     JtJ->get_device_ptr<float>(),
-    //     storage.grad_reduced->get_device_ptr<float>(),
-    //     storage.q_dot_reduced->get_device_ptr<float>(),
-    //     solver_config_vel);
+    // Solve (J^T * J) * q_dot = J^T * v_full using dense Cholesky
+    Ruzino::Solver::SolverConfig solver_config_vel;
+    solver_config_vel.tolerance = 1e-9f;
+    solver_config_vel.verbose = false;
 
-    // if (!solver_result_vel.converged) {
-    //     spdlog::error(
-    //         "[ReducedNeoHookean] Velocity projection solver failed: {}",
-    //         solver_result_vel.error_message);
-    //     // Fall back to simple J^T projection
-    //     storage.q_dot_reduced->copy_from_device(storage.grad_reduced.Get());
-    // }
+    auto solver_result_vel = storage.solver->solveDenseGPU(
+        reduced_dof,
+        JtJ->get_device_ptr<float>(),
+        storage.grad_reduced->get_device_ptr<float>(),
+        storage.q_dot_reduced->get_device_ptr<float>(),
+        solver_config_vel);
 
-    // else {
-    //     spdlog::debug(
-    //         "[ReducedNeoHookean] Collision occurred, velocity projection "
-    //         "skipped");
-    // }
+    if (!solver_result_vel.converged) {
+        spdlog::error(
+            "[ReducedNeoHookean] Velocity projection solver failed: {}",
+            solver_result_vel.error_message);
+        // Fall back to simple J^T projection
+        storage.q_dot_reduced->copy_from_device(storage.grad_reduced.Get());
+    }
+
+    else {
+        spdlog::debug(
+            "[ReducedNeoHookean] Collision occurred, velocity projection "
+            "skipped");
+    }
 
     // Log simulation statistics
     spdlog::info(
