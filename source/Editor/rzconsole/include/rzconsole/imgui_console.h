@@ -46,9 +46,9 @@ SOFTWARE.
 
 #pragma once
 
+#include <GUI/widget.h>
 #include <imgui.h>
 #include <spdlog/spdlog.h>
-#include <GUI/widget.h>
 
 #include <array>
 #include <memory>
@@ -107,14 +107,23 @@ class RZCONSOLE_API ImGui_Console : public IWidget {
     bool BuildUI() override;
 
    protected:
+    // Override keyboard handling to ensure Shift+Tab works
+    bool KeyboardUpdate(int key, int scancode, int action, int mods) override
+    {
+        // Don't intercept Tab key - let ImGui handle it
+        return false;
+    }
+
+   protected:
     const char* GetWindowName() override
     {
         return "Console";
     }
     std::string GetWindowUniqueName() override;
     // Menu bar support for console
-    bool HasMenuBar() const override { 
-        return true; 
+    bool HasMenuBar() const override
+    {
+        return true;
     }
 
    private:
@@ -122,9 +131,14 @@ class RZCONSOLE_API ImGui_Console : public IWidget {
 
     int AutoCompletionCallback(ImGuiInputTextCallbackData* data);
 
+    int AutoCompletionCallbackReverse(ImGuiInputTextCallbackData* data);
+
     int TextEditCallback(ImGuiInputTextCallbackData* data);
 
     void ExecCommand(char const* cmd);
+
+    void LoadHistory();
+    void SaveHistory();
 
    private:
     typedef std::array<char, 256> InputBuffer;
@@ -140,6 +154,10 @@ class RZCONSOLE_API ImGui_Console : public IWidget {
     std::vector<std::string> m_History;
     int m_HistoryPos = -1;
     bool m_ExecutingFromHistory = false;
+
+    // Tab completion cycling state
+    std::vector<std::string> m_CompletionCandidates;
+    size_t m_CompletionIndex = 0;
 
    private:
     Options m_Options;

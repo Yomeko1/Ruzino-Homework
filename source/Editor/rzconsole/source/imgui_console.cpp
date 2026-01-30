@@ -50,10 +50,11 @@ SOFTWARE.
 #include <rzconsole/spdlog_console_sink.h>
 #include <rzconsole/string_utils.h>
 
+#include <algorithm>
 #include <cctype>
 #include <cstdarg>
 #include <cstring>
-#include <algorithm>
+#include <fstream>
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
@@ -78,19 +79,26 @@ ImGui_Console::ImGui_Console(
     if (options.capture_log) {
         setup_console_logging(this);
     }
+
+    // Load history from disk
+    LoadHistory();
 }
 ImGui_Console::~ImGui_Console()
 {
+    // Save history to disk before destruction
+    SaveHistory();
+
     // Must disconnect the sink from spdlog BEFORE destroying this object
     // Otherwise spdlog will try to log to a deleted console object
     if (m_Options.capture_log) {
         auto sink = get_global_console_sink();
         sink->set_console(nullptr);
-        
+
         // Remove the console logger as default logger if it exists
         try {
             spdlog::set_default_logger(nullptr);
-        } catch (...) {
+        }
+        catch (...) {
             // Ignore exceptions during cleanup
         }
     }
@@ -233,10 +241,10 @@ bool ImGui_Console::BuildUI()
         if (m_InputBuffer.front() != '0') {
             // Check if we're executing from history
             std::string currentInput(m_InputBuffer.data());
-            m_ExecutingFromHistory = (m_HistoryPos >= 0 && 
-                                    m_HistoryPos < m_History.size() && 
-                                    m_History[m_HistoryPos] == currentInput);
-            
+            m_ExecutingFromHistory =
+                (m_HistoryPos >= 0 && m_HistoryPos < m_History.size() &&
+                 m_History[m_HistoryPos] == currentInput);
+
             this->ExecCommand(m_InputBuffer.data());
             m_InputBuffer.front() = 0;
         }
@@ -298,36 +306,33 @@ void ImGui_Console::ExecCommand(char const* cmdline)
         if (!result.output.empty()) {
             printLines(*this, result.output);
         }
+        else if (!result.status) {
+            // Failure - show error message if output is empty
+            this->Print("Command failed with no output");
+        }
 
-        if (result.status) {
-            // Success - handle history appropriately
-            std::string cmdStr(cmd.data());
-            
-            if (m_ExecutingFromHistory) {
-                // Command came from history - just move it to the top
-                auto it = std::find(m_History.begin(), m_History.end(), cmdStr);
-                if (it != m_History.end()) {
-                    m_History.erase(it);
-                    m_History.push_back(cmdStr);
-                }
-            } else {
-                // New command - remove if it exists and add to end
-                auto it = std::find(m_History.begin(), m_History.end(), cmdStr);
-                if (it != m_History.end()) {
-                    m_History.erase(it);
-                }
+        // Add to history regardless of success/failure
+        std::string cmdStr(cmd.data());
+
+        if (m_ExecutingFromHistory) {
+            // Command came from history - just move it to the top
+            auto it = std::find(m_History.begin(), m_History.end(), cmdStr);
+            if (it != m_History.end()) {
+                m_History.erase(it);
                 m_History.push_back(cmdStr);
             }
-            
-            m_HistoryPos = -1;
-            m_ExecutingFromHistory = false;
         }
         else {
-            // Failure - show error message if output is empty
-            if (result.output.empty()) {
-                this->Print("Command failed with no output");
+            // New command - remove if it exists and add to end
+            auto it = std::find(m_History.begin(), m_History.end(), cmdStr);
+            if (it != m_History.end()) {
+                m_History.erase(it);
             }
+            m_History.push_back(cmdStr);
         }
+
+        m_HistoryPos = -1;
+        m_ExecutingFromHistory = false;
     }
 }
 
@@ -402,40 +407,125 @@ inline std::string_view isolateKeyword(std::string_view line)
     return line;
 }
 
+// Get the incomplete part after the last '.' or space
+inline std::string_view getIncompletePart(std::string_view line)
+{
+    ds::ltrim(line);
+
+    // Find the last '.' or space
+    size_t lastSep = line.find_last_of(". \t");
+    if (lastSep != std::string_view::npos) {
+        return line.substr(lastSep + 1);
+    }
+
+    // No separator found, return the whole line
+    return line;
+}
+
 int ImGui_Console::AutoCompletionCallback(ImGuiInputTextCallbackData* data)
 {
     std::string_view cmdline(data->Buf, data->CursorPos);
     std::string_view keyword = isolateKeyword(cmdline);
+    std::string_view incompletePart = getIncompletePart(cmdline);
 
-    if (auto candidates = m_Interpreter->Suggest(data->Buf, data->CursorPos);
-        !candidates.empty()) {
-        if (candidates.size() == 1) {
-            std::string_view candidate = candidates.front();
-            candidate.remove_prefix(keyword.size());
-            data->InsertChars(
-                data->CursorPos,
-                candidate.data(),
-                candidate.data() + candidate.size());
-            data->InsertChars(data->CursorPos, " ");
-        }
-        else {
-            // multiple candidates : append as many characters as possible to
-            // input (auto-complete)
-            if (std::string match = extendKeyword(keyword, candidates);
-                match.size() > keyword.size()) {
-                data->InsertChars(
-                    data->CursorPos,
-                    match.data() + keyword.size(),
-                    match.data() + match.size());
+    // Check if we're cycling through previous candidates
+    bool isCycling = false;
+    if (!m_CompletionCandidates.empty() && !incompletePart.empty()) {
+        std::string incomplete(incompletePart);
+        // Check if current incomplete part matches one of the previous
+        // candidates
+        for (const auto& candidate : m_CompletionCandidates) {
+            if (incomplete == candidate) {
+                isCycling = true;
+                break;
             }
+        }
+    }
 
-            // print all candidates in columns
+    if (isCycling) {
+        // Cycle to next candidate (forward)
+        m_CompletionIndex =
+            (m_CompletionIndex + 1) % m_CompletionCandidates.size();
+
+        // Replace incomplete part with next candidate
+        data->DeleteChars(
+            data->CursorPos - incompletePart.size(), incompletePart.size());
+        data->InsertChars(
+            data->CursorPos, m_CompletionCandidates[m_CompletionIndex].c_str());
+    }
+    else {
+        // New completion request
+        auto candidates = m_Interpreter->Suggest(data->Buf, data->CursorPos);
+
+        if (candidates.empty()) {
+            // No candidates - clear state and return
+            m_CompletionCandidates.clear();
+            m_CompletionIndex = 0;
+            return 0;
+        }
+
+        // Store candidates for cycling
+        m_CompletionCandidates = candidates;
+        m_CompletionIndex = 0;
+
+        // Replace incomplete part with first candidate
+        data->DeleteChars(
+            data->CursorPos - incompletePart.size(), incompletePart.size());
+        data->InsertChars(data->CursorPos, candidates[0].c_str());
+
+        // Show all options if multiple candidates
+        if (candidates.size() > 1) {
             if (candidates.size() < 64)
                 printColumns(*this, candidates);
             else
-                Print("Too many matches (%d)", candidates.size());
+                Print("Too many matches (%d)", (int)candidates.size());
+        }
+        else {
+            // Single match - clear state without adding space
+            m_CompletionCandidates.clear();
         }
     }
+    return 0;
+}
+
+int ImGui_Console::AutoCompletionCallbackReverse(
+    ImGuiInputTextCallbackData* data)
+{
+    std::string_view cmdline(data->Buf, data->CursorPos);
+    std::string_view incompletePart = getIncompletePart(cmdline);
+
+    // Check if we're cycling through previous candidates
+    if (m_CompletionCandidates.empty()) {
+        return 0;  // No candidates to cycle through
+    }
+
+    bool isCycling = false;
+    if (!incompletePart.empty()) {
+        std::string incomplete(incompletePart);
+        for (const auto& candidate : m_CompletionCandidates) {
+            if (incomplete == candidate) {
+                isCycling = true;
+                break;
+            }
+        }
+    }
+
+    if (isCycling) {
+        // Cycle to previous candidate (reverse direction)
+        if (m_CompletionIndex == 0) {
+            m_CompletionIndex = m_CompletionCandidates.size() - 1;
+        }
+        else {
+            m_CompletionIndex--;
+        }
+
+        // Replace incomplete part with previous candidate
+        data->DeleteChars(
+            data->CursorPos - incompletePart.size(), incompletePart.size());
+        data->InsertChars(
+            data->CursorPos, m_CompletionCandidates[m_CompletionIndex].c_str());
+    }
+
     return 0;
 }
 
@@ -465,6 +555,8 @@ int ImGui_Console::HistoryKeyCallback(ImGuiInputTextCallbackData* data)
         snprintf(data->Buf, data->BufSize, "%s", history_str);
         data->BufTextLen = (int)strlen(history_str);
         data->BufDirty = true;
+        data->CursorPos = data->BufTextLen;  // Move cursor to end
+        data->SelectionStart = data->SelectionEnd = data->CursorPos;
     }
     return 0;
 }
@@ -473,11 +565,13 @@ int ImGui_Console::TextEditCallback(ImGuiInputTextCallbackData* data)
 {
     switch (data->EventFlag) {
         case ImGuiInputTextFlags_CallbackCompletion:
+            // Normal Tab (without Shift)
             return AutoCompletionCallback(data);
 
         case ImGuiInputTextFlags_CallbackHistory:
             return HistoryKeyCallback(data);
     }
+
     return 0;
 }
 
@@ -493,6 +587,33 @@ void ImGui_Console::SetLogCapture(bool enable)
         auto sink = get_global_console_sink();
         sink->set_console(nullptr);
         m_Options.capture_log = false;
+    }
+}
+
+void ImGui_Console::LoadHistory()
+{
+    std::ifstream file(".ruzino_console_history");
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            if (!line.empty()) {
+                m_History.push_back(line);
+            }
+        }
+        file.close();
+    }
+}
+
+void ImGui_Console::SaveHistory()
+{
+    std::ofstream file(".ruzino_console_history");
+    if (file.is_open()) {
+        // Save up to 1000 most recent commands
+        size_t start = m_History.size() > 1000 ? m_History.size() - 1000 : 0;
+        for (size_t i = start; i < m_History.size(); ++i) {
+            file << m_History[i] << '\n';
+        }
+        file.close();
     }
 }
 

@@ -301,35 +301,123 @@ std::vector<std::string> PythonInterpreter::SuggestPythonCompletion(
         return {};
     }
 
+    std::string code_str(code);
+
     try {
-        // Simple completion - get available names in global scope
-        auto globals =
-            python::call<std::vector<std::string>>("list(globals().keys())");
+        // Send the code string to Python
+        python::send("_completion_text", code_str);
 
-        // Filter based on current input
-        std::vector<std::string> suggestions;
-        std::string prefix;
+        // Execute completion logic step by step to avoid raw string issues
+        python::call<void>("import sys");
+        python::call<void>("import os");
+        python::call<void>("completions = []");
 
-        // Extract the last word as prefix
-        auto pos = code.find_last_of(" \t\n()[]{}.,");
-        if (pos != std::string_view::npos) {
-            prefix = code.substr(pos + 1);
+        // Try jedi
+        try {
+            python::call<void>("import jedi");
+            python::call<void>("cwd = os.getcwd()");
+            python::call<void>(
+                "if cwd not in sys.path: sys.path.insert(0, cwd)");
+            python::call<void>(
+                "project = jedi.Project(path=cwd, added_sys_path=[cwd])");
+            python::call<void>(
+                "interpreter = jedi.Interpreter(_completion_text, "
+                "namespaces=[globals()], project=project)");
+            python::call<void>("jedi_completions = interpreter.complete()");
+            python::call<void>(
+                "completions = [c.name for c in jedi_completions]");
+
+            spdlog::debug("Jedi completion executed successfully");
         }
-        else {
-            prefix = code;
-        }
+        catch (const std::exception& jedi_error) {
+            spdlog::debug(
+                "Jedi failed: {}, trying rlcompleter", jedi_error.what());
 
-        for (const auto& name : globals) {
-            if (name.size() >= prefix.size() &&
-                name.substr(0, prefix.size()) == prefix) {
-                suggestions.push_back(name);
+            // Fallback to rlcompleter
+            try {
+                python::call<void>("import rlcompleter");
+                python::call<void>(
+                    "completer = rlcompleter.Completer(globals())");
+                python::call<void>("i = 0");
+                python::call<void>(R"(
+while i < 100:
+    completion = completer.complete(_completion_text, i)
+    if completion is None:
+        break
+    completions.append(completion)
+    i += 1
+)");
+            }
+            catch (...) {
+                spdlog::debug("rlcompleter also failed");
             }
         }
 
+        // If still no completions, try simple matching
+        python::call<void>(R"(
+if not completions:
+    import keyword
+    import re
+    text = _completion_text
+    match = re.search(r'\w+$', text)
+    if match:
+        prefix = match.group(0)
+        completions.extend([kw for kw in keyword.kwlist if kw.startswith(prefix)])
+        completions.extend([name for name in dir(__builtins__) if name.startswith(prefix)])
+        completions.extend([name for name in globals().keys() if name.startswith(prefix) and not name.startswith('_')])
+)");
+
+        // Sort and deduplicate
+        python::call<void>("completions = sorted(list(set(completions)))");
+
+        // Filter out problematic names like WindowsError (Python 2 legacy)
+        python::call<void>(R"(
+completions = [c for c in completions if c not in ['WindowsError', 'WindowsPath']]
+)");
+
+        // Filter out double underscore private members unless user typed __
+        python::send("_user_input", code_str);
+        python::call<void>(R"(
+if not _user_input.lstrip().endswith('__'):
+    completions = [c for c in completions if not c.startswith('__')]
+)");
+
+        auto suggestions =
+            python::call<std::vector<std::string>>("completions");
         return suggestions;
     }
-    catch (...) {
-        return {};
+    catch (const std::exception& e) {
+        spdlog::debug(
+            "Python completion error (jedi/rlcompleter): {}", e.what());
+        // Final fallback: simple prefix matching on globals
+        try {
+            auto globals = python::call<std::vector<std::string>>(
+                "list(globals().keys())");
+
+            std::vector<std::string> suggestions;
+            std::string prefix;
+
+            // Extract the last word as prefix
+            auto pos = code_str.find_last_of(" \t\n()[]{}.,");
+            if (pos != std::string::npos) {
+                prefix = code_str.substr(pos + 1);
+            }
+            else {
+                prefix = code_str;
+            }
+
+            for (const auto& name : globals) {
+                if (!prefix.empty() && name.size() >= prefix.size() &&
+                    name.substr(0, prefix.size()) == prefix) {
+                    suggestions.push_back(name);
+                }
+            }
+
+            return suggestions;
+        }
+        catch (...) {
+            return {};
+        }
     }
 }
 
