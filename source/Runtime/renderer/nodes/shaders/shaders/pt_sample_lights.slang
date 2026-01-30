@@ -144,14 +144,14 @@ LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
     }
     else if (light.type == uint(LightType::Distant)) {
         lightDir = -light.dirW;
-        lightDistance = 1e5;
+        lightDistance = 3e3;
 
         float NdotL = max(0.0, dot(hitNormal, lightDir));
         if (NdotL > 0.0) {
             RayDesc shadowRay;
             shadowRay.Origin = hitPos + hitNormal * 0.0001;
             shadowRay.Direction = lightDir;
-            shadowRay.TMin = 0.0;
+            shadowRay.TMin = 0.0001;
             shadowRay.TMax = lightDistance;
 
             ShadowPayload shadowPayload;

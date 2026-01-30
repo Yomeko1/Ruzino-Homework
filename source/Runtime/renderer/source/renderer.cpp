@@ -66,6 +66,16 @@ void Hd_RUZINO_Renderer::Render(HdRenderThread* renderThread)
         texture_thread.join();
     }
     render_param->texture_loading_threads.clear();
+
+    // Upload material data to GPU after all textures are loaded
+    for (auto& material : *render_param->material_map) {
+        if (!material.second) {
+            continue;
+        }
+
+        material.second->upload_material_data();
+    }
+
     auto node_system = render_param->node_system;
 
     {

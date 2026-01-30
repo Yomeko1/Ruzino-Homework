@@ -189,29 +189,42 @@ size_t ProgramDesc::calculate_hash() const
     hash ^= std::hash<std::string>{}(entry_name) + 0x9e3779b9 + (hash << 6) +
             (hash >> 2);
 
-    // Hash all paths
-    for (const auto& path : paths) {
-        hash ^= std::hash<std::string>{}(path) + 0x9e3779b9 + (hash << 6) +
-                (hash >> 2);
+    // Hash all paths (sorted for consistency)
+    if (!paths.empty()) {
+        std::vector<std::string> sorted_paths = paths;
+        std::sort(sorted_paths.begin(), sorted_paths.end());
+        for (const auto& path : sorted_paths) {
+            hash ^= std::hash<std::string>{}(path) + 0x9e3779b9 + (hash << 6) +
+                    (hash >> 2);
+        }
     }
 
-    // Hash all source codes
-    for (const auto& code : source_code) {
-        hash ^= std::hash<std::string>{}(code) + 0x9e3779b9 + (hash << 6) +
-                (hash >> 2);
+    // Hash all source codes (sorted for consistency)
+    if (!source_code.empty()) {
+        std::vector<std::string> sorted_codes = source_code;
+        std::sort(sorted_codes.begin(), sorted_codes.end());
+        for (const auto& code : sorted_codes) {
+            hash ^= std::hash<std::string>{}(code) + 0x9e3779b9 + (hash << 6) +
+                    (hash >> 2);
+        }
     }
 
-    // Hash macros
-    for (const auto& macro : macros) {
-        hash ^= std::hash<std::string>{}(macro.name) + 0x9e3779b9 +
-                (hash << 6) + (hash >> 2);
-        hash ^= std::hash<std::string>{}(macro.definition) + 0x9e3779b9 +
-                (hash << 6) + (hash >> 2);
+    // Hash macros (sorted by name for consistency)
+    if (!macros.empty()) {
+        std::vector<ShaderMacro> sorted_macros = macros;
+        std::sort(
+            sorted_macros.begin(),
+            sorted_macros.end(),
+            [](const ShaderMacro& a, const ShaderMacro& b) {
+                return a.name < b.name;
+            });
+        for (const auto& macro : sorted_macros) {
+            hash ^= std::hash<std::string>{}(macro.name) + 0x9e3779b9 +
+                    (hash << 6) + (hash >> 2);
+            hash ^= std::hash<std::string>{}(macro.definition) + 0x9e3779b9 +
+                    (hash << 6) + (hash >> 2);
+        }
     }
-
-    // Hash last write time
-    hash ^= std::hash<long long>{}(lastWriteTime) + 0x9e3779b9 + (hash << 6) +
-            (hash >> 2);
 
     return hash;
 }
@@ -498,7 +511,8 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         }
 
         // Store the binding location with the base name
-        binding_locations[name] = std::make_tuple(static_cast<unsigned int>(space), indices[space]++);
+        binding_locations[name] =
+            std::make_tuple(static_cast<unsigned int>(space), indices[space]++);
         layout_vector[space].addItem(item);
 
         layout_vector[space].visibility = shader_type;
@@ -757,22 +771,36 @@ void ShaderFactory::SlangCompile(
 
     // Calculate NVAPI path if needed
     std::string nvapi_include_path;
-    std::string nvapi_include_arg;  // Must be kept alive for the entire compilation
+    std::string
+        nvapi_include_arg;  // Must be kept alive for the entire compilation
     if (nvapi_support && target == SLANG_DXIL) {
-        spdlog::info("Looking for NVAPI headers, shader_search_path = {}", shader_search_path);
-        
+        spdlog::info(
+            "Looking for NVAPI headers, shader_search_path = {}",
+            shader_search_path);
+
         // Try multiple potential locations for nvapi headers
         std::vector<std::filesystem::path> potential_nvapi_paths = {
             // Runtime renderer resources
             // shader_search_path is: .../renderer/nodes/shaders/
             // we need: .../renderer/resources/nvapi
-            std::filesystem::path(shader_search_path).parent_path().parent_path().parent_path() / "resources" / "nvapi",
-            // External folder  
+            std::filesystem::path(shader_search_path)
+                    .parent_path()
+                    .parent_path()
+                    .parent_path() /
+                "resources" / "nvapi",
+            // External folder
             // shader_search_path is: .../source/Runtime/renderer/nodes/shaders/
-            // we need: .../external/nvapi  
-            std::filesystem::path(shader_search_path).parent_path().parent_path().parent_path().parent_path().parent_path().parent_path() / "external" / "nvapi"
+            // we need: .../external/nvapi
+            std::filesystem::path(shader_search_path)
+                    .parent_path()
+                    .parent_path()
+                    .parent_path()
+                    .parent_path()
+                    .parent_path()
+                    .parent_path() /
+                "external" / "nvapi"
         };
-        
+
         for (const auto& nvapi_path : potential_nvapi_paths) {
             spdlog::info("Checking nvapi path: {}", nvapi_path.string());
             if (std::filesystem::exists(nvapi_path / "nvHLSLExtns.h")) {
@@ -782,9 +810,11 @@ void ShaderFactory::SlangCompile(
                 break;
             }
         }
-        
+
         if (nvapi_include_path.empty()) {
-            spdlog::warn("NVAPI support requested but nvHLSLExtns.h not found in expected locations");
+            spdlog::warn(
+                "NVAPI support requested but nvHLSLExtns.h not found in "
+                "expected locations");
         }
     }
 
@@ -792,7 +822,9 @@ void ShaderFactory::SlangCompile(
         populate_vk_options(vk_compiler_options);
     }
     else if (target == SLANG_DXIL) {
-        populate_dxc_options(dxc_compiler_options, nvapi_include_arg.empty() ? nullptr : nvapi_include_arg.c_str());
+        populate_dxc_options(
+            dxc_compiler_options,
+            nvapi_include_arg.empty() ? nullptr : nvapi_include_arg.c_str());
     }
 
     slang::TargetDesc desc;
@@ -1062,7 +1094,9 @@ ProgramHandle ShaderFactory::createProgram(const ProgramDesc& desc) const
         // Add to binding locations map
         ret->reflection_info.binding_locations["g_NvidiaExt"] = std::make_tuple(
             static_cast<unsigned int>(space),
-            static_cast<unsigned int>(ret->reflection_info.binding_spaces[space].bindings.size() - 1));
+            static_cast<unsigned int>(
+                ret->reflection_info.binding_spaces[space].bindings.size() -
+                1));
     }
 
     // Save to cache if compilation was successful

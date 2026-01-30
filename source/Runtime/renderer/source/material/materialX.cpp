@@ -532,100 +532,118 @@ void Hd_RUZINO_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
     // Note: shader_generation was already incremented by base class
 }
 
-void Hd_RUZINO_MaterialX::BuildGPUTextures(
-    Hd_RUZINO_RenderParam* render_param)
+void Hd_RUZINO_MaterialX::BuildGPUTextures(Hd_RUZINO_RenderParam* render_param)
 {
     auto descriptor_table =
         render_param->InstanceCollection->get_texture_descriptor_table();
 
     for (auto& texture_resource : textureResources) {
         // Create a thread for asynchronous processing
-        std::thread texture_thread(
-            [&texture_resource, this, descriptor_table, render_param]() {
-                auto device = RHI::get_device();
+        std::thread texture_thread([&texture_resource,
+                                    this,
+                                    descriptor_table,
+                                    render_param]() {
+            auto device = RHI::get_device();
 
-                auto image = texture_resource.second.image;
+            auto image = texture_resource.second.image;
 
-                nvrhi::TextureDesc desc;
-                desc.width = image->GetWidth();
-                desc.height = image->GetHeight();
-                desc.format = RHI::ConvertFromHioFormat(image->GetFormat());
+            nvrhi::TextureDesc desc;
+            desc.width = image->GetWidth();
+            desc.height = image->GetHeight();
+            desc.format = RHI::ConvertFromHioFormat(image->GetFormat());
 
-                // Force linear format for non-sRGB textures (like normal maps)
-                if (!texture_resource.second.isSRGB) {
-                    if (desc.format == nvrhi::Format::SRGBA8_UNORM) {
-                        desc.format = nvrhi::Format::RGBA8_UNORM;
+            // Force linear format for non-sRGB textures (like normal maps)
+            if (!texture_resource.second.isSRGB) {
+                if (desc.format == nvrhi::Format::SRGBA8_UNORM) {
+                    desc.format = nvrhi::Format::RGBA8_UNORM;
+                }
+            }
+
+            desc.initialState = nvrhi::ResourceStates::ShaderResource;
+            desc.isRenderTarget = false;
+            desc.keepInitialState = true;
+
+            texture_resource.second.texture = device->createTexture(desc);
+
+            auto texture_name = std::filesystem::path(texture_resource.first)
+                                    .filename()
+                                    .string();
+
+            auto storage_byte_size = image->GetBytesPerPixel();
+
+            std::vector<uint8_t> data(
+                image->GetWidth() * image->GetHeight() * storage_byte_size, 0);
+
+            HioImage::StorageSpec storageSpec;
+            storageSpec.width = image->GetWidth();
+            storageSpec.height = image->GetHeight();
+            storageSpec.format = image->GetFormat();
+            storageSpec.flipped = true;
+            storageSpec.data = data.data();
+
+            // Read the image data asynchronously
+            texture_resource.second.image->Read(storageSpec);
+
+            {
+                std::lock_guard lock(texture_mutex);
+                if (image->GetFormat() == HioFormatUNorm8Vec3srgb) {
+                    // rearrange the data to be RGBA
+                    std::vector<uint8_t> rgba_data(
+                        image->GetWidth() * image->GetHeight() * 4, 0);
+                    for (size_t i = 0; i < data.size() / 3; i++) {
+                        rgba_data[i * 4] = data[i * 3];
+                        rgba_data[i * 4 + 1] = data[i * 3 + 1];
+                        rgba_data[i * 4 + 2] = data[i * 3 + 2];
+                        rgba_data[i * 4 + 3] = 255;
                     }
+                    data = std::move(rgba_data);
                 }
 
-                desc.initialState = nvrhi::ResourceStates::ShaderResource;
-                desc.isRenderTarget = false;
-                desc.keepInitialState = true;
+                auto [gpu_texture, staging] =
+                    RHI::load_texture(desc, data.data());
 
-                texture_resource.second.texture = device->createTexture(desc);
+                texture_resource.second.texture = gpu_texture;
+            }
 
-                auto texture_name =
-                    std::filesystem::path(texture_resource.first)
-                        .filename()
-                        .string();
+            texture_resource.second.descriptor =
+                descriptor_table->CreateDescriptorHandle(
+                    nvrhi::BindingSetItem::Texture_SRV(
+                        0, texture_resource.second.texture, desc.format));
 
-                auto storage_byte_size = image->GetBytesPerPixel();
+            if (texture_resource.second.texture) {
+                auto texture_id = texture_resource.second.descriptor.Get();
 
-                std::vector<uint8_t> data(
-                    image->GetWidth() * image->GetHeight() * storage_byte_size,
-                    0);
+                spdlog::info(
+                    "BuildGPUTextures: Looking for texture key '{}' with ID {}",
+                    texture_resource.first,
+                    texture_id);
 
-                HioImage::StorageSpec storageSpec;
-                storageSpec.width = image->GetWidth();
-                storageSpec.height = image->GetHeight();
-                storageSpec.format = image->GetFormat();
-                storageSpec.flipped = true;
-                storageSpec.data = data.data();
+                // Find the data location for this texture's ID
+                auto it = texture_id_locations.find(texture_resource.first);
+                if (it != texture_id_locations.end()) {
+                    unsigned int location = it->second;
+                    // Write texture ID directly to the data buffer
+                    memcpy(
+                        &material_data.data[location],
+                        &texture_id,
+                        sizeof(unsigned int));
 
-                // Read the image data asynchronously
-                texture_resource.second.image->Read(storageSpec);
+                    // Mark data as dirty so it will be uploaded
+                    material_data_dirty = true;
 
-                {
-                    std::lock_guard lock(texture_mutex);
-                    if (image->GetFormat() == HioFormatUNorm8Vec3srgb) {
-                        // rearrange the data to be RGBA
-                        std::vector<uint8_t> rgba_data(
-                            image->GetWidth() * image->GetHeight() * 4, 0);
-                        for (size_t i = 0; i < data.size() / 3; i++) {
-                            rgba_data[i * 4] = data[i * 3];
-                            rgba_data[i * 4 + 1] = data[i * 3 + 1];
-                            rgba_data[i * 4 + 2] = data[i * 3 + 2];
-                            rgba_data[i * 4 + 3] = 255;
-                        }
-                        data = std::move(rgba_data);
-                    }
-
-                    auto [gpu_texture, staging] =
-                        RHI::load_texture(desc, data.data());
-
-                    texture_resource.second.texture = gpu_texture;
+                    spdlog::info(
+                        "Texture '{}' ID {} written to data location {}",
+                        texture_resource.first,
+                        texture_id,
+                        location);
                 }
-
-                texture_resource.second.descriptor =
-                    descriptor_table->CreateDescriptorHandle(
-                        nvrhi::BindingSetItem::Texture_SRV(
-                            0, texture_resource.second.texture, desc.format));
-
-                if (texture_resource.second.texture) {
-                    auto texture_id = texture_resource.second.descriptor.Get();
-
-                    // Replace the "$"+ texture_name+"_id" with the actual
-                    // texture_id in the get_data_code string
-                    std::string to_replace = "$" + texture_name + "_file_id";
-                    std::string replace_with = std::to_string(texture_id);
-
-                    size_t pos = get_data_code.find(to_replace);
-                    if (pos != std::string::npos) {
-                        get_data_code.replace(
-                            pos, to_replace.length(), replace_with);
-                    }
+                else {
+                    spdlog::warn(
+                        "Texture '{}' not found in texture_id_locations map",
+                        texture_resource.first);
                 }
-            });
+            }
+        });
 
         // Add the thread to the render_param for tracking
         render_param->texture_loading_threads.push_back(
@@ -667,6 +685,19 @@ void Hd_RUZINO_MaterialX::CollectTextures(
 
         texturePaths[textureNodeName.GetString()] = path;
 
+        // Extract the base name for MaterialX node (last component of path)
+        // For example:
+        // "/mesh_0/mtl/brickwall_01_usd/brickwall_01_Metalness/brickwall_01_Metalness"
+        // -> "brickwall_01_Metalness"
+        std::string mxNodeName = texturePath.GetName();
+
+        spdlog::info(
+            "CollectTextures: Full path='{}', extracted name='{}', file "
+            "path='{}'",
+            textureNodeName.GetString(),
+            mxNodeName,
+            path);
+
         // Load the texture immediately
         if (!pxr::HioImage::IsSupportedImageFile(path)) {
             TF_WARN(
@@ -685,9 +716,11 @@ void Hd_RUZINO_MaterialX::CollectTextures(
             continue;
         }
 
-        textureResources[textureNodeName.GetString()].filePath = path;
-        textureResources[textureNodeName.GetString()].image = image;
-        textureResources[textureNodeName.GetString()].isSRGB = isSRGB;
+        // Use MaterialX node name (last path component) as key to match
+        // bindlessContext
+        textureResources[mxNodeName].filePath = path;
+        textureResources[mxNodeName].image = image;
+        textureResources[mxNodeName].isSRGB = isSRGB;
     }
 }
 
@@ -847,6 +880,7 @@ void Hd_RUZINO_MaterialX::MtlxGenerateShader(
 
             get_data_code = context->get_data_code();
             material_data = context->get_material_data();
+            texture_id_locations = context->get_texture_id_locations();
             material_data_handle->write_data(&material_data);
 
             spdlog::info(
@@ -860,6 +894,14 @@ void Hd_RUZINO_MaterialX::MtlxGenerateShader(
                 e.what());
             return;
         }
+    }
+}
+
+void Hd_RUZINO_MaterialX::upload_material_data()
+{
+    if (material_data_dirty && material_data_handle) {
+        material_data_handle->write_data(&material_data);
+        material_data_dirty = false;
     }
 }
 

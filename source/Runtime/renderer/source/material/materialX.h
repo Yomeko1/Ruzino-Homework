@@ -23,6 +23,9 @@ class HD_RUZINO_API Hd_RUZINO_MaterialX : public Hd_RUZINO_Material {
 
     void ensure_shader_ready(const ShaderFactory& factory) override;
 
+    // Upload material data to GPU after texture loading is complete
+    void upload_material_data();
+
    protected:
     void BuildGPUTextures(Hd_RUZINO_RenderParam* render_param);
     void CollectTextures(
@@ -36,6 +39,10 @@ class HD_RUZINO_API Hd_RUZINO_MaterialX : public Hd_RUZINO_Material {
         HdMaterialNode2 const*& surfTerminal);
 
     std::string get_data_code;
+    // Mapping from texture variable name to data location for texture IDs
+    std::unordered_map<std::string, unsigned int> texture_id_locations;
+    // Flag to track if material data needs to be uploaded to GPU
+    bool material_data_dirty = false;
 
    private:
     void MtlxGenerateShader(

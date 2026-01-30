@@ -66,10 +66,19 @@ class BindlessContext : public HwResourceBindingContext {
         return material_data;
     }
 
+    // Get the mapping of texture names to their data locations
+    const std::unordered_map<std::string, unsigned int>&
+    get_texture_id_locations() const
+    {
+        return texture_id_locations;
+    }
+
    private:
     std::string fetch_data = "";
     unsigned int data_location = 0;
     MaterialDataBlob material_data;
+    // Maps texture variable name to its data location for storing texture ID
+    std::unordered_map<std::string, unsigned int> texture_id_locations;
 };
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

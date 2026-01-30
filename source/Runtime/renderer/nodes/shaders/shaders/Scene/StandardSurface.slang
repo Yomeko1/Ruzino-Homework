@@ -108,24 +108,6 @@ void NG_standard_surface_surfaceshader_100(
         return;
     }
 
-    // Fast path: Check if all parameters are effectively zero (simple diffuse
-    // case)
-    const float epsilon = 1e-5;
-    bool is_simple_diffuse = (metalness < epsilon) && (specular < epsilon) &&
-                             (transmission < epsilon) &&
-                             (subsurface < epsilon) && (sheen < epsilon) &&
-                             (coat < epsilon);
-
-    if (is_simple_diffuse && base > epsilon) {
-        // Simple Lambertian diffuse only
-        float3 N = normalize(vd.normalWorld);
-        float NdotL = max(0.0, dot(N, L));
-        float3 diffuse = base_color * base * NdotL / 3.14159265359;
-
-        out1 = surfaceshader(diffuse, float3(1.0 - NdotL));
-        return;
-    }
-
     if (transmission > 0.0)
         if (eta_flipped > 0.0)
             specular_IOR = 1.0 / specular_IOR;

@@ -287,23 +287,44 @@ void BindlessContext::emitResourceBindings(
         // layout bindings
         for (auto uniform : resources.getVariableOrder()) {
             if (uniform->getType() == Type::FILENAME) {
-                // generator.emitString(
-                //     "layout (binding=" +
-                //         std::to_string(
-                //             _separateBindingLocation ?
-                //             _hwUniformBindLocation++
-                //                                      :
-                //                                      _hwSamplerBindLocation++)
-                //                                      +
-                //         ") " + syntax.getUniformQualifier() + " ",
-                //     stage);
-                // generator.emitVariableDeclaration(
-                //    uniform, EMPTY_STRING, context, stage, true);
-                // generator.emitLineEnd(stage, true);
+                // Reserve a location in data buffer for texture ID
+                unsigned int texture_id_location = data_location++;
 
+                // Store the mapping using uniform's name WITHOUT the "_file"
+                // suffix to match the MaterialX document node names
+                std::string uniformName = uniform->getName();
+                // Remove "_file" suffix if present
+                const std::string fileSuffix = "_file";
+                if (uniformName.size() >= fileSuffix.size() &&
+                    uniformName.compare(
+                        uniformName.size() - fileSuffix.size(),
+                        fileSuffix.size(),
+                        fileSuffix) == 0) {
+                    uniformName = uniformName.substr(
+                        0, uniformName.size() - fileSuffix.size());
+                }
+
+                texture_id_locations[uniformName] = texture_id_location;
+
+                spdlog::info(
+                    "BindlessContext: Registering texture '{}' (variable: "
+                    "'{}') at data location {}",
+                    uniformName,
+                    uniform->getVariable(),
+                    texture_id_location);
+
+                // Initialize with 0 (will be updated when texture is loaded)
+                unsigned int default_id = 0;
+                memcpy(
+                    &material_data.data[texture_id_location],
+                    &default_id,
+                    sizeof(unsigned int));
+
+                // Generate code to read texture ID from data buffer
                 fetch_data += "Texture2D " + uniform->getVariable() + " = " +
-                              " t_BindlessTextures[NonUniformResourceIndex($" +
-                              uniform->getName() + "_id)];\n";
+                              " t_BindlessTextures[NonUniformResourceIndex(" +
+                              "asuint(data.data[" +
+                              std::to_string(texture_id_location) + "]))];\n";
             }
         }
     }

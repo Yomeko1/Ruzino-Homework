@@ -253,7 +253,7 @@ void RayGen()
             current_ray.Origin = vertex.posW + ray_offset;
             current_ray.Direction = ray_dir;
             current_ray.TMin = 0.0;
-            current_ray.TMax = 10000.0;
+            current_ray.TMax = 3000.0;
         }
 
         output_color = add(output_color, accumulated_color);
