@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <rzpython/interpreter.hpp>
 #include <rzpython/rzpython.hpp>
 
@@ -48,9 +49,51 @@ PythonInterpreter::PythonInterpreter() : python_initialized_(false)
                     return { false, "Usage: exec <filename>\n" };
                 }
 
-                std::string code = "exec(open('" + args[1] + "').read())";
+                std::string filename = args[1];
+                std::filesystem::path script_path(filename);
+
+                // If path is relative, search in default scripts directory
+                if (script_path.is_relative()) {
+                    std::filesystem::path default_dir =
+                        "../../source/Plugins/scripts";
+                    std::filesystem::path full_path = default_dir / script_path;
+                    if (std::filesystem::exists(full_path)) {
+                        script_path = full_path;
+                    }
+                }
+
+                // Check if file exists
+                if (!std::filesystem::exists(script_path)) {
+                    std::string msg =
+                        "File not found: " + script_path.string() + "\n";
+                    spdlog::error("{}", msg);
+                    return { false, msg };
+                }
+
+                spdlog::info(
+                    "Executing Python script: {}", script_path.string());
+
+                // Wrap script execution with print statements for feedback
+                std::string code =
+                    "print('\\n=== Starting script execution ===')\n"
+                    "exec(open('" +
+                    script_path.string() +
+                    "').read())\n"
+                    "print('\\n=== Script execution completed ===')\n";
+
                 auto result = ExecutePythonCode(code);
-                return { result.status, result.output };
+
+                // Always return output with status
+                std::string output = result.output;
+                if (output.empty()) {
+                    output = "Script executed (no output produced)\n";
+                }
+
+                spdlog::info(
+                    "Script result - Status: {}, Output: {}",
+                    result.status,
+                    result.output);
+                return { result.status, output };
             }
         };
         console::RegisterCommand(pyexec_cmd);
@@ -133,10 +176,19 @@ std::vector<std::string> PythonInterpreter::Suggest(
     size_t cursor_pos)
 {
     std::vector<std::string> ret;
-    if (python_initialized_) {
+
+    // Check if this is a console command (python or exec)
+    auto tokens = ds::split(cmdline);
+    bool is_console_command =
+        !tokens.empty() && (tokens[0] == "python" || tokens[0] == "exec" ||
+                            console::FindCommand(tokens[0]));
+
+    // Only use Python completion for non-console commands
+    if (!is_console_command && python_initialized_) {
         ret = SuggestPythonCompletion(cmdline);
     }
-    // merge.
+
+    // Always get console suggestions (will route to SuggestCommand for exec)
     auto cons = console::Interpreter::Suggest(cmdline, cursor_pos);
     ret.insert(ret.end(), cons.begin(), cons.end());
     return ret;
@@ -146,12 +198,6 @@ PythonInterpreter::Result PythonInterpreter::ExecuteCommand(
     std::string_view command,
     const std::vector<std::string>& args)
 {
-    // Handle Python-specific commands
-    if (command == "python" || command == "exec") {
-        // These are handled by registered console commands
-        return { false, "Command should be handled by console system" };
-    }
-
     return console::Interpreter::ExecuteCommand(command, args);
 }
 
@@ -164,12 +210,16 @@ std::vector<std::string> PythonInterpreter::SuggestCommand(
         return SuggestPythonCompletion(cmdline);
     }
 
+    if (command == "exec") {
+        return SuggestExecCompletion(cmdline);
+    }
+
     return console::Interpreter::SuggestCommand(command, cmdline, cursor_pos);
 }
 
 bool PythonInterpreter::IsValidCommand(std::string_view command) const
 {
-    return command == "python" || command == "exec" ||
+    return command != "python" && command != "exec" &&
            console::Interpreter::IsValidCommand(command);
 }
 
@@ -191,7 +241,7 @@ PythonInterpreter::Result PythonInterpreter::ExecutePythonCode(
             python::call<void>(
                 "sys.stdout = _console_stdout\n"
                 "sys.stderr = _console_stderr\n");
-            
+
             // First try as expression
             PyObject* result = PyRun_String(
                 code_str.c_str(),
@@ -424,6 +474,58 @@ if not _user_input.lstrip().endswith('__'):
             return {};
         }
     }
+}
+
+std::vector<std::string> PythonInterpreter::SuggestExecCompletion(
+    std::string_view cmdline)
+{
+    std::vector<std::string> suggestions;
+
+    // Extract the prefix after "exec " command
+    std::string cmd_str(cmdline);
+    size_t exec_pos = cmd_str.find("exec");
+    if (exec_pos == std::string::npos) {
+        return suggestions;
+    }
+
+    // Find the start of the filename argument (skip "exec" and whitespace)
+    size_t arg_start = exec_pos + 4;
+    while (arg_start < cmd_str.length() &&
+           (cmd_str[arg_start] == ' ' || cmd_str[arg_start] == '\t')) {
+        arg_start++;
+    }
+
+    std::string prefix = cmd_str.substr(arg_start);
+
+    // Get default scripts directory
+    std::filesystem::path scripts_dir = "../../source/Plugins/scripts";
+
+    try {
+        if (std::filesystem::exists(scripts_dir) &&
+            std::filesystem::is_directory(scripts_dir)) {
+            for (const auto& entry :
+                 std::filesystem::directory_iterator(scripts_dir)) {
+                if (entry.is_regular_file()) {
+                    std::string filename = entry.path().filename().string();
+
+                    // Filter by prefix
+                    if (prefix.empty() ||
+                        (filename.size() >= prefix.size() &&
+                         filename.substr(0, prefix.size()) == prefix)) {
+                        suggestions.push_back(filename);
+                    }
+                }
+            }
+        }
+    }
+    catch (const std::exception& e) {
+        spdlog::debug("Error scanning scripts directory: {}", e.what());
+    }
+
+    // Sort suggestions
+    std::sort(suggestions.begin(), suggestions.end());
+
+    return suggestions;
 }
 
 std::shared_ptr<console::Interpreter> CreatePythonInterpreter()

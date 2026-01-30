@@ -175,7 +175,7 @@ NB_MODULE(stage_py, m)
                 // Convert C++ UsdStageRefPtr to pxr.Usd.Stage (Boost.Python)
                 PyObject* pxr_stage = wrap_stage_with_boost_python(usd_stage);
                 // Wrap in nanobind object
-                return nb::steal<nb::object>(pxr_stage);
+                return nb::borrow<nb::object>(pxr_stage);
             },
             "Get pxr.Usd.Stage (Boost.Python) object - TRUE INTEROP!");
 

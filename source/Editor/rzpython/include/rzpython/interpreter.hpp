@@ -38,6 +38,7 @@ class RZPYTHON_API PythonInterpreter : public console::Interpreter {
     virtual bool IsValidCommand(std::string_view command) const override;
 
     std::vector<std::string> SuggestPythonCompletion(std::string_view code);
+    std::vector<std::string> SuggestExecCompletion(std::string_view cmdline);
 
    private:
     Result ExecutePythonCode(std::string_view code);
