@@ -232,11 +232,15 @@ PythonInterpreter::Result PythonInterpreter::ExecutePythonCode(
             }
 
             // Get captured output
+            bool has_error = false;
             try {
                 std::string stdout_content =
                     python::call<std::string>("_console_stdout.getvalue()");
                 std::string stderr_content =
                     python::call<std::string>("_console_stderr.getvalue()");
+
+                // Check if there were any errors
+                has_error = !stderr_content.empty();
 
                 // Combine stdout and stderr
                 if (!stdout_content.empty()) {
@@ -249,21 +253,24 @@ PythonInterpreter::Result PythonInterpreter::ExecutePythonCode(
                     }
                     captured_output += stderr_content;
                 }
+
+                // Clear the buffers for next execution
+                python::call<void>(
+                    "_console_stdout.truncate(0)\n"
+                    "_console_stdout.seek(0)\n"
+                    "_console_stderr.truncate(0)\n"
+                    "_console_stderr.seek(0)\n");
             }
             catch (const std::exception& e) {
                 captured_output +=
                     "Error getting output: " + std::string(e.what()) + "\n";
+                has_error = true;
             }
 
             // Restore stdout/stderr
             python::call<void>(
                 "sys.stdout = _original_stdout\n"
                 "sys.stderr = _original_stderr\n");
-
-            // Check if there were any errors
-            bool has_error =
-                !python::call<std::string>("_console_stderr.getvalue()")
-                     .empty();
 
             return { !has_error, captured_output };
         }
