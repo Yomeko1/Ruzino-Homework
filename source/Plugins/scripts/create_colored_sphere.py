@@ -24,8 +24,9 @@ z_amplitude = 1.0    # Amplitude of oscillation (±1)
 spacing = 1.5        # Distance between sphere centers
 
 # Animation parameters
-animation_duration = 120  # frames
-period = 60           # frames per complete oscillation
+# 6 seconds at 60fps = 360 frames, 2 oscillation cycles
+animation_duration = 360  # frames (6 seconds at 60fps)
+num_cycles = 2        # number of complete oscillations
 
 # Calculate grid offset to center it
 grid_size = 10
@@ -78,19 +79,19 @@ for i in range(grid_size):
             # Wave phase offset based on position (creates wave effect)
             phase_offset = 2.0 * math.pi * (i + j) / (2.0 * grid_size)
             
-            # Calculate oscillating z height with wave effect
-            z = base_z_height + z_amplitude * math.sin(2.0 * math.pi * t + phase_offset)
+            # Calculate oscillating z height with wave effect (2 complete cycles)
+            z = base_z_height + z_amplitude * math.sin(2.0 * math.pi * num_cycles * t + phase_offset)
             
             # Set position with time sampling
-            translate_op.Set(Gf.Vec3d(x, y, z), Sdf.TimeCode(frame))
+            translate_op.Set(Gf.Vec3d(x, y, z), Sdf.TimeCode(frame / 60))
             
-            # Calculate color that changes over time
-            hue_shift = t * 2.0 * math.pi  # Full color cycle over animation
+            # Calculate color that changes over time (2 complete color cycles)
+            hue_shift = t * 2.0 * math.pi * num_cycles
             r = 0.5 + 0.5 * math.sin(hue_shift + phase_offset)
             g = 0.5 + 0.5 * math.sin(hue_shift + phase_offset + 2.0 * math.pi / 3.0)
             b = 0.5 + 0.5 * math.sin(hue_shift + phase_offset + 4.0 * math.pi / 3.0)
             
             # Set color with time sampling
-            diffuse_input.Set(Gf.Vec3f(r, g, b), Sdf.TimeCode(frame))
+            diffuse_input.Set(Gf.Vec3f(r, g, b), Sdf.TimeCode(frame / 60))
 
-print(f"Created 100 animated colored spheres (10x10 grid) with wave motion and color animation")
+print(f"Created 100 animated colored spheres (10x10 grid) with 6-second animation (60fps, 2 cycles)")
