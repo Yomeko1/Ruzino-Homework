@@ -431,8 +431,10 @@ void ThirdPersonCamera::AnimateOrbit(double deltaT)
     m_Pitch += ORBIT_SENSITIVITY * deltaT * m_DeltaPitch;
 
     m_Distance = std::clamp(m_Distance, m_MinDistance, m_MaxDistance);
-    m_Pitch = std::clamp(m_Pitch, -M_PI / 2, M_PI / 2);
-    m_Pitch = std::clamp(m_Pitch, -M_PI / 2, M_PI / 2);
+    // Limit pitch to avoid gimbal lock at exact top/bottom (±90°)
+    // Leave small margin to prevent camera flipping
+    const double PITCH_LIMIT = M_PI / 2.0 * 0.99;  // ~89.43°
+    m_Pitch = std::clamp(m_Pitch, -PITCH_LIMIT, PITCH_LIMIT);
 
     m_DeltaDistance = 0;
     m_DeltaYaw = 0;
