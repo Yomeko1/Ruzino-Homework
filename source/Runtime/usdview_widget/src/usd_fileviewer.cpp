@@ -28,18 +28,31 @@
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
+// Flag to prevent infinite loops/flickering when Inspector modifies the
+// transform
+static bool s_InspectorTransformModified = false;
+
 // Macro for creating drag float component controls (X/Y/Z)
-#define DRAG_FLOAT_COMPONENT(label, var, index, modified_flag)               \
+#define DRAG_FLOAT_COMPONENT(                                                \
+    label, var, index, modified_flag, deactivated_flag)                      \
     ImGui::Text(label ":");                                                  \
     ImGui::SameLine();                                                       \
     if (ImGui::DragFloat("##" label, &var, 0.1f, -1000.f, 1000.f, "%.2f")) { \
         modified_flag = true;                                                \
     }                                                                        \
+    deactivated_flag |= ImGui::IsItemDeactivatedAfterEdit();                 \
     ImGui::SameLine();
 
 // Macro for creating rotation component controls with custom range
 #define DRAG_ROT_COMPONENT(                                           \
-    label, var, index, eulerVec, modified_flag, min_val, max_val)     \
+    label,                                                            \
+    var,                                                              \
+    index,                                                            \
+    eulerVec,                                                         \
+    modified_flag,                                                    \
+    deactivated_flag,                                                 \
+    min_val,                                                          \
+    max_val)                                                          \
     ImGui::Text(label ":");                                           \
     ImGui::SameLine();                                                \
     if (ImGui::DragFloat(                                             \
@@ -47,17 +60,20 @@ RUZINO_NAMESPACE_OPEN_SCOPE
         eulerVec[index] = var;                                        \
         modified_flag = true;                                         \
     }                                                                 \
+    deactivated_flag |= ImGui::IsItemDeactivatedAfterEdit();          \
     ImGui::SameLine();
 
 // Macro for creating scale component controls
-#define DRAG_SCALE_COMPONENT(label, var, scaleVec, index, modified_flag) \
-    ImGui::Text(label ":");                                              \
-    ImGui::SameLine();                                                   \
-    if (ImGui::DragFloat(                                                \
-            "##scale_" label, &var, 0.01f, 0.001f, 100.f, "%.3f")) {     \
-        scaleVec[index] = var;                                           \
-        modified_flag = true;                                            \
-    }                                                                    \
+#define DRAG_SCALE_COMPONENT(                                        \
+    label, var, scaleVec, index, modified_flag, deactivated_flag)    \
+    ImGui::Text(label ":");                                          \
+    ImGui::SameLine();                                               \
+    if (ImGui::DragFloat(                                            \
+            "##scale_" label, &var, 0.01f, 0.001f, 100.f, "%.3f")) { \
+        scaleVec[index] = var;                                       \
+        modified_flag = true;                                        \
+    }                                                                \
+    deactivated_flag |= ImGui::IsItemDeactivatedAfterEdit();         \
     ImGui::SameLine();
 
 // Macro for simple scalar attribute handling
@@ -566,6 +582,14 @@ void UsdFileViewer::EditValue()
                         eulerXYZ[2] = 0.0;
                     }
 
+                    // Negate the extracted angles to match the construction
+                    // logic which uses Active rotations (Fixes issue where view
+                    // flips/disappears on Inspector edit due to Active/Passive
+                    // mismatch)
+                    eulerXYZ[0] = -eulerXYZ[0];
+                    eulerXYZ[1] = -eulerXYZ[1];
+                    eulerXYZ[2] = -eulerXYZ[2];
+
                     // Cache the transform values
                     cached_euler_angles = eulerXYZ;
                     cached_scale = scaleVec;
@@ -579,6 +603,7 @@ void UsdFileViewer::EditValue()
                 }
 
                 bool modified = false;
+                bool editFinished = false;
 
                 // Translation
                 ImGui::Text("Translation");
@@ -593,9 +618,12 @@ void UsdFileViewer::EditValue()
 
                 ImGui::PushItemWidth(itemWidth);
                 bool transModified = false;
-                DRAG_FLOAT_COMPONENT("X", trans_tmp[0], 0, transModified)
-                DRAG_FLOAT_COMPONENT("Y", trans_tmp[1], 1, transModified)
-                DRAG_FLOAT_COMPONENT("Z", trans_tmp[2], 2, transModified)
+                DRAG_FLOAT_COMPONENT(
+                    "X", trans_tmp[0], 0, transModified, editFinished)
+                DRAG_FLOAT_COMPONENT(
+                    "Y", trans_tmp[1], 1, transModified, editFinished)
+                DRAG_FLOAT_COMPONENT(
+                    "Z", trans_tmp[2], 2, transModified, editFinished)
                 ImGui::PopItemWidth();
 
                 if (transModified) {
@@ -620,11 +648,32 @@ void UsdFileViewer::EditValue()
                 bool rotModified = false;
 
                 DRAG_ROT_COMPONENT(
-                    "X", rot_tmp[0], 0, eulerXYZ, rotModified, -180.f, 180.f)
+                    "X",
+                    rot_tmp[0],
+                    0,
+                    eulerXYZ,
+                    rotModified,
+                    editFinished,
+                    -180.f,
+                    180.f)
                 DRAG_ROT_COMPONENT(
-                    "Y", rot_tmp[1], 1, eulerXYZ, rotModified, -89.9f, 89.9f)
+                    "Y",
+                    rot_tmp[1],
+                    1,
+                    eulerXYZ,
+                    rotModified,
+                    editFinished,
+                    -89.9f,
+                    89.9f)
                 DRAG_ROT_COMPONENT(
-                    "Z", rot_tmp[2], 2, eulerXYZ, rotModified, -180.f, 180.f)
+                    "Z",
+                    rot_tmp[2],
+                    2,
+                    eulerXYZ,
+                    rotModified,
+                    editFinished,
+                    -180.f,
+                    180.f)
                 ImGui::PopItemWidth();
                 ImGui::Unindent();
 
@@ -648,9 +697,12 @@ void UsdFileViewer::EditValue()
                 bool scaleModified = false;
 
                 ImGui::PushItemWidth(itemWidth);
-                DRAG_SCALE_COMPONENT("X", scale_x, scaleVec, 0, scaleModified)
-                DRAG_SCALE_COMPONENT("Y", scale_y, scaleVec, 1, scaleModified)
-                DRAG_SCALE_COMPONENT("Z", scale_z, scaleVec, 2, scaleModified)
+                DRAG_SCALE_COMPONENT(
+                    "X", scale_x, scaleVec, 0, scaleModified, editFinished)
+                DRAG_SCALE_COMPONENT(
+                    "Y", scale_y, scaleVec, 1, scaleModified, editFinished)
+                DRAG_SCALE_COMPONENT(
+                    "Z", scale_z, scaleVec, 2, scaleModified, editFinished)
                 ImGui::PopItemWidth();
 
                 // Uniform scale button
@@ -702,6 +754,17 @@ void UsdFileViewer::EditValue()
                         !std::isnan(newMat[3][3])) {
                         try {
                             trans.Set(newMat);
+                            // Set flag so we ignore the echoed event and don't
+                            // clear our cache
+                            s_InspectorTransformModified = true;
+
+                            // Emit event so the Viewport Camera updates its
+                            // internal state (The flag above prevents this
+                            // Inspector from clearing its cache)
+                            if (window) {
+                                window->events().emit_any(
+                                    "camera_transform_modified", std::any());
+                            }
                         }
                         catch (...) {
                             spdlog::warn("Failed to set transform matrix");
@@ -1383,6 +1446,22 @@ bool UsdFileViewer::BuildUI()
                 catch (const std::bad_any_cast&) {
                     // Silently ignore invalid event data
                 }
+            });
+
+        // Subscribe to camera transform modified events to invalidate cache
+        window->events().subscribe_any(
+            "camera_transform_modified", [this](const std::any& event_data) {
+                // If the modification came from the Inspector itself, ignore it
+                // This prevents cache invalidation which leads to drift over
+                // repeated edits
+                if (s_InspectorTransformModified) {
+                    s_InspectorTransformModified = false;
+                    return;
+                }
+
+                // Clear transform cache to force Inspector to recompute Euler
+                // angles
+                has_cached_transform = false;
             });
     }
 

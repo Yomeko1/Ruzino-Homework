@@ -1,6 +1,7 @@
 #include "free_camera.hpp"
 
 #include <pxr/base/gf/matrix4d.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cmath>
@@ -32,13 +33,17 @@ void BaseCamera::UpdateWorldToView()
     m_MatWorldToView =
         (pxr::GfMatrix4d().SetIdentity().SetTranslate(-m_CameraPos) *
          m_MatTranslatedWorldToView);
+}
 
+void BaseCamera::UpdateUsdTransform()
+{
     auto xform_op = GetTransformOp();
     if (!xform_op) {
         xform_op = AddTransformOp();
     }
     // Set the transform op
-    xform_op.Set(m_MatWorldToView.GetInverse());
+    pxr::GfMatrix4d worldToCamera = m_MatWorldToView.GetInverse();
+    xform_op.Set(worldToCamera);
 }
 
 BaseCamera::BaseCamera(const pxr::UsdGeomCamera& camera)
@@ -65,6 +70,25 @@ BaseCamera::BaseCamera(const pxr::UsdGeomCamera& camera)
     }
 }
 
+void BaseCamera::ReloadFromUsd()
+{
+    pxr::UsdGeomXformOp transform_op = GetTransformOp();
+    if (transform_op) {
+        pxr::GfMatrix4d transform_mat;
+        transform_mat.SetIdentity();
+        transform_op.Get(&transform_mat);
+
+        m_CameraPos = transform_mat.ExtractTranslation();
+        m_CameraDir = -transform_mat.ExtractRotation().TransformDir(
+            pxr::GfVec3d(0.0, 0.0, 1.0));
+        m_CameraUp = transform_mat.ExtractRotation().TransformDir(
+            pxr::GfVec3d(0.0, 1.0, 0.0));
+        m_CameraRight = transform_mat.ExtractRotation().TransformDir(
+            pxr::GfVec3d(1.0, 0.0, 0.0));
+        m_MatWorldToView = transform_mat.GetInverse();
+    }
+}
+
 void BaseCamera::BaseLookAt(
     pxr::GfVec3d cameraPos,
     pxr::GfVec3d cameraTarget,
@@ -79,6 +103,7 @@ void BaseCamera::BaseLookAt(
         pxr::GfCross(this->m_CameraRight, this->m_CameraDir).GetNormalized();
 
     UpdateWorldToView();
+    UpdateUsdTransform();
 }
 
 FirstPersonCamera::FirstPersonCamera(const pxr::UsdGeomCamera& camera)
@@ -195,6 +220,7 @@ void FirstPersonCamera::UpdateCamera(
     m_CameraRight = pxr::GfCross(m_CameraDir, m_CameraUp).GetNormalized();
 
     UpdateWorldToView();
+    UpdateUsdTransform();
 }
 
 std::pair<bool, pxr::GfRotation> FirstPersonCamera::AnimateRoll(
@@ -371,10 +397,33 @@ void ThirdPersonCamera::MouseButtonUpdate(int button, int action, int mods)
 void ThirdPersonCamera::MouseScrollUpdate(double xoffset, double yoffset)
 {
     const double scrollFactor = 1.15f;
+    double oldDistance = m_Distance;
     m_Distance = std::clamp(
         m_Distance * (yoffset < 0 ? scrollFactor : 1.0f / scrollFactor),
         m_MinDistance,
         m_MaxDistance);
+
+    // If distance changed, update position and USD
+    if (oldDistance != m_Distance) {
+        // Update camera position based on new distance
+        double x = m_Distance * cos(m_Pitch) * cos(m_Yaw);
+        double y = m_Distance * cos(m_Pitch) * sin(m_Yaw);
+        double z = m_Distance * sin(m_Pitch);
+        pxr::GfVec3d offset(x, y, z);
+
+        m_CameraPos = m_TargetPos + offset;
+        m_CameraDir = -offset.GetNormalized();
+
+        pxr::GfVec3d world_up(0, 0, 1);
+        if (std::abs(m_Pitch) > 0.99 * M_PI / 2.0) {
+            world_up = pxr::GfVec3d(-sin(m_Yaw), cos(m_Yaw), 0);
+        }
+        m_CameraRight = pxr::GfCross(m_CameraDir, world_up).GetNormalized();
+        m_CameraUp = pxr::GfCross(m_CameraRight, m_CameraDir).GetNormalized();
+
+        UpdateWorldToView();
+        UpdateUsdTransform();
+    }
 }
 
 void ThirdPersonCamera::JoystickUpdate(int axis, double value)
@@ -414,21 +463,36 @@ void ThirdPersonCamera::SetView(const pxr::GfFrustum& view)
     auto viewport = view.GetWindow();
     m_ViewportSize = viewport.GetSize();
 }
-void ThirdPersonCamera::AnimateOrbit(double deltaT)
+bool ThirdPersonCamera::AnimateOrbit(double deltaT)
 {
+    bool hasInteraction = false;
+
     if (mouseButtonState[MouseButtons::Left]) {
         pxr::GfVec2d mouseMove = m_MousePos - m_MousePosPrev;
-        double rotateSpeed = m_RotateSpeed * 0.2;
+        if (mouseMove[0] != 0.0 || mouseMove[1] != 0.0) {
+            double rotateSpeed = m_RotateSpeed * 0.2;
 
-        m_Yaw -= rotateSpeed * mouseMove[0];
-        m_Pitch += rotateSpeed * mouseMove[1];
+            m_Yaw -= rotateSpeed * mouseMove[0];
+            m_Pitch += rotateSpeed * mouseMove[1];
+            hasInteraction = true;
+        }
     }
 
     const double ORBIT_SENSITIVITY = 1.5f;
     const double ZOOM_SENSITIVITY = 40.f;
-    m_Distance += ZOOM_SENSITIVITY * deltaT * m_DeltaDistance;
-    m_Yaw += ORBIT_SENSITIVITY * deltaT * m_DeltaYaw;
-    m_Pitch += ORBIT_SENSITIVITY * deltaT * m_DeltaPitch;
+
+    if (m_DeltaDistance != 0.0) {
+        m_Distance += ZOOM_SENSITIVITY * deltaT * m_DeltaDistance;
+        hasInteraction = true;
+    }
+    if (m_DeltaYaw != 0.0) {
+        m_Yaw += ORBIT_SENSITIVITY * deltaT * m_DeltaYaw;
+        hasInteraction = true;
+    }
+    if (m_DeltaPitch != 0.0) {
+        m_Pitch += ORBIT_SENSITIVITY * deltaT * m_DeltaPitch;
+        hasInteraction = true;
+    }
 
     m_Distance = std::clamp(m_Distance, m_MinDistance, m_MaxDistance);
     // Limit pitch to avoid gimbal lock at exact top/bottom (±90°)
@@ -439,16 +503,18 @@ void ThirdPersonCamera::AnimateOrbit(double deltaT)
     m_DeltaDistance = 0;
     m_DeltaYaw = 0;
     m_DeltaPitch = 0;
+
+    return hasInteraction;
 }
 
-void ThirdPersonCamera::AnimateTranslation(const pxr::GfMatrix3d& viewMatrix)
+bool ThirdPersonCamera::AnimateTranslation(const pxr::GfMatrix3d& viewMatrix)
 {
     // If the view parameters have never been set, we can't translate
     if (m_ViewportSize[0] <= 0.0 || m_ViewportSize[1] <= 0.0)
-        return;
+        return false;
 
     if (m_MousePos == m_MousePosPrev)
-        return;
+        return false;
 
     if (mouseButtonState[MouseButtons::Middle]) {
         pxr::GfVec2d mouseDelta(
@@ -461,12 +527,14 @@ void ThirdPersonCamera::AnimateTranslation(const pxr::GfMatrix3d& viewMatrix)
         // Pan the target position inversely to mouse movement
         m_TargetPos -= mouseDelta[0] * pixelToWorld * m_CameraRight;
         m_TargetPos += mouseDelta[1] * pixelToWorld * m_CameraUp;
+        return true;
     }
+    return false;
 }
 
 void ThirdPersonCamera::Animate(double deltaT)
 {
-    AnimateOrbit(deltaT);
+    bool hasInteraction = AnimateOrbit(deltaT);
 
     // Z-up spherical coordinates: offset from target to camera
     // pitch = 90° => camera above, pitch = -90° => camera below
@@ -490,7 +558,7 @@ void ThirdPersonCamera::Animate(double deltaT)
     m_CameraUp = pxr::GfCross(m_CameraRight, m_CameraDir).GetNormalized();
 
     // Apply pan translation
-    AnimateTranslation(pxr::GfMatrix3d(1.0));
+    hasInteraction |= AnimateTranslation(pxr::GfMatrix3d(1.0));
 
     // Recalculate position after target may have moved
     x = m_Distance * cos(m_Pitch) * cos(m_Yaw);
@@ -509,6 +577,16 @@ void ThirdPersonCamera::Animate(double deltaT)
     m_CameraUp = pxr::GfCross(m_CameraRight, m_CameraDir).GetNormalized();
 
     UpdateWorldToView();
+
+    // Track interaction for event emission
+    m_HadInteractionLastFrame = hasInteraction;
+
+    // Only write to USD if there was actual user interaction
+    if (hasInteraction) {
+        UpdateUsdTransform();
+        SaveState();  // Also save spherical coordinates to USD attributes
+    }
+
     m_MousePosPrev = m_MousePos;
 }
 void ThirdPersonCamera::LookAt(
@@ -524,6 +602,25 @@ void ThirdPersonCamera::LookAt(
     SetDistance(dirLength);
     azimuth = -(azimuth + M_PI / 2.0f);
     SetRotation(azimuth, elevation);
+
+    // Update camera position and direction immediately
+    double x = m_Distance * cos(m_Pitch) * cos(m_Yaw);
+    double y = m_Distance * cos(m_Pitch) * sin(m_Yaw);
+    double z = m_Distance * sin(m_Pitch);
+    pxr::GfVec3d offset(x, y, z);
+
+    m_CameraPos = m_TargetPos + offset;
+    m_CameraDir = -offset.GetNormalized();
+
+    pxr::GfVec3d world_up(0, 0, 1);
+    if (std::abs(m_Pitch) > 0.99 * M_PI / 2.0) {
+        world_up = pxr::GfVec3d(-sin(m_Yaw), cos(m_Yaw), 0);
+    }
+    m_CameraRight = pxr::GfCross(m_CameraDir, world_up).GetNormalized();
+    m_CameraUp = pxr::GfCross(m_CameraRight, m_CameraDir).GetNormalized();
+
+    UpdateWorldToView();
+    UpdateUsdTransform();
 }
 
 void ThirdPersonCamera::LookTo(
@@ -540,6 +637,25 @@ void ThirdPersonCamera::LookTo(
     SetDistance(distance);
     azimuth = -(azimuth + M_PI / 2.0f);
     SetRotation(azimuth, elevation);
+
+    // Update camera position and direction immediately
+    double x = m_Distance * cos(m_Pitch) * cos(m_Yaw);
+    double y = m_Distance * cos(m_Pitch) * sin(m_Yaw);
+    double z = m_Distance * sin(m_Pitch);
+    pxr::GfVec3d offset(x, y, z);
+
+    m_CameraPos = m_TargetPos + offset;
+    m_CameraDir = -offset.GetNormalized();
+
+    pxr::GfVec3d world_up(0, 0, 1);
+    if (std::abs(m_Pitch) > 0.99 * M_PI / 2.0) {
+        world_up = pxr::GfVec3d(-sin(m_Yaw), cos(m_Yaw), 0);
+    }
+    m_CameraRight = pxr::GfCross(m_CameraDir, world_up).GetNormalized();
+    m_CameraUp = pxr::GfCross(m_CameraRight, m_CameraDir).GetNormalized();
+
+    UpdateWorldToView();
+    UpdateUsdTransform();
 }
 
 void ThirdPersonCamera::CartesianToSpherical(
@@ -601,10 +717,24 @@ void ThirdPersonCamera::LoadState()
         if (m_Distance < 0.1) {
             m_Distance = 10.0;
         }
-    }
-    else {
-        // No saved state - set invalid distance to signal this
-        m_Distance = 0.0;
+
+        // Update camera position from loaded state
+        double x = m_Distance * cos(m_Pitch) * cos(m_Yaw);
+        double y = m_Distance * cos(m_Pitch) * sin(m_Yaw);
+        double z = m_Distance * sin(m_Pitch);
+        pxr::GfVec3d offset(x, y, z);
+
+        m_CameraPos = m_TargetPos + offset;
+        m_CameraDir = -offset.GetNormalized();
+
+        pxr::GfVec3d world_up(0, 0, 1);
+        if (std::abs(m_Pitch) > 0.99 * M_PI / 2.0) {
+            world_up = pxr::GfVec3d(-sin(m_Yaw), cos(m_Yaw), 0);
+        }
+        m_CameraRight = pxr::GfCross(m_CameraDir, world_up).GetNormalized();
+        m_CameraUp = pxr::GfCross(m_CameraRight, m_CameraDir).GetNormalized();
+
+        UpdateWorldToView();
     }
 }
 

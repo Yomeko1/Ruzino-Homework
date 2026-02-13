@@ -231,33 +231,10 @@ void UsdviewEngine::DrawMenuBar()
                         // Hit something! Use the hit point as target
                         target = hit_point;
                         distance = (hit_point - current_pos).GetLength();
-
-                        spdlog::warn(
-                            "Camera switch: HIT object at path: {}",
-                            hit_path.GetAsString());
-                        spdlog::warn(
-                            "  Hit point: ({:.2f}, {:.2f}, {:.2f})",
-                            hit_point[0],
-                            hit_point[1],
-                            hit_point[2]);
-                        spdlog::warn(
-                            "  Camera pos: ({:.2f}, {:.2f}, {:.2f})",
-                            current_pos[0],
-                            current_pos[1],
-                            current_pos[2]);
-                        spdlog::warn("  Distance: {:.2f}", distance);
                     }
                     else {
                         // No hit, use default: 10 units in front
                         target = current_pos + current_dir * 10.0;
-                        spdlog::warn(
-                            "Camera switch: NO HIT, using default target 10 "
-                            "units ahead");
-                        spdlog::warn(
-                            "  Target: ({:.2f}, {:.2f}, {:.2f})",
-                            target[0],
-                            target[1],
-                            target[2]);
                     }
 
                     // Switch to third person
@@ -403,6 +380,11 @@ void UsdviewEngine::OnFrame(float delta_time)
         auto* third_camera =
             static_cast<ThirdPersonCamera*>(free_camera_.get());
         third_camera->SetView(frustum);
+
+        // Update cache for Inspector delta calculation
+        cached_camera_pos_ = third_camera->GetPosition();
+        cached_target_pos_ = third_camera->GetTargetPosition();
+        camera_state_cached_ = true;
     }
 
     _renderParams.enableLighting = true;
@@ -671,14 +653,11 @@ void UsdviewEngine::Animate(float elapsed_time_seconds)
 {
     free_camera_->Animate(elapsed_time_seconds);
 
-    // Save third person camera state after animation
+    // Notify Inspector only if there was actual user interaction
+    // This clears the cached Euler angles so rotation values update in UI
     if (engine_status.cam_type == CamType::Third) {
-        static int frame_counter = 0;
-        // Save every 60 frames to avoid excessive I/O
-        if (++frame_counter % 60 == 0) {
-            auto* third_camera =
-                static_cast<ThirdPersonCamera*>(free_camera_.get());
-            third_camera->SaveState();
+        if (free_camera_->HadInteractionLastFrame() && window) {
+            window->events().emit_any("camera_transform_modified", std::any());
         }
     }
 
@@ -725,6 +704,9 @@ bool UsdviewEngine::BuildUI()
 {
     // Subscribe to selection events on first frame
     subscribe_to_selection_events();
+
+    // Subscribe to camera transform modification events
+    subscribe_to_camera_transform_events();
 
     auto delta_time = ImGui::GetIO().DeltaTime;
 
@@ -863,6 +845,83 @@ void UsdviewEngine::subscribe_to_selection_events()
                     // Silently ignore invalid event data
                 }
             });
+    }
+}
+
+void UsdviewEngine::subscribe_to_camera_transform_events()
+{
+    if (!camera_transform_event_subscribed_ && window) {
+        camera_transform_event_subscribed_ = true;
+        window->events().subscribe_any(
+            "camera_transform_modified", [this](const std::any& event_data) {
+                on_camera_transform_modified();
+            });
+    }
+}
+
+void UsdviewEngine::on_camera_transform_modified()
+{
+    if (free_camera_) {
+        bool isThirdPerson = (engine_status.cam_type == CamType::Third);
+
+        // Reload camera state from USD prim (this reads Inspector's
+        // modifications) Inspector only modifies translation, rotation stays
+        // the same
+        free_camera_->ReloadFromUsd();
+
+        // For third person camera, synchronize spherical coords to match the
+        // new Matrix
+        if (isThirdPerson) {
+            auto* third_camera =
+                static_cast<ThirdPersonCamera*>(free_camera_.get());
+
+            // 1. Get the new Cartesian state from BaseCamera (populated by
+            // ReloadFromUsd)
+            pxr::GfVec3d newPos = third_camera->GetPosition();
+            pxr::GfVec3d newDir = third_camera->GetDir();  // View direction
+
+            // 2. Read stored Distance from USD (Matrix loses distance info)
+            double savedDistance = 10.0;
+            auto prim = third_camera->GetPrim();
+            if (prim) {
+                auto distAttr =
+                    prim.GetAttribute(pxr::TfToken("third_person:distance"));
+                if (distAttr) {
+                    double d;
+                    distAttr.Get(&d);
+                    if (d > 0.1)
+                        savedDistance = d;
+                }
+            }
+
+            // 3. Recalculate Target and Rotation from Pos/Dir/Dist
+            // Target = Pos + Dir * Dist
+            pxr::GfVec3d newTargetPos = newPos + newDir * savedDistance;
+
+            // Offset Direction (Target -> Camera) = -Dir
+            pxr::GfVec3d offsetDir = -newDir;
+
+            // Pitch = asin(z)
+            double newPitch =
+                std::asin(std::max(-1.0, std::min(1.0, offsetDir[2])));
+
+            // Yaw = atan2(y, x)
+            double newYaw = std::atan2(offsetDir[1], offsetDir[0]);
+
+            // 4. Update Internal State & Write back to USD attributes
+            third_camera->SetTargetPosition(newTargetPos);
+            third_camera->SetDistance(savedDistance);
+            third_camera->SetRotation(newYaw, newPitch);
+
+            // Write the derived spherical coords back to USD so they match the
+            // Matrix
+            third_camera->SaveState();
+
+            // Update cache for next time
+            cached_camera_pos_ = third_camera->GetPosition();
+            cached_target_pos_ = third_camera->GetTargetPosition();
+            camera_state_cached_ = true;
+        }
     }
 }
 

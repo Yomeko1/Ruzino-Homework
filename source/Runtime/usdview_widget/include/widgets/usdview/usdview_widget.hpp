@@ -105,6 +105,17 @@ class USDVIEW_WIDGET_API UsdviewEngine final : public IWidget {
     void on_prim_selected(const pxr::SdfPath& path);
     pxr::SdfPath current_selected_path_;  // Track current selection
 
+    // Camera transform synchronization support
+    bool camera_transform_event_subscribed_ = false;
+    void subscribe_to_camera_transform_events();
+    void on_camera_transform_modified();
+
+    // Cache last camera state for delta calculation when Inspector modifies
+    // transform
+    pxr::GfVec3d cached_camera_pos_;
+    pxr::GfVec3d cached_target_pos_;
+    bool camera_state_cached_ = false;
+
     // Cached frustum for raycast during camera switching
     pxr::GfFrustum cached_frustum_;
 };

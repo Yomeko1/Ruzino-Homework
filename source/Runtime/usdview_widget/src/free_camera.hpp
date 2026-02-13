@@ -72,6 +72,18 @@ class BaseCamera : public pxr::UsdGeomCamera {
         return m_CameraUp;
     }
 
+    // Reload camera transform from USD prim
+    void ReloadFromUsd();
+
+    // Update USD transform from current camera state
+    void UpdateUsdTransform();
+
+    // Check if there was user interaction in the last Animate() call
+    bool HadInteractionLastFrame() const
+    {
+        return m_HadInteractionLastFrame;
+    }
+
    protected:
     void BaseLookAt(
         pxr::GfVec3d cameraPos,
@@ -88,6 +100,8 @@ class BaseCamera : public pxr::UsdGeomCamera {
 
     double m_MoveSpeed = 1;
     double m_RotateSpeed = .05;
+
+    bool m_HadInteractionLastFrame = false;
 };
 
 class FirstPersonCamera : public BaseCamera {
@@ -254,8 +268,8 @@ class ThirdPersonCamera : public BaseCamera {
     void LoadState();
 
    private:
-    void AnimateOrbit(double deltaT);
-    void AnimateTranslation(const pxr::GfMatrix3d& viewMatrix);
+    bool AnimateOrbit(double deltaT);
+    bool AnimateTranslation(const pxr::GfMatrix3d& viewMatrix);
 
     pxr::GfMatrix4d m_ProjectionMatrix = pxr::GfMatrix4d(1.0);
     pxr::GfMatrix4d m_InverseProjectionMatrix = pxr::GfMatrix4d(1.0);
