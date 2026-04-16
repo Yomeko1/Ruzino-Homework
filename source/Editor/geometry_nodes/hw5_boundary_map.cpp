@@ -46,62 +46,75 @@ NODE_DECLARATION_FUNCTION(hw5_circle_boundary_mapping)
 
 NODE_EXECUTION_FUNCTION(hw5_circle_boundary_mapping)
 {
-    // Get the input from params
     auto input = params.get_input<Geometry>("Input");
 
-    // (TO BE UPDATED) Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
         throw std::runtime_error("Boundary Mapping: Need Geometry Input.");
     }
-    throw std::runtime_error("Not implemented");
 
-    /* ----------------------------- Preprocess -------------------------------
-    ** Create a halfedge structure (using OpenMesh) for the input mesh. The
-    ** half-edge data structure is a widely used data structure in geometric
-    ** processing, offering convenient operations for traversing and modifying
-    ** mesh elements.
-    */
     auto halfedge_mesh = operand_to_openmesh(&input);
+    int n_vertices = halfedge_mesh->n_vertices();
 
-    /* ----------- [HW4_TODO] TASK 2.1: Boundary Mapping (to circle)
-     *------------
-     ** In this task, you are required to map the boundary of the mesh to a
-     *circle
-     ** shape while ensuring the internal vertices remain unaffected. This step
-     *is
-     ** crucial for setting up the mesh for subsequent parameterization tasks.
-     **
-     ** Algorithm Pseudocode for Boundary Mapping to Circle
-     ** ------------------------------------------------------------------------
-     ** 1. Identify the boundary loop(s) of the mesh using the half-edge
-     *structure.
-     **
-     ** 2. Calculate the total length of the boundary loop to determine the
-     *spacing
-     **    between vertices when mapped to a square.
-     **
-     ** 3. Sequentially assign each boundary vertex a new position along the
-     *square's
-     **    perimeter, maintaining the calculated spacing to ensure proper
-     *distribution.
-     **
-     ** 4. Keep the interior vertices' positions unchanged during this process.
-     **
-     ** Note: How to distribute the points on the circle?
-     **
-     ** Note: It would be better to normalize the boundary to a unit circle in
-     *[0,1]x[0,1] for
-     ** texture mapping.
-     */
+    std::vector<int> boundary_edges(n_vertices, -1);
+    for (const auto& halfedge_handle : halfedge_mesh->halfedges()) {
+        if (halfedge_handle.is_boundary()) {
+            int from_idx = halfedge_handle.from().idx();
+            int to_idx = halfedge_handle.to().idx();
+            boundary_edges[from_idx] = to_idx;
+        }
+    }
 
-    /* ----------------------------- Postprocess ------------------------------
-    ** Convert the result mesh from the halfedge structure back to Geometry
-    *format as the node's
-    ** output.
-    */
+    int start = -1;
+    for (int i = 0; i < n_vertices; i++) {
+        if (boundary_edges[i] >= 0) {
+            start = i;
+            break;
+        }
+    }
+
+    if (start == -1) {
+        throw std::runtime_error("No boundary found.");
+    }
+
+    std::vector<int> boundary_loop;
+    int curr = start;
+    do {
+        boundary_loop.push_back(curr);
+        curr = boundary_edges[curr];
+    } while (curr != start && curr != -1);
+
+    if (boundary_loop.empty()) {
+        throw std::runtime_error("Failed to extract boundary loop.");
+    }
+
+    int n_boundary = boundary_loop.size();
+
+    std::vector<double> edge_lengths(n_boundary);
+    double total_length = 0;
+    for (int i = 0; i < n_boundary; i++) {
+        const auto& p1 = halfedge_mesh->point(halfedge_mesh->vertex_handle(boundary_loop[i]));
+        const auto& p2 = halfedge_mesh->point(halfedge_mesh->vertex_handle(boundary_loop[(i + 1) % n_boundary]));
+        edge_lengths[i] = (p2 - p1).length();
+        total_length += edge_lengths[i];
+    }
+
+    double accumulated = 0;
+    for (int i = 0; i < n_boundary; i++) {
+        double ratio = (accumulated + edge_lengths[i] * 0.5) / total_length;
+        double theta = 2.0 * M_PI * ratio;
+
+        double x = 0.5 + 0.4 * cos(theta);
+        double y = 0.5 + 0.4 * sin(theta);
+
+        auto vh = halfedge_mesh->vertex_handle(boundary_loop[i]);
+        halfedge_mesh->point(vh)[0] = x;
+        halfedge_mesh->point(vh)[1] = y;
+        halfedge_mesh->point(vh)[2] = 0;
+
+        accumulated += edge_lengths[i];
+    }
+
     auto geometry = openmesh_to_operand(halfedge_mesh.get());
-
-    // Set the output of the nodes
     params.set_output("Output", std::move(*geometry));
     return true;
 }
@@ -122,46 +135,90 @@ NODE_DECLARATION_FUNCTION(hw5_square_boundary_mapping)
 
 NODE_EXECUTION_FUNCTION(hw5_square_boundary_mapping)
 {
-    // Get the input from params
     auto input = params.get_input<Geometry>("Input");
 
-    // (TO BE UPDATED) Avoid processing the node when there is no input
     if (!input.get_component<MeshComponent>()) {
         throw std::runtime_error("Input does not contain a mesh");
     }
-    throw std::runtime_error("Not implemented");
 
-    /* ----------------------------- Preprocess -------------------------------
-    ** Create a halfedge structure (using OpenMesh) for the input mesh.
-    */
     auto halfedge_mesh = operand_to_openmesh(&input);
+    int n_vertices = halfedge_mesh->n_vertices();
 
-    /* ----------- [HW4_TODO] TASK 2.2: Boundary Mapping (to square)
-     *------------
-     ** In this task, you are required to map the boundary of the mesh to a
-     *circle
-     ** shape while ensuring the internal vertices remain unaffected.
-     **
-     ** Algorithm Pseudocode for Boundary Mapping to Square
-     ** ------------------------------------------------------------------------
-     ** (omitted)
-     **
-     ** Note: Can you perserve the 4 corners of the square after boundary
-     *mapping?
-     **
-     ** Note: It would be better to normalize the boundary to a unit circle in
-     *[0,1]x[0,1] for
-     ** texture mapping.
-     */
+    std::vector<int> boundary_edges(n_vertices, -1);
+    for (const auto& halfedge_handle : halfedge_mesh->halfedges()) {
+        if (halfedge_handle.is_boundary()) {
+            int from_idx = halfedge_handle.from().idx();
+            int to_idx = halfedge_handle.to().idx();
+            boundary_edges[from_idx] = to_idx;
+        }
+    }
 
-    /* ----------------------------- Postprocess ------------------------------
-    ** Convert the result mesh from the halfedge structure back to Geometry
-    *format as the node's
-    ** output.
-    */
+    int start = -1;
+    for (int i = 0; i < n_vertices; i++) {
+        if (boundary_edges[i] >= 0) {
+            start = i;
+            break;
+        }
+    }
+
+    if (start == -1) {
+        throw std::runtime_error("No boundary found.");
+    }
+
+    std::vector<int> boundary_loop;
+    int curr = start;
+    do {
+        boundary_loop.push_back(curr);
+        curr = boundary_edges[curr];
+    } while (curr != start && curr != -1);
+
+    if (boundary_loop.empty()) {
+        throw std::runtime_error("Failed to extract boundary loop.");
+    }
+
+    int n_boundary = boundary_loop.size();
+
+    std::vector<double> edge_lengths(n_boundary);
+    double total_length = 0;
+    for (int i = 0; i < n_boundary; i++) {
+        const auto& p1 = halfedge_mesh->point(halfedge_mesh->vertex_handle(boundary_loop[i]));
+        const auto& p2 = halfedge_mesh->point(halfedge_mesh->vertex_handle(boundary_loop[(i + 1) % n_boundary]));
+        edge_lengths[i] = (p2 - p1).length();
+        total_length += edge_lengths[i];
+    }
+
+    double side_length = total_length / 4.0;
+    double accumulated = 0;
+    int edge_idx = 0;
+
+    for (int i = 0; i < n_boundary; i++) {
+        double edge_pos = accumulated / total_length;
+        double t = fmod(accumulated + edge_lengths[i] * 0.5, total_length) / total_length;
+
+        double x, y;
+        if (t < 0.25) {
+            x = t * 4.0;
+            y = 0.0;
+        } else if (t < 0.5) {
+            x = 1.0;
+            y = (t - 0.25) * 4.0;
+        } else if (t < 0.75) {
+            x = 1.0 - (t - 0.5) * 4.0;
+            y = 1.0;
+        } else {
+            x = 0.0;
+            y = 1.0 - (t - 0.75) * 4.0;
+        }
+
+        auto vh = halfedge_mesh->vertex_handle(boundary_loop[i]);
+        halfedge_mesh->point(vh)[0] = x;
+        halfedge_mesh->point(vh)[1] = y;
+        halfedge_mesh->point(vh)[2] = 0;
+
+        accumulated += edge_lengths[i];
+    }
+
     auto geometry = openmesh_to_operand(halfedge_mesh.get());
-
-    // Set the output of the nodes
     params.set_output("Output", std::move(*geometry));
     return true;
 }
