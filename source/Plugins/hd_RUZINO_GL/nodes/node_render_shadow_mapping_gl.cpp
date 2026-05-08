@@ -1,15 +1,15 @@
-
-
 #include "../geometries/mesh.h"
 #include "../light.h"
 #include "nodes/core/def/node_def.hpp"
 #include "pxr/base/gf/frustum.h"
+#include "pxr/base/gf/matrix4f.h"
 #include "pxr/imaging/glf/simpleLight.h"
 #include "pxr/imaging/hd/tokens.h"
 #include "render_node_base.h"
 #include "rich_type_buffer.hpp"
 #include "utils/draw_fullscreen.h"
 NODE_DEF_OPEN_SCOPE
+
 NODE_DECLARATION_FUNCTION(shadow_mapping)
 {
     b.add_input<int>("resolution").default_val(1024).min(256).max(4096);
@@ -24,9 +24,8 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
 
     GLTextureDesc texture_desc;
     texture_desc.array_size = lights.size();
-    // texture_desc.array_size = 1;
     texture_desc.size = GfVec2i(resolution);
-    texture_desc.format = HdFormatUNorm8Vec4;
+    texture_desc.format = HdFormatFloat32Vec4;
     auto shadow_map_texture = resource_allocator.create(texture_desc);
 
     auto shaderPath = params.get_input<std::string>("Shader");
@@ -51,17 +50,11 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
 
     glViewport(0, 0, resolution, resolution);
     int NN = lights.size();
-    auto tmp = global_payload;
     for (int light_id = 0; light_id < NN; ++light_id) {
         shader_handle->shader.use();
         if (!lights[light_id]->GetId().IsEmpty()) {
             GlfSimpleLight light_params =
                 lights[light_id]->Get(HdTokens->params).Get<GlfSimpleLight>();
-
-            // HW6: The matrices for lights information is here! Current value
-            // is set that "it just works". However, you should try to modify
-            // the values to see how it affects the performance of the shadow
-            // maps.
 
             GfMatrix4f light_view_mat;
             GfMatrix4f light_projection_mat;
@@ -76,7 +69,7 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
 
                 light_view_mat = GfMatrix4f().SetLookAt(
                     light_position, GfVec3f(0, 0, 0), GfVec3f(0, 0, 1));
-                frustum.SetPerspective(120.f, 1.0, 1, 25.f);
+                frustum.SetPerspective(120.f, 1.0, 0.1, 25.f);
                 light_projection_mat =
                     GfMatrix4f(frustum.ComputeProjectionMatrix());
 
@@ -98,7 +91,7 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
                 0,
                 light_id);
 
-            texture_desc.format = HdFormatFloat32UInt8;
+            texture_desc.format = HdFormatFloat32;
             texture_desc.array_size = 1;
             auto depth_texture_for_opengl =
                 resource_allocator.create(texture_desc);

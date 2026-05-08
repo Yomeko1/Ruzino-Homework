@@ -341,13 +341,57 @@ Color Hd_RUZINO_Rect_Light::Sample(
     float& sample_light_pdf,
     const std::function<float()>& uniform_float)
 {
-    return {};
+    float u = uniform_float();
+    float v = uniform_float();
+
+    GfVec3f edge1 = corner1 - corner0;
+    GfVec3f edge2 = corner2 - corner0;
+    GfVec3f point_on_light = corner0 + edge1 * u + edge2 * v;
+    sampled_light_pos = point_on_light;
+
+    dir = (point_on_light - pos).GetNormalized();
+
+    float distance = (point_on_light - pos).GetLength();
+    GfVec3f normal = GfCross(edge1, edge2).GetNormalized();
+    float cos_theta = std::abs(GfDot(-dir, normal));
+    float rect_area = width * height;
+    sample_light_pdf = (distance * distance) / (rect_area * cos_theta + 1e-6f);
+
+    if (cos_theta < 0) {
+        return Color{ 0 };
+    }
+    return irradiance / M_PI;
 }
 
-// HW7_TODO: implement the intersect function for rectangle light, you can refer to the sphere light, but you need to consider the fact that rectangle light is not a point light source.
 Color Hd_RUZINO_Rect_Light::Intersect(const GfRay& ray, float& depth)
 {
-    return {};
+    GfVec3f edge1 = corner1 - corner0;
+    GfVec3f edge2 = corner2 - corner0;
+    GfVec3f normal = GfCross(edge1, edge2).GetNormalized();
+
+    float denom = GfDot(ray.GetDirection(), normal);
+    if (std::abs(denom) < 1e-6f) {
+        return Color{ 0 };
+    }
+
+    float t = GfDot(corner0 - ray.GetStartPoint(), normal) / denom;
+    if (t < 0) {
+        return Color{ 0 };
+    }
+
+    GfVec3f p = GfVec3f(ray.GetPoint(t));
+    GfVec3f pv = p - corner0;
+
+    float edge1Len = edge1.GetLength();
+    float edge2Len = edge2.GetLength();
+    float u_coord = GfDot(pv, edge1.GetNormalized()) / edge1Len;
+    float v_coord = GfDot(pv, edge2.GetNormalized()) / edge2Len;
+
+    if (u_coord >= 0.0f && u_coord <= 1.0f && v_coord >= 0.0f && v_coord <= 1.0f) {
+        depth = t;
+        return irradiance / M_PI;
+    }
+    return Color{ 0 };
 }
 
 void Hd_RUZINO_Rect_Light::Sync(
@@ -380,7 +424,8 @@ void Hd_RUZINO_Rect_Light::Sync(
                 .Get<GfVec3f>() *
             diffuse;
 
-    // HW7_TODO: calculate irradiance
+    area = width * height;
+    irradiance = power / area;
 }
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

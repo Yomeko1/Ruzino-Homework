@@ -1,8 +1,10 @@
 // #define __GNUC__
 
+#include <spdlog/spdlog.h>
 #include "../camera.h"
 #include "../light.h"
 #include "nodes/core/def/node_def.hpp"
+#include "pxr/base/gf/frustum.h"
 #include "pxr/base/gf/matrix4f.h"
 #include "pxr/imaging/glf/simpleLight.h"
 #include "pxr/imaging/hd/tokens.h"
@@ -35,8 +37,6 @@ struct LightInfo {
 
 NODE_EXECUTION_FUNCTION(deferred_lighting)
 {
-    // Fetch all the information
-
     auto position_texture = params.get_input<GLTextureHandle>("Position");
     auto diffuseColor_texture =
         params.get_input<GLTextureHandle>("diffuseColor");
@@ -48,7 +48,6 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
     auto shadow_maps = params.get_input<GLTextureHandle>("Shadow Maps");
 
     Hd_RUZINO_Camera* free_camera = get_free_camera(params);
-    // Creating output textures.
     auto size = position_texture->desc.size;
     GLTextureDesc color_output_desc;
     color_output_desc.format = HdFormatFloat32Vec4;
@@ -100,13 +99,14 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_maps->texture_id);
 
-    shader->shader.setInt("position", 4);
+    shader->shader.setInt("positionSampler", 4);
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, position_texture->texture_id);
 
     GfVec3f camPos =
         GfMatrix4f(free_camera->GetTransform()).ExtractTranslation();
     shader->shader.setVec3("camPos", camPos);
+    shader->shader.setFloat("ambientStrength", 0.1f);
 
     GLuint lightBuffer;
     glGenBuffers(1, &lightBuffer);
@@ -127,12 +127,11 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
                 auto radius =
                     lights[i]->Get(HdLightTokens->radius).Get<float>();
 
-                light_vector.emplace_back(
-                    GfMatrix4f(), GfMatrix4f(), position3, 0.f, diffuse3, i);
+                if (lights[i]->GetLightType() == HdPrimTypeTokens->sphereLight) {
+                    light_vector.emplace_back(
+                        GfMatrix4f(), GfMatrix4f(), position3, radius, diffuse3, i);
+                }
             }
-
-            // You can add directional light here, and also the corresponding
-            // shadow map calculation part.
         }
     }
 
@@ -149,7 +148,11 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
     glBindVertexArray(VAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    DestroyFullScreenVAO(VAO, VBO);
+    glBindVertexArray(0);
+    glDeleteBuffers(1, &VBO);
+    glDeleteVertexArrays(1, &VAO);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     resource_allocator.destroy(shader);
     glDeleteBuffers(1, &lightBuffer);
@@ -158,6 +161,7 @@ NODE_EXECUTION_FUNCTION(deferred_lighting)
 
     auto shader_error = shader->shader.get_error();
     if (!shader_error.empty()) {
+        spdlog::error("Shader error: {}", shader_error);
         return false;
     }
     return true;

@@ -81,7 +81,6 @@ class SamplingIntegrator : public Integrator {
 
    protected:
     unsigned spp = 8;
-//    unsigned spp = 4;
 
     void _writeBuffer(unsigned x, unsigned y, VtValue color);
 

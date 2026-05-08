@@ -250,7 +250,8 @@ Color Hd_RUZINO_Material::Eval(GfVec3f wi, GfVec3f wo, GfVec2f texcoord)
 
 float Hd_RUZINO_Material::Pdf(GfVec3f wi, GfVec3f wo, GfVec2f texcoord)
 {
-    return 0;
+    float cosTheta = std::abs(wi[2]);
+    return cosTheta / M_PI;
 }
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
