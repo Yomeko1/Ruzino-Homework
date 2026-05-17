@@ -1,6 +1,8 @@
 #include "MassSpring.h"
 
+#include <cmath>
 #include <iostream>
+#include <vector>
 
 namespace USTC_CG::mass_spring {
 MassSpring::MassSpring(const Eigen::MatrixXd& X, const EdgeSet& E)
@@ -48,18 +50,152 @@ void MassSpring::step()
         // Implicit Euler
         TIC(step)
 
-        // (HW TODO)
-        // auto H_elastic = computeHessianSparse(stiffness);  // size = [nx3,
-        // nx3]
+        const Eigen::MatrixXd X_old = X;
+        const double inertia_coeff = mass_per_vertex / (h * h);
+        const double regularization = std::max(1e-8, 1e-6 * stiffness);
+        const unsigned max_newton_iterations = 8;
+        const double newton_tolerance = 1e-8;
 
-        // compute Y
+        Eigen::MatrixXd Y = X + h * vel;
+        Y.rowwise() += (h * h * acceleration_ext).transpose();
+        if (enable_sphere_collision) {
+            Y += h * h * acceleration_collision;
+        }
 
-        // Solve Newton's search direction with linear solver
+        std::vector<int> full_to_reduced(n_vertices * 3, -1);
+        std::vector<int> reduced_to_full;
+        reduced_to_full.reserve(n_vertices * 3);
+        for (unsigned i = 0; i < n_vertices; ++i) {
+            if (dirichlet_bc_mask[i]) {
+                X.row(i) = init_X.row(i);
+                vel.row(i).setZero();
+            }
+            else {
+                for (int d = 0; d < 3; ++d) {
+                    full_to_reduced[3 * i + d] =
+                        static_cast<int>(reduced_to_full.size());
+                    reduced_to_full.push_back(3 * i + d);
+                }
+            }
+        }
+        const int n_free = static_cast<int>(reduced_to_full.size());
 
-        // update X and vel
-        // **Delete the following two lines**
-        vel = 0.03f * Eigen::MatrixXd::Ones(X.rows(), X.cols());
-        X += vel * h;
+        for (unsigned iter = 0; iter < max_newton_iterations; ++iter) {
+            auto H_elastic = computeHessianSparse(stiffness);
+            SparseMatrix_d A = H_elastic;
+            for (unsigned i = 0; i < 3 * n_vertices; ++i) {
+                A.coeffRef(i, i) += inertia_coeff + regularization;
+            }
+            A.makeCompressed();
+
+            Eigen::VectorXd grad_g =
+                inertia_coeff * (flatten(X) - flatten(Y)) + flatten(computeGrad(stiffness));
+
+            std::vector<Trip_d> A_reduced_triplets;
+            A_reduced_triplets.reserve(A.nonZeros());
+            for (int col = 0; col < A.outerSize(); ++col) {
+                const int reduced_col = full_to_reduced[col];
+                if (reduced_col < 0) {
+                    continue;
+                }
+                for (SparseMatrix_d::InnerIterator it(A, col); it; ++it) {
+                    const int reduced_row = full_to_reduced[it.row()];
+                    if (reduced_row >= 0) {
+                        A_reduced_triplets.emplace_back(
+                            reduced_row, reduced_col, it.value());
+                    }
+                }
+            }
+
+            SparseMatrix_d A_reduced(n_free, n_free);
+            A_reduced.setFromTriplets(
+                A_reduced_triplets.begin(), A_reduced_triplets.end());
+            A_reduced.makeCompressed();
+
+            Eigen::VectorXd rhs_reduced(n_free);
+            for (int idx = 0; idx < n_free; ++idx) {
+                rhs_reduced[idx] = -grad_g[reduced_to_full[idx]];
+            }
+
+            if (enable_debug_output) {
+                std::cout << "Newton iter " << iter
+                          << ", rhs norm: " << rhs_reduced.norm()
+                          << ", A_reduced size: " << A_reduced.rows() << "x"
+                          << A_reduced.cols() << std::endl;
+            }
+
+            if (rhs_reduced.norm() < newton_tolerance) {
+                break;
+            }
+
+            Eigen::SimplicialLDLT<SparseMatrix_d> solver;
+            solver.compute(A_reduced);
+            if (solver.info() != Eigen::Success) {
+                std::cerr << "LDLT factorization failed, falling back to SparseLU."
+                          << std::endl;
+                Eigen::SparseLU<SparseMatrix_d> fallback_solver;
+                fallback_solver.analyzePattern(A_reduced);
+                fallback_solver.factorize(A_reduced);
+                if (fallback_solver.info() != Eigen::Success) {
+                    std::cerr << "Linear solver factorize failed!" << std::endl;
+                    return;
+                }
+                Eigen::VectorXd fallback_delta = fallback_solver.solve(rhs_reduced);
+                if (fallback_solver.info() != Eigen::Success ||
+                    !fallback_delta.allFinite()) {
+                    std::cerr << "Linear solve failed!" << std::endl;
+                    return;
+                }
+
+                Eigen::VectorXd delta_X_flat =
+                    Eigen::VectorXd::Zero(n_vertices * 3);
+                for (int idx = 0; idx < n_free; ++idx) {
+                    delta_X_flat[reduced_to_full[idx]] = fallback_delta[idx];
+                }
+                Eigen::MatrixXd delta_X = unflatten(delta_X_flat);
+                X += delta_X;
+                for (unsigned i = 0; i < n_vertices; ++i) {
+                    if (dirichlet_bc_mask[i]) {
+                        X.row(i) = init_X.row(i);
+                    }
+                }
+                if (delta_X.norm() < newton_tolerance) {
+                    break;
+                }
+                continue;
+            }
+
+            Eigen::VectorXd delta_X_reduced = solver.solve(rhs_reduced);
+            if (solver.info() != Eigen::Success || !delta_X_reduced.allFinite()) {
+                std::cerr << "Linear solve failed!" << std::endl;
+                return;
+            }
+
+            Eigen::VectorXd delta_X_flat = Eigen::VectorXd::Zero(n_vertices * 3);
+            for (int idx = 0; idx < n_free; ++idx) {
+                delta_X_flat[reduced_to_full[idx]] = delta_X_reduced[idx];
+            }
+
+            Eigen::MatrixXd delta_X = unflatten(delta_X_flat);
+            X += delta_X;
+            for (unsigned i = 0; i < n_vertices; ++i) {
+                if (dirichlet_bc_mask[i]) {
+                    X.row(i) = init_X.row(i);
+                }
+            }
+
+            if (delta_X.norm() < newton_tolerance) {
+                break;
+            }
+        }
+
+        vel = (X - X_old) / h;
+        for (unsigned i = 0; i < n_vertices; ++i) {
+            if (dirichlet_bc_mask[i]) {
+                X.row(i) = init_X.row(i);
+                vel.row(i).setZero();
+            }
+        }
 
         TOC(step)
     }
@@ -76,9 +212,25 @@ void MassSpring::step()
         }
         // -----------------------------------------------
 
-        // (HW TODO): Implement semi-implicit Euler time integration
+        vel += h * acceleration;
+        if (enable_damping) {
+            vel *= damping;
+        }
 
-        // Update X and vel
+        for (unsigned i = 0; i < n_vertices; ++i) {
+            if (dirichlet_bc_mask[i]) {
+                vel.row(i).setZero();
+                X.row(i) = init_X.row(i);
+            }
+        }
+
+        X += h * vel;
+
+        for (unsigned i = 0; i < n_vertices; ++i) {
+            if (dirichlet_bc_mask[i]) {
+                X.row(i) = init_X.row(i);
+            }
+        }
     }
     else {
         std::cerr << "Unknown time integrator!" << std::endl;
@@ -110,10 +262,16 @@ Eigen::MatrixXd MassSpring::computeGrad(double stiffness)
     Eigen::MatrixXd g = Eigen::MatrixXd::Zero(X.rows(), X.cols());
     unsigned i = 0;
     for (const auto& e : E) {
-        // --------------------------------------------------
-        // (HW TODO): Implement the gradient computation
+        Eigen::Vector3d diff = X.row(e.first) - X.row(e.second);
+        double length = diff.norm();
 
-        // --------------------------------------------------
+        if (length > 1e-12) {
+            Eigen::Vector3d grad =
+                stiffness * (length - E_rest_length[i]) * diff / length;
+            g.row(e.first) += grad.transpose();
+            g.row(e.second) -= grad.transpose();
+        }
+
         i++;
     }
     return g;
@@ -123,29 +281,55 @@ Eigen::SparseMatrix<double> MassSpring::computeHessianSparse(double stiffness)
 {
     unsigned n_vertices = X.rows();
     Eigen::SparseMatrix<double> H(n_vertices * 3, n_vertices * 3);
+    std::vector<Trip_d> triplets;
+    triplets.reserve(E.size() * 36);
 
     unsigned i = 0;
     auto k = stiffness;
-    const auto I = Eigen::MatrixXd::Identity(3, 3);
+    const auto I = Eigen::Matrix3d::Identity();
     for (const auto& e : E) {
-        // --------------------------------------------------
-        // (HW TODO): Implement the sparse version Hessian computation
-        // Remember to consider fixed points
-        // You can also consider positive definiteness here
+        Eigen::Vector3d diff = X.row(e.first) - X.row(e.second);
+        double length = diff.norm();
 
-        // --------------------------------------------------
+        if (length > 1e-12) {
+            Eigen::Matrix3d outer = diff * diff.transpose() / (length * length);
+            Eigen::Matrix3d H_local;
+
+            if (enable_make_SPD && E_rest_length[i] > length) {
+                H_local = k * outer;
+            }
+            else {
+                H_local = k * outer +
+                          k * (1.0 - E_rest_length[i] / length) * (I - outer);
+            }
+
+            int v0 = e.first;
+            int v1 = e.second;
+            for (int r = 0; r < 3; ++r) {
+                for (int c = 0; c < 3; ++c) {
+                    double value = H_local(r, c);
+                    int row0 = 3 * v0 + r;
+                    int col0 = 3 * v0 + c;
+                    int row1 = 3 * v1 + r;
+                    int col1 = 3 * v1 + c;
+                    triplets.emplace_back(row0, col0, value);
+                    triplets.emplace_back(row1, col1, value);
+                    triplets.emplace_back(row0, col1, -value);
+                    triplets.emplace_back(row1, col0, -value);
+                }
+            }
+        }
 
         i++;
     }
 
+    H.setFromTriplets(triplets.begin(), triplets.end());
     H.makeCompressed();
     return H;
 }
 
 bool MassSpring::checkSPD(const Eigen::SparseMatrix<double>& A)
 {
-    // Eigen::SimplicialLDLT<SparseMatrix_d> ldlt(A);
-    // return ldlt.info() == Eigen::Success;
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(A);
     auto eigen_values = es.eigenvalues();
     return eigen_values.minCoeff() >= 1e-10;

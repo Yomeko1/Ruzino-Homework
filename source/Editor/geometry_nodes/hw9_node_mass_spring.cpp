@@ -56,6 +56,7 @@ NODE_DECLARATION_FUNCTION(hw9_mass_spring)
     b.add_input<int>("enable time profiling").default_val(0).min(0).max(1);
     b.add_input<int>("enable damping").default_val(0).min(0).max(1);
     b.add_input<int>("enable debug output").default_val(0).min(0).max(1);
+    b.add_input<int>("enable make SPD").default_val(1).min(0).max(1);  // HW: ensure Hessian positive definite
 
     // Optional switches
     b.add_input<int>("enable Liu13").default_val(0).min(0).max(1);
@@ -143,6 +144,8 @@ NODE_EXECUTION_FUNCTION(hw9_mass_spring)
             mass_spring->enable_debug_output =
                 params.get_input<int>("enable debug output") == 1 ? true
                                                                   : false;
+            mass_spring->enable_make_SPD =
+                params.get_input<int>("enable make SPD") == 1 ? true : false;
         }
         else {
             mass_spring = nullptr;

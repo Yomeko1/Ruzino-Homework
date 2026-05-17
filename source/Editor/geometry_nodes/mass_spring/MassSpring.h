@@ -92,7 +92,7 @@ class MassSpring {
     // Useful switches
     bool enable_sphere_collision = false;
     bool enable_time_profiling = false;
-    bool enable_make_SPD = false;
+    bool enable_make_SPD = true;  // Default true for stability
     bool enable_check_SPD = false;
     bool enable_damping = true;
     bool enable_debug_output = false;
